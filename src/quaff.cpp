@@ -203,7 +203,7 @@ QuaffForwardMatrix::QuaffForwardMatrix (const FastSeq& x, const FastSeq& y, cons
 			       ins[i-1][j-1] + qs.i2m);
       if (j == 1)
 	mat[i][j] = log_sum_exp (mat[i][j],
-				 0);
+				 start);
 
       mat[i][j] += matchScore(i,j);
 
@@ -230,19 +230,17 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
     initProgress ("Backward matrix");
 
   end = 0;
-  for (int i = xLen; i >= 0; --i) {
+  for (int i = xLen; i > 0; --i) {
     if (LogThisAt(2))
       logProgress ((xLen - i) / (double) xLen, "base %d/%d", i, xLen);
 
-    for (int j = yLen; j >= 0; --j) {
+    const double m2e = transCount (mat[i][yLen],
+				   fwd.mat[i][yLen],
+				   qs.m2e,
+				   end);
+    qc.m2e += m2e;
 
-      if (j == yLen) {
-	const double m2e = transCount (mat[i][j],
-				       fwd.mat[i][j],
-				       qs.m2e,
-				       0);
-	qc.m2e += m2e;
-      }
+    for (int j = yLen; j > 0; --j) {
       
       if (i < xLen && j < yLen) {
 	const double matEmit = matchScore(i+1,j+1);
@@ -327,9 +325,9 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 }
 
 double QuaffBackwardMatrix::transCount (double& backSrc, double fwdSrc, double trans, double backDest) const {
-  const double backSrcToDest = trans + backDest;
-  const double count = exp (fwdSrc + backSrcToDest - pfwd->result);
-  backSrc = log_sum_exp (backSrc, backSrcToDest);
+  const double transBackDest = trans + backDest;
+  const double count = exp (fwdSrc + transBackDest - pfwd->result);
+  backSrc = log_sum_exp (backSrc, transBackDest);
   return count;
 }
 
