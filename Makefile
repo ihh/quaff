@@ -4,7 +4,7 @@ CPPFILES = $(wildcard src/*.cpp)
 
 all: test
 
-test: testfast testquaffio
+test: testfast testquaffio testlogsumexp
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
@@ -20,3 +20,7 @@ testfast: bin/testfasta bin/testfastq
 
 testquaffio: bin/testquaffio
 	perl/testexpect.pl bin/testquaffio data/testquaffparams.yaml data/testquaffparams.yaml
+
+testlogsumexp: bin/testlogsumexp
+	bin/testlogsumexp -slow >data/logsumexp.txt
+	perl/testexpect.pl bin/testlogsumexp -fast data/logsumexp.txt
