@@ -61,12 +61,12 @@ struct QuaffCounts {
 
 // Alignment
 struct Alignment {
-  vector<string> name, gappedSeq;
+  vector<FastSeq> gappedSeq;
   Alignment (int numRows = 0)
-    : name(numRows), gappedSeq(numRows)
+    : gappedSeq(numRows)
   { }
   void write (ostream& out) const;
-  FastSeq getUngappedSeq (int row) const;
+  FastSeq getUngapped (int row) const;
 };
 
 // DP matrices
