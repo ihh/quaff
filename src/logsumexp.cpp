@@ -10,7 +10,7 @@ using namespace std;
 #define LOG_SUM_EXP_LOOKUP_ENTRIES (((int) (LOG_SUM_EXP_LOOKUP_MAX / LOG_SUM_EXP_LOOKUP_PRECISION)) + 1)
 
 struct LogSumExpLookupTable {
-  long double *lookup;
+  double *lookup;
   LogSumExpLookupTable();
   ~LogSumExpLookupTable();
 };
@@ -18,9 +18,9 @@ struct LogSumExpLookupTable {
 LogSumExpLookupTable logSumExpLookupTable;
 
 LogSumExpLookupTable::LogSumExpLookupTable() {
-  lookup = new long double [LOG_SUM_EXP_LOOKUP_ENTRIES];
+  lookup = new double [LOG_SUM_EXP_LOOKUP_ENTRIES];
   int n;
-  long double x;
+  double x;
   for (n = 0; n < LOG_SUM_EXP_LOOKUP_ENTRIES; ++n) {
     x = n * LOG_SUM_EXP_LOOKUP_PRECISION;
     lookup[n] = log_sum_exp_unary_slow(x);
@@ -31,7 +31,7 @@ LogSumExpLookupTable::~LogSumExpLookupTable() {
   delete lookup;
 }
 
-long double log_sum_exp (long double a, long double b) {
+double log_sum_exp (double a, double b) {
   double min, max, diff, ret;
   if (a < b) { min = a; max = b; }
   else { min = b; max = a; }
@@ -46,7 +46,15 @@ long double log_sum_exp (long double a, long double b) {
   return ret;
 }
 
-long double log_sum_exp_slow (long double a, long double b) {
+double log_sum_exp (double a, double b, double c) {
+  return log_sum_exp (log_sum_exp (a, b), c);
+}
+
+double log_sum_exp (double a, double b, double c, double d) {
+  return log_sum_exp (log_sum_exp (log_sum_exp (a, b), c), d);
+}
+
+double log_sum_exp_slow (double a, double b) {
   double min, max, diff, ret;
   if (a < b) { min = a; max = b; }
   else { min = b; max = a; }
@@ -61,12 +69,20 @@ long double log_sum_exp_slow (long double a, long double b) {
   return ret;
 }
 
-long double log_sum_exp_unary (long double x) {
+double log_sum_exp_slow (double a, double b, double c) {
+  return log_sum_exp_slow (log_sum_exp_slow (a, b), c);
+}
+
+double log_sum_exp_slow (double a, double b, double c, double d) {
+  return log_sum_exp_slow (log_sum_exp_slow (log_sum_exp_slow (a, b), c), d);
+}
+
+double log_sum_exp_unary (double x) {
 #ifdef LOGSUMEXP_DEBUG
   return log_sum_exp_unary_slow(x);
 #else /* LOGSUMEXP_DEBUG */
   int n;
-  long double dx, f0, f1, df;
+  double dx, f0, f1, df;
   if (x >= LOG_SUM_EXP_LOOKUP_MAX || isnan(x) || isinf(x))
     return 0;
   if (x < 0) {  /* really dumb approximation for x < 0. Should never be encountered, so issue a warning */
@@ -82,6 +98,6 @@ long double log_sum_exp_unary (long double x) {
 #endif /* LOGSUMEXP_DEBUG */
 }
 
-long double log_sum_exp_unary_slow (long double x) {
+double log_sum_exp_unary_slow (double x) {
   return log (1. + exp(-x));
 }

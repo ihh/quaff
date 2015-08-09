@@ -2,7 +2,9 @@
 #define QUAFF_INCLUDED
 
 #include <map>
+#include <numeric>
 #include "fastseq.h"
+#include "logger.h"
 
 // struct describing the probability of a given FASTA symbol,
 // and a negative binomial distribution over the associated quality score
@@ -16,22 +18,22 @@ struct SymQualDist {
 
 // Memo-ized log scores for a SymQualDist
 struct SymQualScores {
-  double symLogProb; // log-probability of symbol
-  vector<double> logQualProb;  // log-probability distribution over qual scores
+  vector<double> logQualProb;  // logQualProb[q] = P(this symbol wih quality score q)
   SymQualScores() { }
   SymQualScores (const SymQualDist& sqd);
 };
 
 // Summary statistics for a SymQualDist
 struct SymQualCounts {
-  double symCount;  // no. of times symbol seen
   vector<double> qualCount;  // no. of times each quality score seen
   SymQualCounts();
+  double symCount() const { return accumulate (qualCount.begin(), qualCount.end(), 0.); }
   void write (ostream& out, const string& prefix) const;
 };
 
 // Parameters of a quaff model
 struct QuaffParams {
+  Logger *logger;
   double beginInsert, extendInsert, beginDelete, extendDelete;
   vector<SymQualDist> insert;  // emissions from insert state
   vector<vector<SymQualDist> > match;  // substitutions from match state (conditional on input)
@@ -76,32 +78,42 @@ struct Alignment {
 
 // DP matrices
 struct QuaffDPMatrix {
+  Logger *logger;
   const FastSeq *px, *py;
-  const QuaffScores *pqs;
-  vector<int> xTok, xQual, yTok, yQual;
+  QuaffScores qs;
+  vector<int> xTok, yTok, yQual;
+  int xLen, yLen;
   vector<vector<double> > mat, ins, del;
   double start, end, result;
-  QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffScores& qs);
+  inline double matchScore (int i, int j) {
+    return qs.match[xTok[i-1]][yTok[j-1]].logQualProb[yQual[j-1]];
+  }
+  inline double insertScore (int j) {
+    return qs.insert[yTok[j-1]].logQualProb[yQual[j-1]];
+  }
+  QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
 };
 
 struct QuaffForwardMatrix : QuaffDPMatrix {
-  QuaffForwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffScores& qs);
+  QuaffForwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
 };
 
 struct QuaffBackwardMatrix : QuaffDPMatrix {
-  QuaffBackwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffScores& qs, QuaffCounts& counts);
-};
-
-struct QuaffForwardBackwardMatrix {
-  QuaffCounts counts;
-  QuaffForwardMatrix fwd;
-  QuaffBackwardMatrix back;
-  QuaffForwardBackwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffScores& qs);
+  const QuaffForwardMatrix *pfwd;
+  QuaffCounts qc;
+  QuaffBackwardMatrix (const QuaffForwardMatrix& fwd);
+  double transCount (double& backSrc, double fwdSrc, double trans, double backDest) const;
+  inline double& matchCount (int i, int j) {
+    return qc.match[xTok[i-1]][yTok[j-1]].qualCount[yQual[j-1]];
+  }
+  inline double& insertCount (int j) {
+    return qc.insert[yTok[j-1]].qualCount[yQual[j-1]];
+  }
 };
 
 struct QuaffViterbiMatrix : QuaffDPMatrix {
-  Alignment align;
   QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, const QuaffScores& qs);
+  Alignment alignment() const;
 };
 
 // Baum-Welch style EM algorithm (also fits quality score distributions)

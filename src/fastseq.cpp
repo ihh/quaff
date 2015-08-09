@@ -16,8 +16,14 @@ int tokenize (char c, const string& alphabet) {
 vector<int> FastSeq::tokens (const string& alphabet) const {
   vector<int> tok;
   tok.reserve (length());
-  for (auto c : seq)
-    tok.push_back (tokenize (c, alphabet));
+  for (auto c : seq) {
+    const int t = tokenize (c, alphabet);
+    if (t < 0) {
+      cerr << "Unknown symbol " << c << " in sequence " << name << endl;
+      throw;
+    }
+    tok.push_back (t);
+  }
   return tok;
 }
 

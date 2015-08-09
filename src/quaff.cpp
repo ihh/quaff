@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <gsl/gsl_randist.h>
 #include "quaff.h"
+#include "logsumexp.h"
 
 SymQualDist::SymQualDist()
   : symProb(1. / dnaAlphabetSize),
@@ -24,22 +25,20 @@ void SymQualDist::read (map<string,double>& paramVal, const string& prefix) {
 }
 
 SymQualScores::SymQualScores (const SymQualDist& sqd)
-  : symLogProb (log (sqd.symProb)),
-    logQualProb (FastSeq::qualScoreRange)
+  : logQualProb (FastSeq::qualScoreRange)
 {
+  const double symLogProb = log (sqd.symProb);
   for (int k = 0; k < FastSeq::qualScoreRange; ++k)
-    logQualProb[k] = log (gsl_ran_negative_binomial_pdf (k, sqd.qualTrialSuccessProb, sqd.qualNumFailedTrials));
+    logQualProb[k] = symLogProb + log (gsl_ran_negative_binomial_pdf (k, sqd.qualTrialSuccessProb, sqd.qualNumFailedTrials));
 }
 
 SymQualCounts::SymQualCounts()
-  : symCount(0.),
-    qualCount (FastSeq::qualScoreRange, 0.)
+  : qualCount (FastSeq::qualScoreRange, 0.)
 { }
 
 void SymQualCounts::write (ostream& out, const string& prefix) const {
-  out << prefix << ": " << symCount << endl;
   if (qualCount.size()) {
-    out << prefix << "q: [" << qualCount[0];
+    out << prefix << ": [" << qualCount[0];
     for (unsigned int i = 1; i < qualCount.size(); ++i)
       out << ", " << qualCount[i];
     out << ']' << endl;
@@ -47,7 +46,8 @@ void SymQualCounts::write (ostream& out, const string& prefix) const {
 }
 
 QuaffParams::QuaffParams()
-  : beginInsert(.5),
+  : logger (NULL),
+    beginInsert(.5),
     extendInsert(.5),
     beginDelete(.5),
     extendDelete(.5),
@@ -168,14 +168,16 @@ FastSeq Alignment::getUngapped (int row) const {
   return s;
 }
 
-QuaffDPMatrix::QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffScores& qs)
-  : px (&x),
+QuaffDPMatrix::QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp)
+  : logger (qp.logger),
+    px (&x),
     py (&y),
-    pqs (&qs),
+    qs (qp),
     xTok (x.tokens(dnaAlphabet)),
-    xQual (x.qualScores()),
     yTok (y.tokens(dnaAlphabet)),
     yQual (y.qualScores()),
+    xLen (x.length()),
+    yLen (y.length()),
     mat (x.length() + 1, vector<double> (y.length() + 1, -numeric_limits<double>::infinity())),
     ins (x.length() + 1, vector<double> (y.length() + 1, -numeric_limits<double>::infinity())),
     del (x.length() + 1, vector<double> (y.length() + 1, -numeric_limits<double>::infinity())),
@@ -183,3 +185,151 @@ QuaffDPMatrix::QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffSco
     end (-numeric_limits<double>::infinity()),
     result (-numeric_limits<double>::infinity())
 { }
+
+QuaffForwardMatrix::QuaffForwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp)
+  : QuaffDPMatrix (x, y, qp)
+{
+  if (LogThisAt(2))
+    initProgress ("Forward matrix");
+
+  start = 0;
+  for (int i = 1; i <= xLen; ++i) {
+    if (LogThisAt(2))
+      logProgress (i / (double) xLen, "base %d/%d", i, xLen);
+
+    for (int j = 1; j <= yLen; ++j) {
+      mat[i][j] = log_sum_exp (mat[i-1][j-1] + qs.m2m,
+			       del[i-1][j-1] + qs.d2m,
+			       ins[i-1][j-1] + qs.i2m);
+      if (j == 1)
+	mat[i][j] = log_sum_exp (mat[i][j],
+				 0);
+
+      mat[i][j] += matchScore(i,j);
+
+      ins[i][j] = insertScore(j) + log_sum_exp (ins[i][j-1] + qs.i2i,
+						mat[i][j-1] + qs.m2i);
+
+      del[i][j] = log_sum_exp (del[i-1][j] + qs.d2d,
+			       mat[i-1][j] + qs.m2d);
+    }
+
+    end = log_sum_exp (end,
+		       mat[i][yLen] + qs.m2e);
+  }
+
+  result = end;
+}
+
+QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
+  : QuaffDPMatrix (*fwd.px, *fwd.py, *fwd.qs.pqp),
+    pfwd (&fwd),
+    qc()
+{
+  if (LogThisAt(2))
+    initProgress ("Backward matrix");
+
+  end = 0;
+  for (int i = xLen; i >= 0; --i) {
+    if (LogThisAt(2))
+      logProgress ((xLen - i) / (double) xLen, "base %d/%d", i, xLen);
+
+    for (int j = yLen; j >= 0; --j) {
+
+      if (j == yLen) {
+	const double m2e = transCount (mat[i][j],
+				       fwd.mat[i][j],
+				       qs.m2e,
+				       0);
+	qc.m2e += m2e;
+      }
+      
+      if (i < xLen && j < yLen) {
+	const double matEmit = matchScore(i+1,j+1);
+	const double matDest = mat[i+1][j+1];
+	double& matCount = matchCount(i+1,j+1);
+
+	const double m2m = transCount (mat[i][j],
+				       fwd.mat[i][j],
+				       qs.m2m + matEmit,
+				       matDest);
+	qc.m2m += m2m;
+	matCount += m2m;
+
+      	const double i2m = transCount (ins[i][j],
+				       fwd.ins[i][j],
+				       qs.i2m + matEmit,
+				       matDest);
+	qc.i2m += i2m;
+	matCount += i2m;
+
+      	const double d2m = transCount (del[i][j],
+				       fwd.del[i][j],
+				       qs.d2m + matEmit,
+				       matDest);
+	qc.d2m += d2m;
+	matCount += d2m;
+      }
+
+      if (i < xLen) {
+	const double insEmit = insertScore(j+1);
+	const double insDest = ins[i+1][j];
+	double& insCount = insertCount(j+1);
+
+	const double m2i = transCount (mat[i][j],
+				       fwd.mat[i][j],
+				       qs.m2i + insEmit,
+				       insDest);
+	qc.m2i += m2i;
+	insCount += m2i;
+
+      	const double i2i = transCount (ins[i][j],
+				       fwd.ins[i][j],
+				       qs.i2i + insEmit,
+				       insDest);
+	qc.i2i += i2i;
+	insCount += i2i;
+      }
+
+      if (j < yLen) {
+	const double delDest = del[i][j+1];
+
+	const double m2d = transCount (mat[i][j],
+				       fwd.mat[i][j],
+				       qs.m2d,
+				       delDest);
+	qc.m2d += m2d;
+
+      	const double d2d = transCount (del[i][j],
+				       fwd.del[i][j],
+				       qs.d2d,
+				       delDest);
+	qc.d2d += d2d;
+      }
+    }
+
+    if (i < xLen && yLen > 0) {
+      const double matEmit = matchScore(i+1,1);
+      const double matDest = mat[i+1][1];
+      double& matCount = matchCount(i+1,1);
+
+      const double m2s = transCount (start,
+				     fwd.start,
+				     matEmit,
+				     matDest);
+      matCount += m2s;
+    }
+  }
+
+  result = start;
+  if (result != fwd.result)
+    cerr << "Warning: forward score (" << fwd.result << ") does not match backward score (" << result << ")" << endl;
+}
+
+double QuaffBackwardMatrix::transCount (double& backSrc, double fwdSrc, double trans, double backDest) const {
+  const double backSrcToDest = trans + backDest;
+  const double count = exp (fwdSrc + backSrcToDest - pfwd->result);
+  backSrc = log_sum_exp (backSrc, backSrcToDest);
+  return count;
+}
+
