@@ -4,10 +4,10 @@
 #include "fastseq.h"
 
 // struct describing the probability of a given FASTA symbol,
-// and a Gaussian distribution over the associated quality score
+// and a negative binomial distribution over the associated quality score
 struct SymQualDist {
   double symProb; // probability of symbol
-  double qualMean, qualStDev;  // parameters of quality score distribution
+  double qualTrialSuccessProb, qualNumFailedTrials;  // parameters of neg.binom. distribution
   SymQualDist();
 };
 
@@ -20,8 +20,8 @@ struct SymQualScores {
 
 // Summary statistics for a SymQualDist
 struct SymQualCounts {
-  double symCount;  // no. of times symbol seen (= zeroth moment of quality score)
-  double qualSum, qualSqSum;  // first & second moments of quality score
+  double symCount;  // no. of times symbol seen
+  vector<double> qualCount;  // no. of times each quality score seen
   SymQualCounts();
 };
 
