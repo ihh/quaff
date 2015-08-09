@@ -12,7 +12,8 @@ int tokenize (char c, const string& alphabet);
 
 struct FastSeq {
   string name, comment, seq, qual;
-  bool hasQual() const { return qual.size() == seq.size(); }
+  int length() const { return seq.size(); }
+  bool hasQual() const { return qual.size() == length(); }
   void writeFasta (ostream& out) const;
   void writeFastq (ostream& out) const;
 };

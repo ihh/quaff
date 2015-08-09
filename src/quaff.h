@@ -17,4 +17,8 @@ struct QuaffLogScores {
   QuaffLogScores (const QuaffParams& params);
 };
 
+struct QuaffDPMatrix {
+  
+};
+
 #endif /* QUAFF_INCLUDED */

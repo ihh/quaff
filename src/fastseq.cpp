@@ -53,7 +53,7 @@ vector<FastSeq> readFastSeqs (const char* filename) {
       seq.seq = string(ks->seq.s);
       if (ks->comment.l)
 	seq.comment = string(ks->comment.s);
-      if (ks->qual.l)
+      if (ks->qual.l == ks->seq.l)
 	seq.qual = string(ks->qual.s);
       seqs.push_back (seq);
     }
