@@ -101,7 +101,7 @@ struct QuaffViterbiMatrix : QuaffDPMatrix {
   QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, const QuaffScores& qs);
 };
 
-// Baum-Welch algorithm (with negative binomial quality scores)
+// Baum-Welch style EM algorithm (also fitting negative binomial distributions to quality scores)
 struct QuaffTrainer {
   int maxIterations;
   double minFractionalLoglikeIncrement;
