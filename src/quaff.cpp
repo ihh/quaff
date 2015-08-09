@@ -12,9 +12,9 @@ SymQualDist::SymQualDist()
 { }
 
 void SymQualDist::write (ostream& out, const string& prefix) const {
-  out << prefix << ' ' << symProb << endl;
-  out << prefix << "qp " << qualTrialSuccessProb << endl;
-  out << prefix << "qr " << qualNumFailedTrials << endl;
+  out << prefix << ": " << symProb << endl;
+  out << prefix << "qp: " << qualTrialSuccessProb << endl;
+  out << prefix << "qr: " << qualNumFailedTrials << endl;
 }
 
 void SymQualDist::read (map<string,double>& paramVal, const string& prefix) {
@@ -53,7 +53,7 @@ QuaffParams::QuaffParams()
     match (dnaAlphabetSize, vector<SymQualDist> (dnaAlphabetSize))
 { }
 
-#define QuaffParamWrite(X) out << #X " " << X << endl
+#define QuaffParamWrite(X) out << #X ": " << X << endl
 void QuaffParams::write (ostream& out) const {
   QuaffParamWrite(beginInsert);
   QuaffParamWrite(extendInsert);
@@ -69,7 +69,7 @@ void QuaffParams::write (ostream& out) const {
 #define QuaffParamRead(X) X = val[#X]
 void QuaffParams::read (istream& in) {
   map<string,double> val;
-  regex paramVal ("^\\s*(\\S+)\\s+([\\d\\+\\-\\.eE]+)\\s*$");
+  regex paramVal ("^\\s*(\\S+)\\s*:\\s+([\\d\\+\\-\\.eE]+)\\s*$");
   regex nonWhite ("\\S");
   while (!in.eof()) {
     string line;
