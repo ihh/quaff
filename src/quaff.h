@@ -1,6 +1,7 @@
 #ifndef QUAFF_INCLUDED
 #define QUAFF_INCLUDED
 
+#include <map>
 #include "fastseq.h"
 
 // struct describing the probability of a given FASTA symbol,
@@ -9,6 +10,8 @@ struct SymQualDist {
   double symProb; // probability of symbol
   double qualTrialSuccessProb, qualNumFailedTrials;  // parameters of neg.binom. distribution
   SymQualDist();
+  void write (ostream& out, const string& prefix) const;
+  void read (map<string,double>& paramVal, const string& prefix);
 };
 
 // Memo-ized log scores for a SymQualDist
@@ -24,6 +27,7 @@ struct SymQualCounts {
   double symCount;  // no. of times symbol seen
   vector<double> qualCount;  // no. of times each quality score seen
   SymQualCounts();
+  void write (ostream& out, const string& prefix) const;
 };
 
 // Parameters of a quaff model
@@ -56,7 +60,6 @@ struct QuaffCounts {
   double i2i, i2m;
   QuaffCounts();
   void write (ostream& out) const;
-  void read (istream& in);
   void addWeighted (const QuaffCounts& counts, double weight);
   QuaffParams fit() const;  // maximum-likelihood fit
 };
