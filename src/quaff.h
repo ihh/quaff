@@ -4,10 +4,10 @@
 #include "fastseq.h"
 
 // struct describing the probability of a given FASTA symbol,
-// and the (negative binomial) probability distribution over the associated quality score
+// and a Gaussian distribution over the associated quality score
 struct SymQualDist {
   double symProb; // probability of symbol
-  double qualTrialProb, qualNumTrials;  // resp.: {p,r} params of neg.binom. distrib.
+  double qualMean, qualStDev;  // parameters of quality score distribution
   SymQualDist();
 };
 
@@ -18,15 +18,10 @@ struct SymQualScores {
   SymQualScores (const SymQualDist& sqd);
 };
 
-// Fitting the negative binomial distribution requires taking some unusual moments,
-// e.g.  \sum_i digamma(r+y_i)  as per http://vixra.org/pdf/1211.0113v1.pdf
-// Since a manageably small range of quality scores is encountered in practice
-// (and because there are several alternative heuristics for fitting negative binomials),
-// rather than trying to deal with these moments inside the DP recursion,
-// we maintain a count for every observed quality score.
+// Summary statistics for a SymQualDist
 struct SymQualCounts {
-  double symCount;
-  vector<double> qualCount;
+  double symCount;  // no. of times symbol seen (= zeroth moment of quality score)
+  double qualSum, qualSqSum;  // first & second moments of quality score
   SymQualCounts();
 };
 
@@ -103,7 +98,7 @@ struct QuaffViterbiMatrix : QuaffDPMatrix {
   QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, const QuaffScores& qs);
 };
 
-// Baum-Welch style EM algorithm (also fitting negative binomial distributions to quality scores)
+// Baum-Welch style EM algorithm (also fits quality score distributions)
 struct QuaffTrainer {
   int maxIterations;
   double minFractionalLoglikeIncrement;
