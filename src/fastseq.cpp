@@ -13,6 +13,24 @@ int tokenize (char c, const string& alphabet) {
   return tok >= (int) strlen(alphStr) ? -1 : tok;
 }
 
+vector<int> FastSeq::tokens (const string& alphabet) const {
+  vector<int> tok;
+  tok.reserve (length());
+  for (auto c : seq)
+    tok.push_back (tokenize (c, alphabet));
+  return tok;
+}
+
+vector<int> FastSeq::qualScores() const {
+  vector<int> q;
+  if (hasQual()) {
+    q.reserve (length());
+    for (auto c : qual)
+      q.push_back (qualScoreForChar (c));
+  }
+  return q;
+}
+
 void FastSeq::writeFasta (ostream& out) const {
   out << '>' << name;
   if (comment.size())

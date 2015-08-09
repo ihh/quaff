@@ -75,6 +75,7 @@ struct Alignment {
 struct QuaffDPMatrix {
   const FastSeq *px, *py;
   const QuaffScores *pqs;
+  vector<int> xTok, xQual, yTok, yQual;
   vector<vector<double> > mat, ins, del;
   double start, end, result;
   QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffScores& qs);
