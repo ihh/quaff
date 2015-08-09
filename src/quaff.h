@@ -15,6 +15,7 @@ struct SymQualDist {
 struct SymQualScores {
   double symLogProb; // log-probability of symbol
   vector<double> logQualProb;  // log-probability distribution over qual scores
+  SymQualScores() { }
   SymQualScores (const SymQualDist& sqd);
 };
 
@@ -48,10 +49,11 @@ struct QuaffScores {
 
 // Summary statistics for a quaff model
 struct QuaffCounts {
-  double beginInsertYes, extendInsertYes, beginDeleteYes, extendDeleteYes;
-  double beginInsertNo, extendInsertNo, beginDeleteNo, extendDeleteNo;
   vector<SymQualCounts> insert;
   vector<vector<SymQualCounts> > match;
+  double m2m, m2i, m2d, m2e;
+  double d2d, d2m;
+  double i2i, i2m;
   QuaffCounts();
   void write (ostream& out) const;
   void read (istream& in);
