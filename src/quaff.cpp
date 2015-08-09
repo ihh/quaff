@@ -38,10 +38,12 @@ SymQualCounts::SymQualCounts()
 
 void SymQualCounts::write (ostream& out, const string& prefix) const {
   out << prefix << ": " << symCount << endl;
-  out << prefix << "q: [" << qualCount[0];
-  for (unsigned int i = 1; i < qualCount.size(); ++i)
-    out << ", " << qualCount[i];
-  out << ']' << endl;
+  if (qualCount.size()) {
+    out << prefix << "q: [" << qualCount[0];
+    for (unsigned int i = 1; i < qualCount.size(); ++i)
+      out << ", " << qualCount[i];
+    out << ']' << endl;
+  }
 }
 
 QuaffParams::QuaffParams()
