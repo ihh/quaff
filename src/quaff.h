@@ -8,6 +8,7 @@
 struct SymQualDist {
   double symProb; // probability of symbol
   double qualTrialProb, qualNumTrials;  // resp.: {p,r} params of neg.binom. distrib.
+  SymQualDist();
 };
 
 // Memo-ized log scores for a SymQualDist
@@ -26,6 +27,7 @@ struct SymQualScores {
 struct SymQualCounts {
   double symCount;
   vector<double> qualCount;
+  SymQualCounts();
 };
 
 // Parameters of a quaff model
