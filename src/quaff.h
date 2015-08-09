@@ -42,13 +42,13 @@ struct QuaffParams {
 
 // Memo-ized scores for transitions & emissions in quaff HMM
 struct QuaffScores {
-  const QuaffParams *qp;
+  const QuaffParams *pqp;
   vector<SymQualScores> insert;
   vector<vector<SymQualScores> > match;
   double m2m, m2i, m2d, m2e;
   double d2d, d2m;
   double i2i, i2m;
-  QuaffScores (const QuaffParams& params);
+  QuaffScores (const QuaffParams& qp);
 };
 
 // Summary statistics for a quaff model
@@ -76,8 +76,8 @@ struct Alignment {
 
 // DP matrices
 struct QuaffDPMatrix {
-  const FastSeq *x, *y;
-  const QuaffScores *qs;
+  const FastSeq *px, *py;
+  const QuaffScores *pqs;
   vector<vector<double> > mat, ins, del;
   double start, end, result;
   QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffScores& qs);
