@@ -12,6 +12,7 @@ struct SymQualDist {
   double symProb; // probability of symbol
   double qualTrialSuccessProb, qualNumFailedTrials;  // parameters of neg.binom. distribution
   SymQualDist();
+  double logQualProb (int k) const;
   void write (ostream& out, const string& prefix) const;
   void read (map<string,double>& paramVal, const string& prefix);
 };
@@ -61,9 +62,18 @@ struct QuaffCounts {
   double d2d, d2m;
   double i2i, i2m;
   QuaffCounts();
+};
+
+struct QuaffParamCounts {
+  vector<SymQualCounts> insert;
+  vector<vector<SymQualCounts> > match;
+  double beginInsertNo, extendInsertNo, beginDeleteNo, extendDeleteNo;
+  double beginInsertYes, extendInsertYes, beginDeleteYes, extendDeleteYes;
+  QuaffParamCounts (const QuaffCounts& counts);
   void write (ostream& out) const;
-  void addWeighted (const QuaffCounts& counts, double weight);
+  void addWeighted (const QuaffParamCounts& counts, double weight);
   QuaffParams fit() const;  // maximum-likelihood fit
+  double logPrior (const QuaffParams& qp) const;  // uses counts as hyperparameters to define a prior over params
 };
 
 // Alignment
@@ -126,7 +136,8 @@ struct QuaffTrainer {
   int maxIterations;
   double minFractionalLoglikeIncrement;
 
-  QuaffParams fit (const FastSeq& x, const FastSeq& y, const QuaffParams& seed);
+  bool parseTrainingArgs (int* argcPtr, char*** argvPtr);
+  QuaffParams fit (const FastSeq& x, const FastSeq& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts);
 };
 
 #endif /* QMODEL_INCLUDED */

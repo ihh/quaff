@@ -11,7 +11,7 @@ struct Logger {
   int verbosity;
   set<string> logTags;
   Logger() : verbosity(0) { }
-  int parseLogArgs (int* argcPtr, char*** argvPtr);
+  bool parseLogArgs (int* argcPtr, char*** argvPtr);
 };
 
 #define LogAt(V)     (logger != NULL && logger->verbosity >= (V))

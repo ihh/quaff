@@ -25,12 +25,16 @@ void SymQualDist::read (map<string,double>& paramVal, const string& prefix) {
   qualNumFailedTrials = paramVal[prefix + "qr"];
 }
 
+double SymQualDist::logQualProb (int k) const {
+  return log (gsl_ran_negative_binomial_pdf (k, qualTrialSuccessProb, qualNumFailedTrials));
+}
+
 SymQualScores::SymQualScores (const SymQualDist& sqd)
   : logQualProb (FastSeq::qualScoreRange)
 {
   const double symLogProb = log (sqd.symProb);
   for (int k = 0; k < FastSeq::qualScoreRange; ++k)
-    logQualProb[k] = symLogProb + log (gsl_ran_negative_binomial_pdf (k, sqd.qualTrialSuccessProb, sqd.qualNumFailedTrials));
+    logQualProb[k] = symLogProb + sqd.logQualProb(k);
 }
 
 SymQualCounts::SymQualCounts()
@@ -132,15 +136,28 @@ QuaffCounts::QuaffCounts()
     i2m(0)
 { }
 
-void QuaffCounts::write (ostream& out) const {
-  QuaffParamWrite(m2m);
-  QuaffParamWrite(m2i);
-  QuaffParamWrite(m2d);
-  QuaffParamWrite(m2e);
-  QuaffParamWrite(d2d);
-  QuaffParamWrite(d2m);
-  QuaffParamWrite(i2i);
-  QuaffParamWrite(i2m);
+QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
+  : insert (counts.insert),
+    match (counts.match),
+    beginInsertNo (counts.m2m + counts.m2d),
+    beginInsertYes (counts.m2i + counts.m2e),
+    extendInsertNo (counts.i2m),
+    extendInsertYes (counts.i2i),
+    beginDeleteNo (counts.m2m),
+    beginDeleteYes (counts.m2d),
+    extendDeleteNo (counts.d2m),
+    extendDeleteYes (counts.d2d)
+{ }
+
+void QuaffParamCounts::write (ostream& out) const {
+  QuaffParamWrite(beginInsertNo);
+  QuaffParamWrite(beginInsertYes);
+  QuaffParamWrite(extendInsertNo);
+  QuaffParamWrite(extendInsertYes);
+  QuaffParamWrite(beginDeleteNo);
+  QuaffParamWrite(beginDeleteYes);
+  QuaffParamWrite(extendDeleteNo);
+  QuaffParamWrite(extendDeleteYes);
   for (int i = 0; i < dnaAlphabetSize; ++i)
     insert[i].write (out, string("insert") + dnaAlphabet[i]);
   for (int i = 0; i < dnaAlphabetSize; ++i)
@@ -428,4 +445,62 @@ Alignment QuaffViterbiMatrix::alignment() const {
   align.gappedSeq[0].seq = string (xRow.begin(), xRow.end());
   align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
   return align;
+}
+
+bool QuaffTrainer::parseTrainingArgs (int* argcPtr, char*** argvPtr) {
+  if (*argcPtr > 0) {
+    const char* arg = **argvPtr;
+    if (strcmp (arg, "-maxiter") == 0) {
+      Assert (*argcPtr > 1, "%s must have an argument", **argvPtr);
+      const char* val = (*argvPtr)[1];
+      maxIterations = atoi (val);
+      *argvPtr += 2;
+      *argcPtr -= 2;
+      return true;
+
+    } else if (strcmp (arg, "-mininc") == 0) {
+      Assert (*argcPtr > 1, "%s must have an argument", **argvPtr);
+      const char* val = (*argvPtr)[1];
+      minFractionalLoglikeIncrement = atof (val);
+      *argvPtr += 2;
+      *argcPtr -= 2;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void QuaffParamCounts::addWeighted (const QuaffParamCounts& counts, double weight) {
+  for (int q = 0; q < FastSeq::qualScoreRange; ++q)
+    for (int i = 0; i < dnaAlphabetSize; ++i) {
+      insert[i].qualCount[q] += weight * counts.insert[i].qualCount[q];
+      for (int j = 0; j < dnaAlphabetSize; ++j)
+	match[i][j].qualCount[q] += weight * counts.match[i][j].qualCount[q];
+    }
+  beginInsertNo += weight * counts.beginInsertNo;
+  beginInsertYes += weight * counts.beginInsertYes;
+  extendInsertNo += weight * counts.extendInsertNo;
+  extendInsertYes += weight * counts.extendInsertYes;
+  beginDeleteNo += weight * counts.beginDeleteNo;
+  beginDeleteYes += weight * counts.beginDeleteYes;
+  extendDeleteNo += weight * counts.extendDeleteNo;
+  extendDeleteYes += weight * counts.extendDeleteYes;
+}
+
+double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
+  // WRITE ME
+  return 0;
+}
+
+QuaffParams QuaffParamCounts::fit() const {
+  // WRITE ME
+  QuaffParams qp;
+  return qp;
+}
+
+QuaffParams QuaffTrainer::fit (const FastSeq& x, const FastSeq& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts) {
+  // WRITE ME
+  QuaffParams qp;
+  return qp;
 }
