@@ -1,6 +1,6 @@
 #include <iostream>
 #include <fstream>
-#include "../src/quaff.h"
+#include "../src/qmodel.h"
 
 int main (int argc, char **argv) {
   if (argc != 2) {

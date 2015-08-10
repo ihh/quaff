@@ -1,5 +1,5 @@
-#ifndef QUAFF_INCLUDED
-#define QUAFF_INCLUDED
+#ifndef QMODEL_INCLUDED
+#define QMODEL_INCLUDED
 
 #include <map>
 #include <numeric>
@@ -124,4 +124,4 @@ struct QuaffTrainer {
   QuaffParams fit (const FastSeq& x, const FastSeq& y, const QuaffParams& seed);
 };
 
-#endif /* QUAFF_INCLUDED */
+#endif /* QMODEL_INCLUDED */

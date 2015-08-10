@@ -3,7 +3,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <gsl/gsl_randist.h>
-#include "quaff.h"
+#include "qmodel.h"
 #include "logsumexp.h"
 
 SymQualDist::SymQualDist()
@@ -330,4 +330,3 @@ double QuaffBackwardMatrix::transCount (double& backSrc, double fwdSrc, double t
   backSrc = log_sum_exp (backSrc, transBackDest);
   return count;
 }
-
