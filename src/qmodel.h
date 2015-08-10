@@ -78,6 +78,7 @@ struct Alignment {
 
 // DP matrices
 struct QuaffDPMatrix {
+  enum State { Start, Match, Insert, Delete };
   Logger *logger;
   const FastSeq *px, *py;
   QuaffScores qs;
@@ -85,10 +86,10 @@ struct QuaffDPMatrix {
   int xLen, yLen;
   vector<vector<double> > mat, ins, del;
   double start, end, result;
-  inline double matchScore (int i, int j) {
+  inline double matchEmitScore (int i, int j) const {
     return qs.match[xTok[i-1]][yTok[j-1]].logQualProb[yQual[j-1]];
   }
-  inline double insertScore (int j) {
+  inline double insertEmitScore (int j) const {
     return qs.insert[yTok[j-1]].logQualProb[yQual[j-1]];
   }
   QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
@@ -111,8 +112,12 @@ struct QuaffBackwardMatrix : QuaffDPMatrix {
   }
 };
 
-struct QuaffViterbiMatrix : QuaffDPMatrix {
-  QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, const QuaffScores& qs);
+class QuaffViterbiMatrix : public QuaffDPMatrix {
+private:
+  const char gapChar = '-';
+  static void updateMax (double& currentMax, State& currentMaxIdx, double candidateMax, State candidateMaxIdx);
+public:
+  QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
   Alignment alignment() const;
 };
 

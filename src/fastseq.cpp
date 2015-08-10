@@ -97,3 +97,20 @@ string revcomp (const string& dnaSeq) {
   }
   return rev;
 }
+
+FastSeq FastSeq::revcomp() const {
+  FastSeq fs;
+  fs.name = "revcomp(" + name + ")";
+  fs.comment = comment;
+  fs.seq = ::revcomp(seq);
+  fs.qual = string (qual.rbegin(), qual.rend());
+  return fs;
+}
+
+void addRevcomps (vector<FastSeq>& db) {
+  vector<FastSeq> revcomps;
+  revcomps.reserve (db.size());
+  for (auto fs : db)
+    revcomps.push_back (fs.revcomp());
+  db.insert (db.end(), revcomps.begin(), revcomps.end());
+}

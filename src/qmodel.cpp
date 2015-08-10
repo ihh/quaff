@@ -1,5 +1,6 @@
 #include <iostream>
 #include <regex>
+#include <list>
 #include <cmath>
 #include <cstdlib>
 #include <gsl/gsl_randist.h>
@@ -205,10 +206,10 @@ QuaffForwardMatrix::QuaffForwardMatrix (const FastSeq& x, const FastSeq& y, cons
 	mat[i][j] = log_sum_exp (mat[i][j],
 				 start);
 
-      mat[i][j] += matchScore(i,j);
+      mat[i][j] += matchEmitScore(i,j);
 
-      ins[i][j] = insertScore(j) + log_sum_exp (ins[i][j-1] + qs.i2i,
-						mat[i][j-1] + qs.m2i);
+      ins[i][j] = insertEmitScore(j) + log_sum_exp (ins[i][j-1] + qs.i2i,
+						    mat[i][j-1] + qs.m2i);
 
       del[i][j] = log_sum_exp (del[i-1][j] + qs.d2d,
 			       mat[i-1][j] + qs.m2d);
@@ -243,7 +244,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
     for (int j = yLen; j > 0; --j) {
       
       if (i < xLen && j < yLen) {
-	const double matEmit = matchScore(i+1,j+1);
+	const double matEmit = matchEmitScore(i+1,j+1);
 	const double matDest = mat[i+1][j+1];
 	double& matCount = matchCount(i+1,j+1);
 
@@ -270,7 +271,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
       }
 
       if (i < xLen) {
-	const double insEmit = insertScore(j+1);
+	const double insEmit = insertEmitScore(j+1);
 	const double insDest = ins[i+1][j];
 	double& insCount = insertCount(j+1);
 
@@ -307,7 +308,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
     }
 
     if (i < xLen && yLen > 0) {
-      const double matEmit = matchScore(i+1,1);
+      const double matEmit = matchEmitScore(i+1,1);
       const double matDest = mat[i+1][1];
       double& matCount = matchCount(i+1,1);
 
@@ -329,4 +330,101 @@ double QuaffBackwardMatrix::transCount (double& backSrc, double fwdSrc, double t
   const double count = exp (fwdSrc + transBackDest - pfwd->result);
   backSrc = log_sum_exp (backSrc, transBackDest);
   return count;
+}
+
+QuaffViterbiMatrix::QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp)
+  : QuaffDPMatrix (x, y, qp)
+{
+  if (LogThisAt(2))
+    initProgress ("Viterbi matrix");
+
+  start = 0;
+  for (int i = 1; i <= xLen; ++i) {
+    if (LogThisAt(2))
+      logProgress (i / (double) xLen, "base %d/%d", i, xLen);
+
+    for (int j = 1; j <= yLen; ++j) {
+      mat[i][j] = max (max (mat[i-1][j-1] + qs.m2m,
+			    del[i-1][j-1] + qs.d2m),
+		       ins[i-1][j-1] + qs.i2m);
+      if (j == 1)
+	mat[i][j] = max (mat[i][j],
+			 start);
+
+      mat[i][j] += matchEmitScore(i,j);
+
+      ins[i][j] = insertEmitScore(j) + max (ins[i][j-1] + qs.i2i,
+					    mat[i][j-1] + qs.m2i);
+
+      del[i][j] = max (del[i-1][j] + qs.d2d,
+		       mat[i-1][j] + qs.m2d);
+    }
+
+    end = max (end,
+	       mat[i][yLen] + qs.m2e);
+  }
+
+  result = end;
+}
+
+void QuaffViterbiMatrix::updateMax (double& currentMax, State& currentMaxIdx, double candidateMax, State candidateMaxIdx) {
+  if (candidateMax > currentMax) {
+    currentMax = candidateMax;
+    currentMaxIdx = candidateMaxIdx;
+  }
+}
+
+Alignment QuaffViterbiMatrix::alignment() const {
+  int xEnd = -1;
+  double bestEndSc = -numeric_limits<double>::infinity(), sc;
+  for (int iEnd = xLen; iEnd > 0; --iEnd)
+    if (iEnd == xLen || (sc = mat[iEnd][yLen] + qs.m2e) > bestEndSc) {
+      bestEndSc = sc;
+      xEnd = iEnd;
+    }
+  int i = xEnd, j = yLen;
+  list<char> xRow, yRow;
+  State state = Match;
+  while (state != Start) {
+    double srcSc = -numeric_limits<double>::infinity();
+    double emitSc = 0;
+    switch (state) {
+    case Match:
+      emitSc = matchEmitScore(i,j);
+      xRow.push_front (px->seq[--i]);
+      yRow.push_front (py->seq[--j]);
+      updateMax (srcSc, state, mat[i][j] + qs.m2m + emitSc, Match);
+      updateMax (srcSc, state, ins[i][j] + qs.i2m + emitSc, Insert);
+      updateMax (srcSc, state, del[i][j] + qs.d2m + emitSc, Delete);
+      if (j == 0)
+	updateMax (srcSc, state, emitSc, Start);
+      break;
+
+    case Insert:
+      emitSc = insertEmitScore(j);
+      xRow.push_front (gapChar);
+      yRow.push_front (py->seq[--j]);
+      updateMax (srcSc, state, mat[i][j] + qs.m2i + emitSc, Match);
+      updateMax (srcSc, state, ins[i][j] + qs.i2i + emitSc, Insert);
+      break;
+
+    case Delete:
+      xRow.push_front (px->seq[--i]);
+      yRow.push_front (gapChar);
+      updateMax (srcSc, state, mat[i][j] + qs.m2d, Match);
+      updateMax (srcSc, state, ins[i][j] + qs.d2d, Delete);
+      break;
+
+    default:
+      Abort ("Traceback error");
+      break;
+    }
+  }
+  const int xStart = i + 1;
+  Alignment align(2);
+  align.gappedSeq[0].name = "substr(" + px->name + "," + to_string(xStart) + "," + to_string(xEnd) + ")";
+  align.gappedSeq[1].name = py->name;
+  align.gappedSeq[0].seq = string (xRow.begin(), xRow.end());
+  align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
+  return align;
 }

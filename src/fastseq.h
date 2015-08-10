@@ -29,6 +29,7 @@ struct FastSeq {
   vector<int> qualScores() const;
   void writeFasta (ostream& out) const;
   void writeFastq (ostream& out) const;
+  FastSeq revcomp() const;
 };
 
 vector<FastSeq> readFastSeqs (const char* filename);
@@ -36,5 +37,6 @@ void writeFastaSeqs (ostream& out, const vector<FastSeq>& fastSeqs);
 void writeFastqSeqs (ostream& out, const vector<FastSeq>& fastSeqs);
 
 string revcomp (const string& dnaSeq);
+void addRevcomps (vector<FastSeq>& db);
 
 #endif /* KSEQCONTAINER_INCLUDED */
