@@ -423,6 +423,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
   const int xStart = i + 1;
   Alignment align(2);
   align.gappedSeq[0].name = "substr(" + px->name + "," + to_string(xStart) + "," + to_string(xEnd) + ")";
+  align.gappedSeq[0].comment = px->name + " " + to_string(xStart) + " " + to_string(xEnd);
   align.gappedSeq[1].name = py->name;
   align.gappedSeq[0].seq = string (xRow.begin(), xRow.end());
   align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
