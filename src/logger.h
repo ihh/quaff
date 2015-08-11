@@ -14,8 +14,10 @@ struct Logger {
   bool parseLogArgs (int* argcPtr, char*** argvPtr);
 };
 
-#define LogAt(V)     (logger != NULL && logger->verbosity >= (V))
-#define LogWhen(TAG) (logger != NULL && logger->logTags.find(TAG) != logger->logTags.end())
+extern Logger logger;
+
+#define LogAt(V)     (logger.verbosity >= (V))
+#define LogWhen(TAG) (logger.logTags.find(TAG) != logger.logTags.end())
 #define LogThis      LogWhen(__FUNCTION__)
 #define LogThisAt(V) (LogAt(V) || LogThis)
 

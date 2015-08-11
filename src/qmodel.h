@@ -35,7 +35,6 @@ struct SymQualCounts {
 
 // Parameters of a quaff model
 struct QuaffParams {
-  Logger *logger;
   double beginInsert, extendInsert, beginDelete, extendDelete;
   vector<SymQualDist> insert;  // emissions from insert state
   vector<vector<SymQualDist> > match;  // substitutions from match state (conditional on input)
@@ -90,7 +89,6 @@ struct Alignment {
 // DP matrices
 struct QuaffDPMatrix {
   enum State { Start, Match, Insert, Delete };
-  Logger *logger;
   const FastSeq *px, *py;
   QuaffScores qs;
   vector<int> xTok, yTok, yQual;

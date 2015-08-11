@@ -27,14 +27,11 @@ void SymQualDist::read (map<string,double>& paramVal, const string& prefix) {
 }
 
 double SymQualDist::logQualProb (int k) const {
-  return log (gsl_ran_negative_binomial_pdf (k, qualTrialSuccessProb, qualNumFailedTrials));
+  return logNegativeBinomial (k, qualTrialSuccessProb, qualNumFailedTrials);
 }
 
 double SymQualDist::logQualProb (const vector<double>& kFreq) const {
-  double lp = 0;
-  for (int k = 0; k < (int) kFreq.size(); ++k)
-    lp += kFreq[k] * logQualProb(k);
-  return lp;
+  return logNegativeBinomial (kFreq, qualTrialSuccessProb, qualNumFailedTrials);
 }
 
 SymQualScores::SymQualScores (const SymQualDist& sqd)
@@ -59,8 +56,7 @@ void SymQualCounts::write (ostream& out, const string& prefix) const {
 }
 
 QuaffParams::QuaffParams()
-  : logger (NULL),
-    beginInsert(.5),
+  : beginInsert(.5),
     extendInsert(.5),
     beginDelete(.5),
     extendDelete(.5),
@@ -195,8 +191,7 @@ FastSeq Alignment::getUngapped (int row) const {
 }
 
 QuaffDPMatrix::QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp)
-  : logger (qp.logger),
-    px (&x),
+  : px (&x),
     py (&y),
     qs (qp),
     xTok (x.tokens(dnaAlphabet)),
@@ -531,7 +526,7 @@ QuaffParams QuaffParamCounts::fit() const {
   const double insNorm = accumulate (insFreq.begin(), insFreq.end(), 0.);
   for (int i = 0; i < dnaAlphabetSize; ++i) {
     qp.insert[i].symProb = insFreq[i] / insNorm;
-    fitNegativeBinomial (qp.insert[i].qualTrialSuccessProb, qp.insert[i].qualNumFailedTrials, insert[i].qualCount);
+    fitNegativeBinomial (insert[i].qualCount, qp.insert[i].qualTrialSuccessProb, qp.insert[i].qualNumFailedTrials);
   }
 
   for (int i = 0; i < dnaAlphabetSize; ++i) {
@@ -541,7 +536,7 @@ QuaffParams QuaffParamCounts::fit() const {
       const double iMatNorm = accumulate (iMatFreq.begin(), iMatFreq.end(), 0.);
       for (int j = 0; j < dnaAlphabetSize; ++j) {
 	qp.match[i][j].symProb = iMatFreq[j] / iMatNorm;
-	fitNegativeBinomial (qp.match[i][j].qualTrialSuccessProb, qp.match[i][j].qualNumFailedTrials, match[i][j].qualCount);
+	fitNegativeBinomial (match[i][j].qualCount, qp.match[i][j].qualTrialSuccessProb, qp.match[i][j].qualNumFailedTrials);
       }
     }
   }

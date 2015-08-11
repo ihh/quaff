@@ -1,5 +1,7 @@
 #include "logger.h"
 
+Logger logger;
+
 bool Logger::parseLogArgs (int* argcPtr, char*** argvPtr) {
   if (*argcPtr > 0) {
     const char* arg = **argvPtr;
