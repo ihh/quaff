@@ -120,6 +120,10 @@ int momentFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, do
 
 int momentFitNegativeBinomial (double mean, double variance, double& pSuccess, double& nFail) {
   if (variance <= 0) {
+    /* guess sensible values */
+    pSuccess = 1. / (mean + 1);
+    nFail = 1;
+
     if (LogThisAt(3))
       cerr << "Method-of-moments fit failed: zero variance" << endl;
     GSL_ERROR ("Zero variance in method-of-moments fit", NEG_BINOM_ZERO_VARIANCE);
@@ -144,6 +148,10 @@ int bracketFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, d
   gsl_root_fsolver *bracketSolver;
   double nFailGuess;
   gsl_function F;
+
+  /* guess sensible values in case of failure */
+  nFail = 1;
+  pSuccess = optimalNegativeBinomialSuccessProb (nFail, kFreq);
 
   // bracket
   F.function = &logNegativeBinomialSingleDeriv1;
