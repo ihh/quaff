@@ -24,3 +24,7 @@ testquaffio: bin/testquaffio
 testlogsumexp: bin/testlogsumexp
 	bin/testlogsumexp -slow >data/logsumexp.txt
 	perl/testexpect.pl bin/testlogsumexp -fast data/logsumexp.txt
+
+testnegbinom: bin/testnegbinom
+	bin/testnegbinom .1 5 10000 .1
+

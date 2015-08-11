@@ -33,7 +33,7 @@ double logNegativeBinomial (int k, double pSuccess, double nFail) {
 double logNegativeBinomial (const vector<double>& kFreq, double pSuccess, double nFail) {
   double lp = 0;
   for (int k = 0; k < (int) kFreq.size(); ++k)
-    lp += kFreq[k] * logNegativeBinomial (pSuccess, nFail, k);
+    lp += kFreq[k] * logNegativeBinomial (k, pSuccess, nFail);
   return lp;
 }
 
@@ -54,7 +54,7 @@ double logNegativeBinomialSingleDeriv1 (double nFail, void* kFreqVoid) {
       kDigammaSum += freq * gsl_sf_psi (nFail + k);
     }
   }
-  return -freqSum * log(1. + kSum / freqSum) - freqSum * gsl_sf_psi (nFail) + kDigammaSum;
+  return -freqSum * log(1. + kSum / (freqSum * nFail)) - freqSum * gsl_sf_psi (nFail) + kDigammaSum;
 }
 
 double logNegativeBinomialSingleDeriv2 (double nFail, void* kFreqVoid) {
@@ -82,7 +82,7 @@ double optimalNegativeBinomialSuccessProb (double nFail, const vector<double>& k
     freqSum += freq;
     kSum += freq * k;
   }
-  return -log (1 + kSum / freqSum);
+  return 1. / (1 + kSum / (freqSum * nFail));
 }
 
 int fitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nFail) {
@@ -108,8 +108,8 @@ int fitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& 
 	     gsl_root_fsolver_name (bracketSolver));
 
     fprintf (stderr, "%5s [%9s, %9s] %9s %10s %10s %9s\n",
-	     "iter", "lower", "upper", "max",
-	     "f", "df", "err(est)");
+	     "iter", "lower", "upper", "r",
+	     "f", "df/dr", "err(est)");
   }
 
   iter = 0;
@@ -127,7 +127,7 @@ int fitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& 
 	if (status == GSL_SUCCESS)
 	  fprintf (stderr, "Converged:\n");
 
-	fprintf (stderr, "%5d [%.7f, %.7f] %.7f %+.7f %.7f %.7f\n",
+	fprintf (stderr, "%5d [%.7f, %.7f] %.7f %+.7f %+.7f %.7f\n",
 		 iter, nFailLowerBound, nFailUpperBound,
 		 nFailGuess,
 		 logNegativeBinomialSingle (nFailGuess, (void*) &kFreq),
@@ -154,9 +154,10 @@ int fitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& 
 	     gsl_root_fdfsolver_name (derivSolver));
 
     fprintf (stderr, "%-5s %10s %10s %10s %10s\n",
-	     "iter", "max", "f", "df", "err(est)");
+	     "iter", "r", "f", "df/dr", "err(est)");
   }
   
+  iter = 0;
   do
     {
       iter++;
