@@ -15,35 +15,35 @@
 #define MaxNegBinomPolishAbsoluteError 0
 #define MaxNegBinomPolishRelativeError 1e-4
 
-/* zeroth, first and second derivatives of logNegativeBinomial(const vector<double>& kFreq...) as one-dimensional function of nFail */
-/* also, function to compute optimal pSuccess for given nFail */
+/* zeroth, first and second derivatives of logNegativeBinomial(const vector<double>& kFreq...) as one-dimensional function of nSuccess */
+/* also, function to compute optimal pSuccess for given nSuccess */
 /* Follows the method of Crowley: http://vixra.org/pdf/1211.0113v1.pdf */
 
-double logNegativeBinomialSingle (double nFail, void* kFreqVoid);
-double logNegativeBinomialSingleDeriv1 (double nFail, void* kFreqVoid);
-double logNegativeBinomialSingleDeriv2 (double nFail, void* kFreqVoid);
-void logNegativeBinomialSingleDeriv12 (double nFail, void* kFreqVoid, double* f, double *df);
-double optimalNegativeBinomialSuccessProb (double nFail, const vector<double>& kFreq);
+double logNegativeBinomialSingle (double nSuccess, void* kFreqVoid);
+double logNegativeBinomialSingleDeriv1 (double nSuccess, void* kFreqVoid);
+double logNegativeBinomialSingleDeriv2 (double nSuccess, void* kFreqVoid);
+void logNegativeBinomialSingleDeriv12 (double nSuccess, void* kFreqVoid, double* f, double *df);
+double optimalNegativeBinomialSuccessProb (double nSuccess, const vector<double>& kFreq);
 
 /* function bodies */
-double logNegativeBinomial (int k, double pSuccess, double nFail) {
-  return log (gsl_ran_negative_binomial_pdf (k, pSuccess, nFail));
+double logNegativeBinomial (int k, double pSuccess, double nSuccess) {
+  return log (gsl_ran_negative_binomial_pdf (k, pSuccess, nSuccess));
 }
 
-double logNegativeBinomial (const vector<double>& kFreq, double pSuccess, double nFail) {
+double logNegativeBinomial (const vector<double>& kFreq, double pSuccess, double nSuccess) {
   double lp = 0;
   for (int k = 0; k < (int) kFreq.size(); ++k)
-    lp += kFreq[k] * logNegativeBinomial (k, pSuccess, nFail);
+    lp += kFreq[k] * logNegativeBinomial (k, pSuccess, nSuccess);
   return lp;
 }
 
-double logNegativeBinomialSingle (double nFail, void* kFreqVoid) {
+double logNegativeBinomialSingle (double nSuccess, void* kFreqVoid) {
   const vector<double>& kFreq = *(const vector<double>*) kFreqVoid;
-  const double pSuccess = optimalNegativeBinomialSuccessProb (nFail, kFreq);
-  return logNegativeBinomial (kFreq, pSuccess, nFail);
+  const double pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
+  return logNegativeBinomial (kFreq, pSuccess, nSuccess);
 }
 
-double logNegativeBinomialSingleDeriv1 (double nFail, void* kFreqVoid) {
+double logNegativeBinomialSingleDeriv1 (double nSuccess, void* kFreqVoid) {
   const vector<double>& kFreq = *(const vector<double>*) kFreqVoid;
   double freqSum = 0, kSum = 0, kDigammaSum = 0;
   for (size_t k = 0; k < kFreq.size(); ++k) {
@@ -51,38 +51,38 @@ double logNegativeBinomialSingleDeriv1 (double nFail, void* kFreqVoid) {
     if (freq > 0) {  /* avoid unnecessary digamma evaluation */
       freqSum += freq;
       kSum += freq * k;
-      kDigammaSum += freq * gsl_sf_psi (nFail + k);
+      kDigammaSum += freq * gsl_sf_psi (nSuccess + k);
     }
   }
-  return -freqSum * log(1. + kSum / (freqSum * nFail)) - freqSum * gsl_sf_psi (nFail) + kDigammaSum;
+  return -freqSum * log(1. + kSum / (freqSum * nSuccess)) - freqSum * gsl_sf_psi (nSuccess) + kDigammaSum;
 }
 
-double logNegativeBinomialSingleDeriv2 (double nFail, void* kFreqVoid) {
+double logNegativeBinomialSingleDeriv2 (double nSuccess, void* kFreqVoid) {
   const vector<double>& kFreq = *(const vector<double>*) kFreqVoid;
   double freqSum = 0, kTrigammaSum = 0;
   for (size_t k = 0; k < kFreq.size(); ++k) {
     const double freq = kFreq[k];
     if (freq > 0) {  /* avoid unnecessary trigamma evaluation */
       freqSum += freq;
-      kTrigammaSum += freq * gsl_sf_psi_1 (nFail + k);
+      kTrigammaSum += freq * gsl_sf_psi_1 (nSuccess + k);
     }
   }
-  return -freqSum * gsl_sf_psi_1 (nFail) + kTrigammaSum;
+  return -freqSum * gsl_sf_psi_1 (nSuccess) + kTrigammaSum;
 }
 
-void logNegativeBinomialSingleDeriv12 (double nFail, void* kFreqVoid, double* f, double *df) {
-  *f = logNegativeBinomialSingleDeriv1 (nFail, kFreqVoid);
-  *df = logNegativeBinomialSingleDeriv2 (nFail, kFreqVoid);
+void logNegativeBinomialSingleDeriv12 (double nSuccess, void* kFreqVoid, double* f, double *df) {
+  *f = logNegativeBinomialSingleDeriv1 (nSuccess, kFreqVoid);
+  *df = logNegativeBinomialSingleDeriv2 (nSuccess, kFreqVoid);
 }
 
-double optimalNegativeBinomialSuccessProb (double nFail, const vector<double>& kFreq) {
+double optimalNegativeBinomialSuccessProb (double nSuccess, const vector<double>& kFreq) {
   double freqSum = 0, kSum = 0;
   for (size_t k = 0; k < kFreq.size(); ++k) {
     const double freq = kFreq[k];
     freqSum += freq;
     kSum += freq * k;
   }
-  return 1. / (1 + kSum / (freqSum * nFail));
+  return 1. / (1 + kSum / (freqSum * nSuccess));
 }
 
 void calcIntDistribMeanVariance (const vector<double>& kFreq, double& mean, double& variance) {
@@ -96,33 +96,33 @@ void calcIntDistribMeanVariance (const vector<double>& kFreq, double& mean, doub
   variance = kSqSum / freqSum - mean*mean;
 }
 
-int fitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nFail) {
+int fitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nSuccess) {
   int status;
   double mean, variance;
   calcIntDistribMeanVariance (kFreq, mean, variance);
   if (variance > 0) {
-    status = momentFitNegativeBinomial (mean, variance, pSuccess, nFail);
+    status = momentFitNegativeBinomial (mean, variance, pSuccess, nSuccess);
     if (status == GSL_SUCCESS)
-      status = bracketFitNegativeBinomial (kFreq, pSuccess, nFail, max(1.,nFail/2), min(kFreq.size()-1.,nFail*2));
+      status = bracketFitNegativeBinomial (kFreq, pSuccess, nSuccess, max(1.,nSuccess/2), min(kFreq.size()-1.,nSuccess*2));
   }
   else
-    status = bracketFitNegativeBinomial (kFreq, pSuccess, nFail);
+    status = bracketFitNegativeBinomial (kFreq, pSuccess, nSuccess);
   if (status == GSL_SUCCESS)
-    status = gradientFitNegativeBinomial (kFreq, pSuccess, nFail);
+    status = gradientFitNegativeBinomial (kFreq, pSuccess, nSuccess);
   return status;
 }
 
-int momentFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nFail) {
+int momentFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nSuccess) {
   double kSampleMean, kSampleVariance;
   calcIntDistribMeanVariance (kFreq, kSampleMean, kSampleVariance);
-  return momentFitNegativeBinomial (kSampleMean, kSampleVariance, pSuccess, nFail);
+  return momentFitNegativeBinomial (kSampleMean, kSampleVariance, pSuccess, nSuccess);
 }
 
-int momentFitNegativeBinomial (double mean, double variance, double& pSuccess, double& nFail) {
+int momentFitNegativeBinomial (double mean, double variance, double& pSuccess, double& nSuccess) {
   if (variance <= 0) {
     /* guess sensible values */
-    pSuccess = 1. / (mean + 1);
-    nFail = 1;
+    pSuccess = 1 / (1 + mean);
+    nSuccess = 1;
 
     if (LogThisAt(3))
       cerr << "Method-of-moments fit failed: zero variance" << endl;
@@ -130,28 +130,28 @@ int momentFitNegativeBinomial (double mean, double variance, double& pSuccess, d
   }
 
   pSuccess = mean / variance;
-  nFail = mean * pSuccess / (1 - pSuccess);
+  nSuccess = mean * pSuccess / (1 - pSuccess);
 
   if (LogThisAt(3))
-    cerr << "Method-of-moments fit: pSuccess=" << pSuccess << ", nFail=" << nFail << endl;
+    cerr << "Method-of-moments fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
 
   return GSL_SUCCESS;
 }
 
-int bracketFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nFail) {
-  return bracketFitNegativeBinomial (kFreq, pSuccess, nFail, 1., max (1., kFreq.size() - 1.));
+int bracketFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nSuccess) {
+  return bracketFitNegativeBinomial (kFreq, pSuccess, nSuccess, 1., max (1., kFreq.size() - 1.));
 }
 
-int bracketFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nFail, double nFailLowerBound, double nFailUpperBound) {
+int bracketFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nSuccess, double nSuccessLowerBound, double nSuccessUpperBound) {
   int status;
   const gsl_root_fsolver_type *bracketType;
   gsl_root_fsolver *bracketSolver;
-  double nFailGuess;
+  double nSuccessGuess;
   gsl_function F;
 
   /* guess sensible values in case of failure */
-  nFail = 1;
-  pSuccess = optimalNegativeBinomialSuccessProb (nFail, kFreq);
+  nSuccess = 1;
+  pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
 
   // bracket
   F.function = &logNegativeBinomialSingleDeriv1;
@@ -160,24 +160,24 @@ int bracketFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, d
   bracketType = gsl_root_fsolver_brent;
   bracketSolver = gsl_root_fsolver_alloc (bracketType);
 
-  const double derivAtLowerBound = GSL_FN_EVAL(&F,nFailLowerBound);
-  const double derivAtUpperBound = GSL_FN_EVAL(&F,nFailUpperBound);
+  const double derivAtLowerBound = GSL_FN_EVAL(&F,nSuccessLowerBound);
+  const double derivAtUpperBound = GSL_FN_EVAL(&F,nSuccessUpperBound);
   if (sgn(derivAtLowerBound) == sgn(derivAtUpperBound)) {
 
-    const double loglikeAtLowerBound = logNegativeBinomialSingle (nFailLowerBound, (void*) &kFreq);
-    const double loglikeAtUpperBound = logNegativeBinomialSingle (nFailUpperBound, (void*) &kFreq);
+    const double loglikeAtLowerBound = logNegativeBinomialSingle (nSuccessLowerBound, (void*) &kFreq);
+    const double loglikeAtUpperBound = logNegativeBinomialSingle (nSuccessUpperBound, (void*) &kFreq);
 
-    nFail = loglikeAtLowerBound > loglikeAtUpperBound ? nFailLowerBound : nFailUpperBound;
-    pSuccess = optimalNegativeBinomialSuccessProb (nFail, kFreq);
+    nSuccess = loglikeAtLowerBound > loglikeAtUpperBound ? nSuccessLowerBound : nSuccessUpperBound;
+    pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
 
     if (LogThisAt(3))
       cerr << "Bracket fit failed; derivative has same sign at both endpoints. Choosing " << (loglikeAtLowerBound > loglikeAtUpperBound ? "lower" : "upper") << " endpoint" << endl
-	   << "Bracket fit (fallback): pSuccess=" << pSuccess << ", nFail=" << nFail << endl;
+	   << "Bracket fit (fallback): pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
 
     status = GSL_SUCCESS;
 
   } else {
-    status = gsl_root_fsolver_set (bracketSolver, &F, nFailLowerBound, nFailUpperBound);
+    status = gsl_root_fsolver_set (bracketSolver, &F, nSuccessLowerBound, nSuccessUpperBound);
 
     if (status == GSL_SUCCESS) {
       if (LogThisAt(3)) {
@@ -195,11 +195,11 @@ int bracketFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, d
 	  iter++;
 	  status = gsl_root_fsolver_iterate (bracketSolver);
 	  if (status == GSL_SUCCESS) {
-	    nFailGuess = gsl_root_fsolver_root (bracketSolver);
-	    nFailLowerBound = gsl_root_fsolver_x_lower (bracketSolver);
-	    nFailUpperBound = gsl_root_fsolver_x_upper (bracketSolver);
+	    nSuccessGuess = gsl_root_fsolver_root (bracketSolver);
+	    nSuccessLowerBound = gsl_root_fsolver_x_lower (bracketSolver);
+	    nSuccessUpperBound = gsl_root_fsolver_x_upper (bracketSolver);
 
-	    status = gsl_root_test_interval (nFailLowerBound, nFailUpperBound,
+	    status = gsl_root_test_interval (nSuccessLowerBound, nSuccessUpperBound,
 					     MaxNegBinomBracketAbsoluteError, MaxNegBinomBracketRelativeError);
 
 	    if (LogThisAt(3)) {
@@ -207,11 +207,11 @@ int bracketFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, d
 		fprintf (stderr, "Converged:\n");
 
 	      fprintf (stderr, "%5d [%.7f, %.7f] %.7f %+.7f %+.7f %.7f\n",
-		       iter, nFailLowerBound, nFailUpperBound,
-		       nFailGuess,
-		       logNegativeBinomialSingle (nFailGuess, (void*) &kFreq),
-		       logNegativeBinomialSingleDeriv1 (nFailGuess, (void*) &kFreq),
-		       nFailUpperBound - nFailLowerBound);
+		       iter, nSuccessLowerBound, nSuccessUpperBound,
+		       nSuccessGuess,
+		       logNegativeBinomialSingle (nSuccessGuess, (void*) &kFreq),
+		       logNegativeBinomialSingleDeriv1 (nSuccessGuess, (void*) &kFreq),
+		       nSuccessUpperBound - nSuccessLowerBound);
 	    }
 	  }
 	}
@@ -219,22 +219,22 @@ int bracketFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, d
 
       gsl_root_fsolver_free (bracketSolver);
 
-      nFail = nFailGuess;
-      pSuccess = optimalNegativeBinomialSuccessProb (nFail, kFreq);
+      nSuccess = nSuccessGuess;
+      pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
 
       if (LogThisAt(3))
-	cerr << "Bracket fit: pSuccess=" << pSuccess << ", nFail=" << nFail << endl;
+	cerr << "Bracket fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
     }
   }
 
   return status;
 }
 
-int gradientFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nFail) {
+int gradientFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nSuccess) {
   int status;
   const gsl_root_fdfsolver_type *derivType;
   gsl_root_fdfsolver *derivSolver;
-  double nFailGuess = nFail;
+  double nSuccessGuess = nSuccess;
   gsl_function F;
   gsl_function_fdf FDF;
 
@@ -246,7 +246,7 @@ int gradientFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, 
 
   derivType = gsl_root_fdfsolver_newton;
   derivSolver = gsl_root_fdfsolver_alloc (derivType);
-  status = gsl_root_fdfsolver_set (derivSolver, &FDF, nFailGuess);
+  status = gsl_root_fdfsolver_set (derivSolver, &FDF, nSuccessGuess);
 
   if (status == GSL_SUCCESS) {
     if (LogThisAt(3)) {
@@ -263,11 +263,11 @@ int gradientFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, 
 	iter++;
 	status = gsl_root_fdfsolver_iterate (derivSolver);
 	if (status == GSL_SUCCESS) {
-	  const double nFailLast = nFailGuess;
-	  nFailGuess = gsl_root_fdfsolver_root (derivSolver);
-	  status = gsl_root_test_delta (nFailGuess, nFailLast, MaxNegBinomPolishAbsoluteError, MaxNegBinomPolishRelativeError);
+	  const double nSuccessLast = nSuccessGuess;
+	  nSuccessGuess = gsl_root_fdfsolver_root (derivSolver);
+	  status = gsl_root_test_delta (nSuccessGuess, nSuccessLast, MaxNegBinomPolishAbsoluteError, MaxNegBinomPolishRelativeError);
 
-	  if (status == GSL_CONTINUE && nFailGuess > kFreq.size())
+	  if (status == GSL_CONTINUE && nSuccessGuess > kFreq.size())
 	    status = GSL_ERUNAWAY;
 
 	  if (LogThisAt(3)) {
@@ -278,10 +278,10 @@ int gradientFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, 
 
 	    fprintf (stderr, "%5d %10.7f %+10.7f %10.7f %10.7f\n",
 		     iter,
-		     nFailGuess,
-		     logNegativeBinomialSingle (nFailGuess, (void*) &kFreq),
-		     logNegativeBinomialSingleDeriv1 (nFailGuess, (void*) &kFreq),
-		     nFailGuess - nFailLast);
+		     nSuccessGuess,
+		     logNegativeBinomialSingle (nSuccessGuess, (void*) &kFreq),
+		     logNegativeBinomialSingleDeriv1 (nSuccessGuess, (void*) &kFreq),
+		     nSuccessGuess - nSuccessLast);
 	  }
 	}
       }
@@ -289,11 +289,11 @@ int gradientFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, 
 
     gsl_root_fdfsolver_free (derivSolver);
 
-    nFail = nFailGuess;
-    pSuccess = optimalNegativeBinomialSuccessProb (nFail, kFreq);
+    nSuccess = nSuccessGuess;
+    pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
 
     if (LogThisAt(3))
-      cerr << "Gradient fit: pSuccess=" << pSuccess << ", nFail=" << nFail << endl;
+      cerr << "Gradient fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
   }
 
   return status;

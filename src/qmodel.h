@@ -10,7 +10,7 @@
 // and a negative binomial distribution over the associated quality score
 struct SymQualDist {
   double symProb; // probability of symbol
-  double qualTrialSuccessProb, qualNumFailedTrials;  // parameters of neg.binom. distribution
+  double qualTrialSuccessProb, qualNumSuccessfulTrials;  // parameters of neg.binom. distribution
   SymQualDist();
   double logQualProb (int k) const;
   double logQualProb (const vector<double>& kFreq) const;

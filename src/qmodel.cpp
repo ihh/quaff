@@ -11,27 +11,27 @@
 SymQualDist::SymQualDist()
   : symProb(1. / dnaAlphabetSize),
     qualTrialSuccessProb(.5),
-    qualNumFailedTrials(FastSeq::qualScoreRange / 2)
+    qualNumSuccessfulTrials(FastSeq::qualScoreRange / 2)
 { }
 
 void SymQualDist::write (ostream& out, const string& prefix) const {
   out << prefix << ": " << symProb << endl;
   out << prefix << "qp: " << qualTrialSuccessProb << endl;
-  out << prefix << "qr: " << qualNumFailedTrials << endl;
+  out << prefix << "qr: " << qualNumSuccessfulTrials << endl;
 }
 
 void SymQualDist::read (map<string,double>& paramVal, const string& prefix) {
   symProb = paramVal[prefix];
   qualTrialSuccessProb = paramVal[prefix + "qp"];
-  qualNumFailedTrials = paramVal[prefix + "qr"];
+  qualNumSuccessfulTrials = paramVal[prefix + "qr"];
 }
 
 double SymQualDist::logQualProb (int k) const {
-  return logNegativeBinomial (k, qualTrialSuccessProb, qualNumFailedTrials);
+  return logNegativeBinomial (k, qualTrialSuccessProb, qualNumSuccessfulTrials);
 }
 
 double SymQualDist::logQualProb (const vector<double>& kFreq) const {
-  return logNegativeBinomial (kFreq, qualTrialSuccessProb, qualNumFailedTrials);
+  return logNegativeBinomial (kFreq, qualTrialSuccessProb, qualNumSuccessfulTrials);
 }
 
 SymQualScores::SymQualScores (const SymQualDist& sqd)
@@ -526,7 +526,7 @@ QuaffParams QuaffParamCounts::fit() const {
   const double insNorm = accumulate (insFreq.begin(), insFreq.end(), 0.);
   for (int i = 0; i < dnaAlphabetSize; ++i) {
     qp.insert[i].symProb = insFreq[i] / insNorm;
-    fitNegativeBinomial (insert[i].qualCount, qp.insert[i].qualTrialSuccessProb, qp.insert[i].qualNumFailedTrials);
+    fitNegativeBinomial (insert[i].qualCount, qp.insert[i].qualTrialSuccessProb, qp.insert[i].qualNumSuccessfulTrials);
   }
 
   for (int i = 0; i < dnaAlphabetSize; ++i) {
@@ -536,7 +536,7 @@ QuaffParams QuaffParamCounts::fit() const {
       const double iMatNorm = accumulate (iMatFreq.begin(), iMatFreq.end(), 0.);
       for (int j = 0; j < dnaAlphabetSize; ++j) {
 	qp.match[i][j].symProb = iMatFreq[j] / iMatNorm;
-	fitNegativeBinomial (match[i][j].qualCount, qp.match[i][j].qualTrialSuccessProb, qp.match[i][j].qualNumFailedTrials);
+	fitNegativeBinomial (match[i][j].qualCount, qp.match[i][j].qualTrialSuccessProb, qp.match[i][j].qualNumSuccessfulTrials);
       }
     }
   }
