@@ -2,20 +2,20 @@
 
 Logger logger;
 
-bool Logger::parseLogArgs (int* argcPtr, char*** argvPtr) {
-  if (*argcPtr > 0) {
-    const char* arg = **argvPtr;
+bool Logger::parseLogArgs (int& argc, char**& argv) {
+  if (argc > 0) {
+    const char* arg = argv[0];
     if (strcmp (arg, "-log") == 0) {
-      Assert (*argcPtr > 1, "%s must have an argument", **argvPtr);
-      const char* tag = (*argvPtr)[1];
+      Assert (argc > 1, "%s must have an argument", arg);
+      const char* tag = argv[1];
       logTags.insert (string (tag));
-      *argvPtr += 2;
-      *argcPtr -= 2;
+      argv += 2;
+      argc -= 2;
       return true;
     } else if (strcmp (arg, "-verbose") == 0) {
       verbosity = max (verbosity, 1);
-      *argvPtr += 1;
-      *argcPtr -= 1;
+      argv += 1;
+      argc -= 1;
       return true;
     } else if (arg[0] == '-' && arg[1] == 'v') {
       int all_v = 1, v;
@@ -27,15 +27,15 @@ bool Logger::parseLogArgs (int* argcPtr, char*** argvPtr) {
       }
       if (all_v) {
 	verbosity = max (verbosity, v);
-	*argvPtr += 1;
-	*argcPtr -= 1;
+	argv += 1;
+	argc -= 1;
 	return true;
       } else {
 	v = atoi (arg + 2);
 	if (v >= 1) {
 	  verbosity = max (verbosity, v);
-	  *argvPtr += 1;
-	  *argcPtr -= 1;
+	  argv += 1;
+	  argc -= 1;
 	  return true;
 	}
       }

@@ -11,7 +11,7 @@ struct Logger {
   int verbosity;
   set<string> logTags;
   Logger() : verbosity(0) { }
-  bool parseLogArgs (int* argcPtr, char*** argvPtr);
+  bool parseLogArgs (int& argc, char**& argv);
 };
 
 extern Logger logger;

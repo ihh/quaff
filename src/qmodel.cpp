@@ -450,23 +450,23 @@ Alignment QuaffViterbiMatrix::alignment() const {
   return align;
 }
 
-bool QuaffTrainer::parseTrainingArgs (int* argcPtr, char*** argvPtr) {
-  if (*argcPtr > 0) {
-    const char* arg = **argvPtr;
+bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
+  if (argc > 0) {
+    const char* arg = argv[0];
     if (strcmp (arg, "-maxiter") == 0) {
-      Assert (*argcPtr > 1, "%s must have an argument", **argvPtr);
-      const char* val = (*argvPtr)[1];
+      Assert (argc > 1, "%s must have an argument", arg);
+      const char* val = argv[1];
       maxIterations = atoi (val);
-      *argvPtr += 2;
-      *argcPtr -= 2;
+      argv += 2;
+      argc -= 2;
       return true;
 
     } else if (strcmp (arg, "-mininc") == 0) {
-      Assert (*argcPtr > 1, "%s must have an argument", **argvPtr);
-      const char* val = (*argvPtr)[1];
+      Assert (argc > 1, "%s must have an argument", arg);
+      const char* val = argv[1];
       minFractionalLoglikeIncrement = atof (val);
-      *argvPtr += 2;
-      *argcPtr -= 2;
+      argv += 2;
+      argc -= 2;
       return true;
     }
   }
@@ -540,8 +540,6 @@ QuaffParams QuaffParamCounts::fit() const {
       }
     }
   }
-
-  // WRITE ME: fit negative binomials
   
   return qp;
 }

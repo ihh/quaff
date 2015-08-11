@@ -28,3 +28,5 @@ testlogsumexp: bin/testlogsumexp
 testnegbinom: bin/testnegbinom
 	bin/testnegbinom .1 5 10000 .1
 
+
+quaff: bin/quaff

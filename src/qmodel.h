@@ -135,7 +135,7 @@ struct QuaffTrainer {
   int maxIterations;
   double minFractionalLoglikeIncrement;
 
-  bool parseTrainingArgs (int* argcPtr, char*** argvPtr);
+  bool parseTrainingArgs (int& argc, char**& argv);
   QuaffParams fit (const FastSeq& x, const FastSeq& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts);
 };
 
