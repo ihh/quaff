@@ -16,6 +16,8 @@ int main (int argc, char **argv) {
   const int N = atoi (argv[3]);
   const double eps = atof (argv[4]);
 
+  Assert (p > 0 && p < 1, "pSuccess must be between zero and one");
+
   const gsl_rng_type * rngType;
   gsl_rng * rng;
 
@@ -38,12 +40,8 @@ int main (int argc, char **argv) {
     cerr << ' ' << n;
   cerr << endl;
 
-  double kSum = 0, kSqSum = 0;
-  for (unsigned int k = 0; k < kFreq.size(); ++k) {
-    kSum += kFreq[k] * k;
-    kSqSum += kFreq[k] * k * k;
-  }
-  const double kSampleMean = kSum / N, kSampleVariance = kSqSum / N - kSampleMean*kSampleMean;
+  double kSampleMean, kSampleVariance;
+  calcIntDistribMeanVariance (kFreq, kSampleMean, kSampleVariance);
   const double kMean = r*(1-p)/p, kVariance = r*(1-p)/(p*p);
   cerr << "Distribution: mean = " << kMean << ", variance = " << kVariance << endl;
   cerr << "      Sample: mean = " << kSampleMean << ", variance = " << kSampleVariance << endl;
@@ -51,6 +49,9 @@ int main (int argc, char **argv) {
   double pFit, rFit;
   logger.verbosity = 3;
   const int status = fitNegativeBinomial (kFreq, pFit, rFit);
+
+  if (status != GSL_SUCCESS)
+    Warn ("GSL error: %s", gsl_strerror (status));
 
   const double kFitMean = rFit*(1-pFit)/pFit, kFitVariance = rFit*(1-pFit)/(pFit*pFit);
   cerr << "         Fit: mean = " << kFitMean << ", variance = " << kFitVariance << endl;
