@@ -13,6 +13,7 @@ struct SymQualDist {
   double qualTrialSuccessProb, qualNumFailedTrials;  // parameters of neg.binom. distribution
   SymQualDist();
   double logQualProb (int k) const;
+  double logQualProb (const vector<double>& kFreq) const;
   void write (ostream& out, const string& prefix) const;
   void read (map<string,double>& paramVal, const string& prefix);
 };

@@ -29,6 +29,13 @@ double SymQualDist::logQualProb (int k) const {
   return log (gsl_ran_negative_binomial_pdf (k, qualTrialSuccessProb, qualNumFailedTrials));
 }
 
+double SymQualDist::logQualProb (const vector<double>& kFreq) const {
+  double lp = 0;
+  for (int k = 0; k < (int) kFreq.size(); ++k)
+    lp += kFreq[k] * logQualProb(k);
+  return lp;
+}
+
 SymQualScores::SymQualScores (const SymQualDist& sqd)
   : logQualProb (FastSeq::qualScoreRange)
 {
@@ -489,8 +496,25 @@ void QuaffParamCounts::addWeighted (const QuaffParamCounts& counts, double weigh
 }
 
 double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
-  // WRITE ME
-  return 0;
+  double lp = 0;
+  double *alpha = new double[dnaAlphabetSize], *theta = new double[dnaAlphabetSize];
+  for (int i = 0; i < dnaAlphabetSize; ++i) {
+    lp += qp.insert[i].logQualProb (insert[i].qualCount);
+    theta[i] = qp.insert[i].symProb;
+    alpha[i] = accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 0.);
+  }
+  lp += gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta);
+  for (int i = 0; i < dnaAlphabetSize; ++i) {
+    for (int j = 0; j < dnaAlphabetSize; ++j) {
+      lp += qp.match[i][j].logQualProb (match[i][j].qualCount);
+      theta[j] = qp.match[i][j].symProb;
+      alpha[j] = accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.);
+    }
+    lp += gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta);
+  }
+  delete[] theta;
+  delete[] alpha;
+  return lp;
 }
 
 QuaffParams QuaffParamCounts::fit() const {
