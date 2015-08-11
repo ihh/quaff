@@ -91,7 +91,7 @@ int fitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& 
   gsl_root_fsolver *bracketSolver;
   const gsl_root_fdfsolver_type *derivType;
   gsl_root_fdfsolver *derivSolver;
-  double nFailLowerBound = 0.0, nFailUpperBound = kFreq.size() - 1, nFailGuess;
+  double nFailLowerBound = 1., nFailUpperBound = kFreq.size() - 1., nFailGuess;
   gsl_function F;
   gsl_function_fdf FDF;
 
