@@ -58,9 +58,9 @@ int main (int argc, char **argv) {
   
   if (gsl_root_test_delta (p, pFit, 0, eps) == GSL_SUCCESS
       && gsl_root_test_delta (r, rFit, 0, eps) == GSL_SUCCESS)
-    cout << "ok\n";
+    cout << "ok: (" << pFit << ',' << rFit << ") ~= (" << p << ',' << r << ')' << endl;
   else
-    cout << "not ok\n";
+    cout << "not ok: (" << pFit << ',' << rFit << ") != (" << p << ',' << r << ')' << endl;
   
   exit (EXIT_SUCCESS);
 }

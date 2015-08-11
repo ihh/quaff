@@ -4,7 +4,7 @@ CPPFILES = $(wildcard src/*.cpp)
 
 all: test
 
-test: testfast testquaffio testlogsumexp
+test: testfast testquaffio testlogsumexp testnegbinom
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
