@@ -6,6 +6,7 @@
 #include <gsl/gsl_randist.h>
 #include "qmodel.h"
 #include "logsumexp.h"
+#include "negbinom.h"
 
 SymQualDist::SymQualDist()
   : symProb(1. / dnaAlphabetSize),
@@ -499,14 +500,14 @@ double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
   double lp = 0;
   double *alpha = new double[dnaAlphabetSize], *theta = new double[dnaAlphabetSize];
   for (int i = 0; i < dnaAlphabetSize; ++i) {
-    lp += qp.insert[i].logQualProb (insert[i].qualCount);
+    lp += qp.insert[i].logQualProb (insert[i].qualCount);  // not normalized...
     theta[i] = qp.insert[i].symProb;
     alpha[i] = accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 0.);
   }
   lp += gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta);
   for (int i = 0; i < dnaAlphabetSize; ++i) {
     for (int j = 0; j < dnaAlphabetSize; ++j) {
-      lp += qp.match[i][j].logQualProb (match[i][j].qualCount);
+      lp += qp.match[i][j].logQualProb (match[i][j].qualCount);  // not normalized...
       theta[j] = qp.match[i][j].symProb;
       alpha[j] = accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.);
     }
@@ -518,8 +519,35 @@ double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
 }
 
 QuaffParams QuaffParamCounts::fit() const {
-  // WRITE ME
   QuaffParams qp;
+  qp.beginDelete = 1. / (1. + beginDeleteNo / beginDeleteYes);
+  qp.extendDelete = 1. / (1. + extendDeleteNo / extendDeleteYes);
+  qp.beginInsert = 1. / (1. + beginInsertNo / beginInsertYes);
+  qp.extendInsert = 1. / (1. + extendInsertNo / extendInsertYes);
+
+  vector<double> insFreq;
+  for (int i = 0; i < dnaAlphabetSize; ++i)
+    insFreq.push_back (accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 0.));
+  const double insNorm = accumulate (insFreq.begin(), insFreq.end(), 0.);
+  for (int i = 0; i < dnaAlphabetSize; ++i) {
+    qp.insert[i].symProb = insFreq[i] / insNorm;
+    fitNegativeBinomial (qp.insert[i].qualTrialSuccessProb, qp.insert[i].qualNumFailedTrials, insert[i].qualCount);
+  }
+
+  for (int i = 0; i < dnaAlphabetSize; ++i) {
+    vector<double> iMatFreq;
+    for (int j = 0; j < dnaAlphabetSize; ++j) {
+      iMatFreq.push_back (accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.));
+      const double iMatNorm = accumulate (iMatFreq.begin(), iMatFreq.end(), 0.);
+      for (int j = 0; j < dnaAlphabetSize; ++j) {
+	qp.match[i][j].symProb = iMatFreq[j] / iMatNorm;
+	fitNegativeBinomial (qp.match[i][j].qualTrialSuccessProb, qp.match[i][j].qualNumFailedTrials, match[i][j].qualCount);
+      }
+    }
+  }
+
+  // WRITE ME: fit negative binomials
+  
   return qp;
 }
 
