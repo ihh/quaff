@@ -136,7 +136,7 @@ struct QuaffTrainer {
   double minFractionalLoglikeIncrement;
 
   bool parseTrainingArgs (int& argc, char**& argv);
-  QuaffParams fit (const FastSeq& x, const FastSeq& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts);
+  QuaffParams fit (const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts);
 };
 
 #endif /* QMODEL_INCLUDED */

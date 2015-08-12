@@ -205,7 +205,9 @@ QuaffDPMatrix::QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffPar
     start (-numeric_limits<double>::infinity()),
     end (-numeric_limits<double>::infinity()),
     result (-numeric_limits<double>::infinity())
-{ }
+{
+  Assert (y.hasQual(), "Read sequences must have quality scores (FASTQ, not FASTA)");
+}
 
 QuaffForwardMatrix::QuaffForwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp)
   : QuaffDPMatrix (x, y, qp)
@@ -544,8 +546,8 @@ QuaffParams QuaffParamCounts::fit() const {
   return qp;
 }
 
-QuaffParams QuaffTrainer::fit (const FastSeq& x, const FastSeq& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts) {
+QuaffParams QuaffTrainer::fit (const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts) {
+  QuaffParams qp = seed;
   // WRITE ME
-  QuaffParams qp;
   return qp;
 }
