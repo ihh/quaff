@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include "../src/qmodel.h"
 
 bool parseUnknown (int argc, char** argv, const string& usage) {
@@ -14,7 +15,8 @@ bool parseParamFilename (int argc, char** argv, QuaffParams& qp) {
     const string arg = argv[0];
     if (arg == "-params") {
       Assert (argc > 1, "%s needs an argument", arg.c_str());
-      qp.read (argv[1]);
+      ifstream inFile (argv[1]);
+      qp.read (inFile);
       argc -= 2;
       argv += 2;
       return true;
