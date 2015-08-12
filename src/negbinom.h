@@ -12,10 +12,12 @@ template <typename T> int sgn(T val) {
     return (T(0) < val) - (val < T(0));
 }
 
+/* evaluate the log-pdf of the negative binomial distribution for a point, and for a frequency distribution */
 double logNegativeBinomial (int k, double pSuccess, double nSuccess);
 double logNegativeBinomial (const vector<double>& kFreq, double pSuccess, double nSuccess);
 
-void calcIntDistribMeanVariance (const vector<double>& kFreq, double& mean, double& variance);
+/* calculate moments of an integer frequency distribution */
+void calcIntDistribMoments (const vector<double>& kFreq, double& count, double& mean, double& variance);
 
 /* fit methods return GSL status/error codes */
 /* fitNegativeBinomial wraps other methods */

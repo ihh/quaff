@@ -40,8 +40,8 @@ int main (int argc, char **argv) {
     cerr << ' ' << n;
   cerr << endl;
 
-  double kSampleMean, kSampleVariance;
-  calcIntDistribMeanVariance (kFreq, kSampleMean, kSampleVariance);
+  double kSampleCount, kSampleMean, kSampleVariance;
+  calcIntDistribMoments (kFreq, kSampleCount, kSampleMean, kSampleVariance);
   const double kMean = r*(1-p)/p, kVariance = r*(1-p)/(p*p);
   cerr << "Distribution: mean = " << kMean << ", variance = " << kVariance << endl;
   cerr << "      Sample: mean = " << kSampleMean << ", variance = " << kSampleVariance << endl;

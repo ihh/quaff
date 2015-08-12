@@ -85,27 +85,34 @@ double optimalNegativeBinomialSuccessProb (double nSuccess, const vector<double>
   return 1. / (1 + kSum / (freqSum * nSuccess));
 }
 
-void calcIntDistribMeanVariance (const vector<double>& kFreq, double& mean, double& variance) {
-  double freqSum = 0, kSum = 0, kSqSum = 0;
+void calcIntDistribMoments (const vector<double>& kFreq, double& count, double& mean, double& variance) {
+  count = 0;
+  double kSum = 0, kSqSum = 0;
   for (unsigned int k = 0; k < kFreq.size(); ++k) {
-    freqSum += kFreq[k];
+    count += kFreq[k];
     kSum += kFreq[k] * k;
     kSqSum += kFreq[k] * k * k;
   }
-  mean = kSum / freqSum;
-  variance = kSqSum / freqSum - mean*mean;
+  if (count > 0) {
+    mean = kSum / count;
+    variance = kSqSum / count - mean*mean;
+  } else
+    mean = variance = nan("");
 }
 
 int fitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nSuccess) {
   int status;
-  double mean, variance;
-  calcIntDistribMeanVariance (kFreq, mean, variance);
+  double count, mean, variance;
+  calcIntDistribMoments (kFreq, count, mean, variance);
+  if (count <= 0) {
+    pSuccess = nSuccess = nan("");
+    return GSL_EZERODIV;
+  }
   if (variance > 0) {
     status = momentFitNegativeBinomial (mean, variance, pSuccess, nSuccess);
     if (status == GSL_SUCCESS)
       status = bracketFitNegativeBinomial (kFreq, pSuccess, nSuccess, max(1.,nSuccess/2), min(kFreq.size()-1.,nSuccess*2));
-  }
-  else
+  } else
     status = bracketFitNegativeBinomial (kFreq, pSuccess, nSuccess);
   if (status == GSL_SUCCESS)
     status = gradientFitNegativeBinomial (kFreq, pSuccess, nSuccess);
@@ -113,9 +120,13 @@ int fitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& 
 }
 
 int momentFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nSuccess) {
-  double kSampleMean, kSampleVariance;
-  calcIntDistribMeanVariance (kFreq, kSampleMean, kSampleVariance);
-  return momentFitNegativeBinomial (kSampleMean, kSampleVariance, pSuccess, nSuccess);
+  double count, mean, variance;
+  calcIntDistribMoments (kFreq, count, mean, variance);
+  if (count <= 0) {
+    pSuccess = nSuccess = nan("");
+    return GSL_EZERODIV;
+  }
+  return momentFitNegativeBinomial (mean, variance, pSuccess, nSuccess);
 }
 
 int momentFitNegativeBinomial (double mean, double variance, double& pSuccess, double& nSuccess) {
