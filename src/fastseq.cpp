@@ -16,7 +16,7 @@ int tokenize (char c, const string& alphabet) {
 vector<int> FastSeq::tokens (const string& alphabet) const {
   vector<int> tok;
   tok.reserve (length());
-  for (auto c : seq) {
+  for (const auto& c : seq) {
     const int t = tokenize (c, alphabet);
     if (t < 0) {
       cerr << "Unknown symbol " << c << " in sequence " << name << endl;
@@ -31,7 +31,7 @@ vector<int> FastSeq::qualScores() const {
   vector<int> q;
   if (hasQual()) {
     q.reserve (length());
-    for (auto c : qual)
+    for (const auto& c : qual)
       q.push_back (qualScoreForChar (c));
   }
   return q;
@@ -56,12 +56,12 @@ void FastSeq::writeFastq (ostream& out) const {
 }
 
 void writeFastaSeqs (ostream& out, const vector<FastSeq>& fastSeqs) {
-  for (auto s : fastSeqs)
+  for (const auto& s : fastSeqs)
     s.writeFasta (out);
 }
 
 void writeFastqSeqs (ostream& out, const vector<FastSeq>& fastSeqs) {
-  for (auto s : fastSeqs)
+  for (const auto& s : fastSeqs)
     s.writeFastq (out);
 }
 
@@ -110,7 +110,7 @@ FastSeq FastSeq::revcomp() const {
 void addRevcomps (vector<FastSeq>& db) {
   vector<FastSeq> revcomps;
   revcomps.reserve (db.size());
-  for (auto fs : db)
+  for (const auto& fs : db)
     revcomps.push_back (fs.revcomp());
   db.insert (db.end(), revcomps.begin(), revcomps.end());
 }

@@ -2,21 +2,115 @@
 #include <fstream>
 #include "../src/qmodel.h"
 
-bool parseUnknown (int argc, char** argv, const string& usage) {
-  if (argc > 0) {
-    cerr << usage << "Unknown option: " << argv[0] << endl;
-    Abort ("Error parsing command-line options");
+struct QuaffUsage {
+  int& argc;
+  char**& argv;
+  string prog, text;
+  QuaffUsage (int& argc, char**& argv);
+  string getCommand();
+  bool parseUnknown();
+};
+
+struct QuaffParamsIn : QuaffParams {
+  int& argc;
+  char**& argv;
+  bool initialized;
+
+  QuaffParamsIn (int& argc, char**& argv)
+    : QuaffParams(),
+      argc(argc),
+      argv(argv),
+      initialized(false)
+  { }
+
+  bool parseParamFilename();
+  void loadParams();
+};
+
+struct SeqList {
+  vector<string> filenames;
+  string type, tag;
+  int& argc;
+  char**& argv;
+  bool wantFastq, wantRevcomps;
+  vector<FastSeq> seqs;
+
+  SeqList (int& argc, char**& argv, const char* type, const char* tag)
+    : argc(argc),
+      argv(argv),
+      tag(tag),
+      wantFastq(false),
+      wantRevcomps(false)
+  { }
+
+  bool parseSeqFilename();
+  bool parseFwdStrand();
+  void loadSequences();
+};
+
+int main (int argc, char** argv) {
+
+  QuaffUsage usage (argc, argv);
+  const string command = usage.getCommand();
+
+  QuaffParamsIn params (argc, argv);
+  QuaffTrainer trainer;
+  QuaffParamCounts prior;
+  prior.initCounts (1);
+
+  SeqList refs (argc, argv, "reference", "-fasta");
+  refs.wantRevcomps = true;
+  
+  SeqList reads (argc, argv, "read", "-fastq");
+  reads.wantFastq = true;
+
+  if (command == "align") {
+    while (logger.parseLogArgs (argc, argv)
+	   || params.parseParamFilename()
+	   || refs.parseSeqFilename()
+	   || reads.parseSeqFilename()
+	   || refs.parseFwdStrand()
+	   || usage.parseUnknown())
+      { }
+
+    reads.loadSequences();
+    refs.loadSequences();
+    params.loadParams();
+
+    // WRITE ME
+
+  } else if (command == "train") {
+    while (logger.parseLogArgs (argc, argv)
+	   || trainer.parseTrainingArgs (argc, argv)
+	   || params.parseParamFilename()
+	   || refs.parseSeqFilename()
+	   || reads.parseSeqFilename()
+	   || refs.parseFwdStrand()
+	   || usage.parseUnknown())
+      { }
+
+    reads.loadSequences();
+    refs.loadSequences();
+    params.loadParams();
+
+    QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, prior);
+    newParams.write (cout);
+    
+  } else {
+    cerr << usage.text << "Unrecognized command: " << command << endl;
+    return EXIT_FAILURE;
   }
-  return false;
+
+  return EXIT_SUCCESS;
 }
 
-bool parseParamFilename (int argc, char** argv, QuaffParams& qp) {
+bool QuaffParamsIn::parseParamFilename() {
   if (argc > 0) {
     const string arg = argv[0];
     if (arg == "-params") {
       Assert (argc > 1, "%s needs an argument", arg.c_str());
       ifstream inFile (argv[1]);
-      qp.read (inFile);
+      read (inFile);
       argc -= 2;
       argv += 2;
       return true;
@@ -25,7 +119,11 @@ bool parseParamFilename (int argc, char** argv, QuaffParams& qp) {
   return false;
 }
 
-bool parseSeqFilename (int argc, char** argv, const char* tag, vector<string>& filenames) {
+void QuaffParamsIn::loadParams() {
+  Assert (initialized, "Please specify a parameter file using -params");
+}
+
+bool SeqList::parseSeqFilename() {
   if (argc > 0) {
     const string arg = argv[0];
     if (arg == tag) {
@@ -39,19 +137,41 @@ bool parseSeqFilename (int argc, char** argv, const char* tag, vector<string>& f
   return false;
 }
 
-vector<FastSeq> loadSequences (const vector<string>& filenames) {
-  vector<FastSeq> seqs;
-  for (auto s : filenames) {
-    const vector<FastSeq> fs = readFastSeqs (s.c_str());
-    seqs.insert (seqs.end(), fs.begin(), fs.end());
+bool SeqList::parseFwdStrand() {
+  if (argc > 0) {
+    const string arg = argv[0];
+    if (arg == "-fwdstrand") {
+      wantRevcomps = false;
+      argc -= 1;
+      argv += 1;
+      return true;
+    }
   }
-  return seqs;
+  return false;
 }
 
-int main (int argc, char** argv) {
+void SeqList::loadSequences() {
+  Assert (filenames.size() > 0, "Please specify at least one %s file using %s", type.c_str(), tag.c_str());
 
-  const string prog (argv[0]);
-  const string usage = "Usage: " + prog + " {align,train} [options]\n"
+  for (const auto& s : filenames) {
+    const vector<FastSeq> fsvec = readFastSeqs (s.c_str());
+    if (wantFastq)
+      for (const auto& fs: fsvec)
+	Assert (fs.hasQual(), "Sequence %s in file %s does not have quality scores", fs.name.c_str(), s.c_str());
+    seqs.insert (seqs.end(), fsvec.begin(), fsvec.end());
+  }
+
+  if (wantRevcomps)
+    addRevcomps (seqs);
+}
+
+
+QuaffUsage::QuaffUsage (int& argc, char**& argv)
+  : argc(argc),
+    argv(argv),
+    prog (argv[0])
+{
+  text = "Usage: " + prog + " {align,train} [options]\n"
     + "\n"
     + " " + prog + " train [-params seed-params.yaml] -fasta refs.fasta -fastq reads.fastq  >trained-params.yaml\n"
     + "  (to fit a model to unaligned FASTQ reads/FASTA refs, using EM)\n"
@@ -63,52 +183,23 @@ int main (int argc, char** argv) {
     + " -verbose, -vv, -vvv, -v4, etc.\n"
     + " -log <function_name>\n"
     + "                 various levels of logging\n";
+}
 
+string QuaffUsage::getCommand() {
   if (argc < 2) {
-    cerr << usage;
+    cerr << text;
     exit (EXIT_FAILURE);
   }
-
-  QuaffParams params;
-  QuaffTrainer trainer;
-
   const string command (argv[1]);
   argv += 2;
   argc -= 2;
+  return command;
+}
 
-  vector<string> refFilenames, readFilenames;
-  
-  if (command == "align") {
-    while (logger.parseLogArgs (argc, argv)
-	   || parseParamFilename (argc, argv, params)
-	   || parseSeqFilename (argc, argv, "-fasta", refFilenames)
-	   || parseSeqFilename (argc, argv, "-fastq", readFilenames)
-	   || parseUnknown (argc, argv, usage))
-      { }
-
-    const vector<FastSeq> reads = loadSequences (readFilenames);
-    const vector<FastSeq> refs = loadSequences (refFilenames);
-
-    // WRITE ME
-    
-  } else if (command == "train") {
-    while (logger.parseLogArgs (argc, argv)
-	   || trainer.parseTrainingArgs (argc, argv)
-	   || parseParamFilename (argc, argv, params)
-	   || parseSeqFilename (argc, argv, "-fasta", refFilenames)
-	   || parseSeqFilename (argc, argv, "-fastq", readFilenames)
-	   || parseUnknown (argc, argv, usage))
-      { }
-
-    const vector<FastSeq> reads = loadSequences (readFilenames);
-    const vector<FastSeq> refs = loadSequences (refFilenames);
-
-    // WRITE ME
-    
-  } else {
-    cerr << usage << "Unrecognized command: " << command << endl;
-    return EXIT_FAILURE;
+bool QuaffUsage::parseUnknown() {
+  if (argc > 0) {
+    cerr << text << "Unknown option: " << argv[0] << endl;
+    Abort ("Error parsing command-line options");
   }
-
-  return EXIT_SUCCESS;
+  return false;
 }

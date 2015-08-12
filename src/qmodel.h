@@ -20,7 +20,7 @@ struct SymQualDist {
 
 // Memo-ized log scores for a SymQualDist
 struct SymQualScores {
-  vector<double> logQualProb;  // logQualProb[q] = P(this symbol wih quality score q)
+  vector<double> logSymQualProb;  // logSymQualProb[q] = P(this symbol wih quality score q)
   SymQualScores() { }
   SymQualScores (const SymQualDist& sqd);
 };
@@ -69,11 +69,21 @@ struct QuaffParamCounts {
   vector<vector<SymQualCounts> > match;
   double beginInsertNo, extendInsertNo, beginDeleteNo, extendDeleteNo;
   double beginInsertYes, extendInsertYes, beginDeleteYes, extendDeleteYes;
+  QuaffParamCounts();
   QuaffParamCounts (const QuaffCounts& counts);
+  void initCounts (double count);
   void write (ostream& out) const;
   void addWeighted (const QuaffParamCounts& counts, double weight);
   QuaffParams fit() const;  // maximum-likelihood fit
   double logPrior (const QuaffParams& qp) const;  // uses counts as hyperparameters to define a prior over params
+};
+
+struct QuaffNullParams {
+  double nullEmit;
+  vector<SymQualDist> null;
+  QuaffNullParams (const vector<FastSeq>& seqs, double pseudocount = 1);
+  double logLikelihood (const FastSeq& seq) const;
+  double logLikelihood (const vector<FastSeq>& seqs) const;
 };
 
 // Alignment
@@ -82,7 +92,8 @@ struct Alignment {
   Alignment (int numRows = 0)
     : gappedSeq(numRows)
   { }
-  void write (ostream& out) const;
+  void writeFasta (ostream& out) const;
+  void writeStockholm (ostream& out) const;
   FastSeq getUngapped (int row) const;
 };
 
@@ -95,11 +106,12 @@ struct QuaffDPMatrix {
   int xLen, yLen;
   vector<vector<double> > mat, ins, del;
   double start, end, result;
+  vector<double> cachedInsertEmitScore;
   inline double matchEmitScore (int i, int j) const {
-    return qs.match[xTok[i-1]][yTok[j-1]].logQualProb[yQual[j-1]];
+    return qs.match[xTok[i-1]][yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
   inline double insertEmitScore (int j) const {
-    return qs.insert[yTok[j-1]].logQualProb[yQual[j-1]];
+    return qs.insert[yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
   QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
 };
@@ -121,6 +133,12 @@ struct QuaffBackwardMatrix : QuaffDPMatrix {
   }
 };
 
+struct QuaffForwardBackwardMatrix {
+  QuaffForwardMatrix fwd;
+  QuaffBackwardMatrix back;
+  QuaffForwardBackwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
+};
+  
 class QuaffViterbiMatrix : public QuaffDPMatrix {
 private:
   const char gapChar = '-';
@@ -130,13 +148,25 @@ public:
   Alignment alignment() const;
 };
 
-// Baum-Welch style EM algorithm (also fits quality score distributions)
+// config/wrapper struct for Baum-Welch style EM algorithm
 struct QuaffTrainer {
   int maxIterations;
   double minFractionalLoglikeIncrement;
 
+  QuaffTrainer();
   bool parseTrainingArgs (int& argc, char**& argv);
   QuaffParams fit (const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts);
+};
+
+// config/wrapper struct for Viterbi alignment
+struct QuaffAligner {
+  enum OutputFormat { GappedFastaAlignment, StockholmAlignment, UngappedFastaRef } format;
+  double logOddsThreshold;
+  bool printAllAlignments;  // print alignment to every reference sequence that matches
+  
+  QuaffAligner();
+  bool parseAlignmentArgs (int& argc, char**& argv);
+  void alignAndPrint (const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& params);
 };
 
 #endif /* QMODEL_INCLUDED */

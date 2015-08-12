@@ -35,11 +35,11 @@ double SymQualDist::logQualProb (const vector<double>& kFreq) const {
 }
 
 SymQualScores::SymQualScores (const SymQualDist& sqd)
-  : logQualProb (FastSeq::qualScoreRange)
+  : logSymQualProb (FastSeq::qualScoreRange)
 {
   const double symLogProb = log (sqd.symProb);
   for (int k = 0; k < FastSeq::qualScoreRange; ++k)
-    logQualProb[k] = symLogProb + sqd.logQualProb(k);
+    logSymQualProb[k] = symLogProb + sqd.logQualProb(k);
 }
 
 SymQualCounts::SymQualCounts()
@@ -140,6 +140,13 @@ QuaffCounts::QuaffCounts()
     i2m(0)
 { }
 
+QuaffParamCounts::QuaffParamCounts()
+  : insert (dnaAlphabetSize),
+    match (dnaAlphabetSize, vector<SymQualCounts> (dnaAlphabetSize))
+{
+  initCounts (0);
+}
+    
 QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
   : insert (counts.insert),
     match (counts.match),
@@ -152,6 +159,24 @@ QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
     extendDeleteNo (counts.d2m),
     extendDeleteYes (counts.d2d)
 { }
+
+void QuaffParamCounts::initCounts (double count) {
+  for (auto& ins : insert)
+    for (auto& qc : ins.qualCount)
+      qc = count / FastSeq::qualScoreRange;
+  for (auto& mx : match)
+    for (auto& mxy : mx)
+      for (auto& qc : mxy.qualCount)
+	qc = count / FastSeq::qualScoreRange;
+  beginInsertNo = count;
+  beginInsertYes = count;
+  extendInsertNo = count;
+  extendInsertYes = count;
+  beginDeleteNo = count;
+  beginDeleteYes = count;
+  extendDeleteNo = count;
+  extendDeleteYes = count;
+}
 
 void QuaffParamCounts::write (ostream& out) const {
   QuaffParamWrite(beginInsertNo);
@@ -169,9 +194,23 @@ void QuaffParamCounts::write (ostream& out) const {
       match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
 }
 
-void Alignment::write (ostream& out) const {
-  for (auto s : gappedSeq)
+void Alignment::writeFasta (ostream& out) const {
+  for (const auto& s : gappedSeq)
     s.writeFasta (out);
+}
+
+void Alignment::writeStockholm (ostream& out) const {
+  out << "# STOCKHOLM 1.0" << endl;
+  size_t nameWidth = 0;
+  for (const auto& s : gappedSeq)
+    nameWidth = max (s.name.size(), nameWidth);
+  for (const auto& s : gappedSeq) {
+    const streamsize w = out.width (nameWidth);
+    out << s.name;
+    out.width (w);
+    out << ' ' << s.seq << endl;
+  }
+  out << "//" << endl;
 }
 
 FastSeq Alignment::getUngapped (int row) const {
@@ -202,11 +241,14 @@ QuaffDPMatrix::QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffPar
     mat (x.length() + 1, vector<double> (y.length() + 1, -numeric_limits<double>::infinity())),
     ins (x.length() + 1, vector<double> (y.length() + 1, -numeric_limits<double>::infinity())),
     del (x.length() + 1, vector<double> (y.length() + 1, -numeric_limits<double>::infinity())),
+    cachedInsertEmitScore (y.length() + 1, -numeric_limits<double>::infinity()),
     start (-numeric_limits<double>::infinity()),
     end (-numeric_limits<double>::infinity()),
     result (-numeric_limits<double>::infinity())
 {
   Assert (y.hasQual(), "Read sequences must have quality scores (FASTQ, not FASTA)");
+  for (int j = 1; j <= y.length(); ++j)
+    cachedInsertEmitScore[j] = insertEmitScore(j);
 }
 
 QuaffForwardMatrix::QuaffForwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp)
@@ -230,8 +272,8 @@ QuaffForwardMatrix::QuaffForwardMatrix (const FastSeq& x, const FastSeq& y, cons
 
       mat[i][j] += matchEmitScore(i,j);
 
-      ins[i][j] = insertEmitScore(j) + log_sum_exp (ins[i][j-1] + qs.i2i,
-						    mat[i][j-1] + qs.m2i);
+      ins[i][j] = cachedInsertEmitScore[j] + log_sum_exp (ins[i][j-1] + qs.i2i,
+							  mat[i][j-1] + qs.m2i);
 
       del[i][j] = log_sum_exp (del[i-1][j] + qs.d2d,
 			       mat[i-1][j] + qs.m2d);
@@ -293,7 +335,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
       }
 
       if (i < xLen) {
-	const double insEmit = insertEmitScore(j+1);
+	const double insEmit = cachedInsertEmitScore[j+1];
 	const double insDest = ins[i+1][j];
 	double& insCount = insertCount(j+1);
 
@@ -375,8 +417,8 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, cons
 
       mat[i][j] += matchEmitScore(i,j);
 
-      ins[i][j] = insertEmitScore(j) + max (ins[i][j-1] + qs.i2i,
-					    mat[i][j-1] + qs.m2i);
+      ins[i][j] = cachedInsertEmitScore[j] + max (ins[i][j-1] + qs.i2i,
+						  mat[i][j-1] + qs.m2i);
 
       del[i][j] = max (del[i-1][j] + qs.d2d,
 		       mat[i-1][j] + qs.m2d);
@@ -423,7 +465,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
       break;
 
     case Insert:
-      emitSc = insertEmitScore(j);
+      emitSc = cachedInsertEmitScore[j];
       xRow.push_front (gapChar);
       yRow.push_front (py->seq[--j]);
       updateMax (srcSc, state, mat[i][j] + qs.m2i + emitSc, Match);
@@ -451,6 +493,11 @@ Alignment QuaffViterbiMatrix::alignment() const {
   align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
   return align;
 }
+
+QuaffTrainer::QuaffTrainer()
+  : maxIterations (100),
+    minFractionalLoglikeIncrement (.01)
+{ }
 
 bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
   if (argc > 0) {
@@ -546,8 +593,129 @@ QuaffParams QuaffParamCounts::fit() const {
   return qp;
 }
 
+QuaffForwardBackwardMatrix::QuaffForwardBackwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp)
+  : fwd (x, y, qp),
+    back (fwd)
+{ }
+
+QuaffNullParams::QuaffNullParams (const vector<FastSeq>& seqs, double pseudocount)
+  : null (dnaAlphabetSize)
+{
+  vector<SymQualCounts> nullCount (dnaAlphabetSize);
+  for (auto& sqc : nullCount)
+    for (auto& c : sqc.qualCount)
+      c += pseudocount / FastSeq::qualScoreRange;
+  double nullEmitYes = pseudocount, nullEmitNo = pseudocount;
+
+  for (const auto& s : seqs) {
+    ++nullEmitNo;
+    nullEmitYes += s.length();
+    const vector<int> tok = s.tokens (dnaAlphabet);
+    for (size_t i = 0; i < s.length(); ++i)
+      ++nullCount[tok[i]].qualCount[s.getQualScoreAt(i)];
+  }
+
+  nullEmit = 1 / (1 + nullEmitNo / nullEmitYes);
+  for (size_t n = 0; n < dnaAlphabetSize; ++n)
+    fitNegativeBinomial (nullCount[n].qualCount, null[n].qualTrialSuccessProb, null[n].qualNumSuccessfulTrials);
+}
+
+double QuaffNullParams::logLikelihood (const vector<FastSeq>& seqs) const {
+  double ll = 0;
+  for (const auto& s : seqs)
+    ll += logLikelihood (s);
+  return ll;
+}
+
+double QuaffNullParams::logLikelihood (const FastSeq& s) const {
+  double ll = s.length() * log(nullEmit) + log(1. - nullEmit);
+  const vector<int> tok = s.tokens (dnaAlphabet);
+  for (size_t i = 0; i < s.length(); ++i)
+    ll += log (null[tok[i]].symProb) + null[tok[i]].logQualProb (s.getQualScoreAt(i));
+  return ll;
+}
+
 QuaffParams QuaffTrainer::fit (const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts) {
   QuaffParams qp = seed;
-  // WRITE ME
+  QuaffNullParams qnp (y);
+  double prevLogLikeWithPrior;
+  for (int iter = 0; iter < maxIterations; ++iter) {
+    QuaffParamCounts counts;
+    double logLike = 0;
+    for (const auto& yfs : y) {
+      double yLogLike = qnp.logLikelihood (yfs);  // this initial value allows null model to "win"
+      vector<double> xyLogLike;
+      vector<QuaffParamCounts> xyCounts;
+      for (const auto& xfs : x) {
+	QuaffForwardBackwardMatrix fb (xfs, yfs, qp);
+	const double ll = fb.fwd.result;
+	const QuaffParamCounts qpc (fb.back.qc);
+	xyLogLike.push_back (ll);
+	xyCounts.push_back (qpc);
+	yLogLike = log_sum_exp (yLogLike, ll);
+      }
+      for (size_t nx = 0; nx < x.size(); ++nx)
+	counts.addWeighted (xyCounts[nx], exp (xyLogLike[nx] - yLogLike));
+      logLike += yLogLike;
+    }
+    const double logPrior = pseudocounts.logPrior (qp);
+    const double logLikeWithPrior = logLike + logPrior;
+    if (LogThisAt(1))
+      cerr << "EM iteration " << (iter+1) << ": log-likelihood (" << logLike << ") + log-prior (" << logPrior << ") = " << logLikeWithPrior << endl;
+    if (iter > 0 && logLikeWithPrior < prevLogLikeWithPrior + abs(prevLogLikeWithPrior)*minFractionalLoglikeIncrement)
+      break;
+    prevLogLikeWithPrior = logLikeWithPrior;
+    counts.addWeighted (pseudocounts, 1.);
+    qp = counts.fit();
+  }
   return qp;
 }
+
+QuaffAligner::QuaffAligner()
+  : format (StockholmAlignment),
+    logOddsThreshold (0),
+    printAllAlignments (false)
+{ }
+
+bool QuaffAligner::parseAlignmentArgs (int& argc, char**& argv) {
+  if (argc > 0) {
+    const char* arg = argv[0];
+    if (strcmp (arg, "-format") == 0) {
+      Assert (argc > 1, "%s must have an argument", arg);
+      const string fmt = argv[1];
+      if (fmt == "fasta")
+	format = GappedFastaAlignment;
+      else if (fmt == "stockholm")
+	format = StockholmAlignment;
+      else if (fmt == "refseq")
+	format = UngappedFastaRef;
+      else
+	Abort ("Unknown format: %s", fmt.c_str());
+      argv += 2;
+      argc -= 2;
+      return true;
+
+    } else if (strcmp (arg, "-threshold") == 0) {
+      Assert (argc > 1, "%s must have an argument", arg);
+      const char* val = argv[1];
+      logOddsThreshold = atof (val);
+      argv += 2;
+      argc -= 2;
+      return true;
+
+    } else if (strcmp (arg, "-printall") == 0) {
+      printAllAlignments = true;
+      argv += 1;
+      argc -= 1;
+      return true;
+
+    }
+  }
+
+  return false;
+}
+
+void QuaffAligner::alignAndPrint (const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& params) {
+  // WRITE ME
+}
+
