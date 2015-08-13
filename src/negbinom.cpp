@@ -228,8 +228,6 @@ int bracketFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, d
 	}
       while (status == GSL_CONTINUE && iter < MaxNegBinomBracketMaxIterations);
 
-      gsl_root_fsolver_free (bracketSolver);
-
       nSuccess = nSuccessGuess;
       pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
 
@@ -238,6 +236,7 @@ int bracketFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, d
     }
   }
 
+  gsl_root_fsolver_free (bracketSolver);
   return status;
 }
 
@@ -297,8 +296,6 @@ int gradientFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, 
       }
     while (status == GSL_CONTINUE && iter < MaxNegBinomPolishMaxIterations);
 
-    gsl_root_fdfsolver_free (derivSolver);
-
     nSuccess = nSuccessGuess;
     pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
 
@@ -306,5 +303,6 @@ int gradientFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, 
       cerr << "Gradient fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
   }
 
+  gsl_root_fdfsolver_free (derivSolver);
   return status;
 }

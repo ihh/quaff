@@ -94,7 +94,7 @@ struct Alignment {
   vguard<FastSeq> gappedSeq;
   double score;
   Alignment (int numRows = 0)
-    : gappedSeq(numRows)
+    : gappedSeq(numRows), score(0)
   { }
   const size_t rows() const { return gappedSeq.size(); }
   Alignment& addScoreComment();  // adds score to comment field of first row
