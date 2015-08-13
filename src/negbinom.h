@@ -2,7 +2,6 @@
 #define NEGBINOM_INCLUDED
 
 #include "vguard.h"
-#include "logger.h"
 
 using namespace std;
 

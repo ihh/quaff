@@ -4,6 +4,7 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_roots.h>
 #include "../src/negbinom.h"
+#include "../src/logger.h"
 
 int main (int argc, char **argv) {
   if (argc != 5) {

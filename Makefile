@@ -1,6 +1,9 @@
 .SECONDARY:
 
+GSL_PREFIX = /usr/local
+
 CPPFILES = $(wildcard src/*.cpp)
+CPPFLAGS = -DUSE_VECTOR_GUARDS -I$(GSL_PREFIX)/include -L$(GSL_PREFIX)/lib
 
 all: test
 
@@ -8,7 +11,7 @@ test: testfast testquaffio testlogsumexp testnegbinom
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
-	g++ -DUSE_VECTOR_GUARDS -std=c++11 -g -lstdc++ -lz -lgsl -o $@ t/$*.cpp $(CPPFILES)
+	g++ $(CPPFLAGS) -std=c++11 -g -lstdc++ -lz -lgsl -o $@ t/$*.cpp $(CPPFILES)
 
 testfast: bin/testfasta bin/testfastq
 	perl/testexpect.pl bin/testfasta data/tiny.fasta data/tiny.fasta

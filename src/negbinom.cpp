@@ -6,6 +6,7 @@
 #include <gsl/gsl_randist.h>
 #include "negbinom.h"
 #include "util.h"
+#include "logger.h"
 
 /* convergence parameters */
 #define MaxNegBinomBracketMaxIterations 100
