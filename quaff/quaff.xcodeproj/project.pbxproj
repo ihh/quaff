@@ -262,6 +262,10 @@
 					"$(inherited)",
 					/usr/local/Cellar/gsl/1.16/lib,
 				);
+				OTHER_CPLUSPLUSFLAGS = (
+					"$(OTHER_CFLAGS)",
+					"-DUSE_VECTOR_GUARDS",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -277,6 +281,10 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					/usr/local/Cellar/gsl/1.16/lib,
+				);
+				OTHER_CPLUSPLUSFLAGS = (
+					"$(OTHER_CFLAGS)",
+					"-DUSE_VECTOR_GUARDS",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
