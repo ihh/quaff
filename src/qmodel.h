@@ -86,6 +86,7 @@ struct QuaffNullParams {
   QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocount = 1);
   double logLikelihood (const FastSeq& seq) const;
   double logLikelihood (const vguard<FastSeq>& seqs) const;
+  void write (ostream& out) const;
 };
 
 // Alignment
@@ -96,6 +97,7 @@ struct Alignment {
     : gappedSeq(numRows)
   { }
   const size_t rows() const { return gappedSeq.size(); }
+  Alignment& addScoreComment();  // adds score to comment field of first row
   void writeGappedFasta (ostream& out) const;
   void writeStockholm (ostream& out) const;
   FastSeq getUngapped (int row) const;
@@ -150,7 +152,7 @@ private:
 public:
   QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
   Alignment alignment() const;
-  Alignment alignment (const QuaffNullParams& nullModel) const;
+  Alignment scoreAdjustedAlignment (const QuaffNullParams& nullModel) const;
 };
 
 // config/wrapper struct for Baum-Welch style EM algorithm

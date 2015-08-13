@@ -5,7 +5,7 @@
 struct QuaffUsage {
   int& argc;
   char**& argv;
-  string prog, text;
+  string prog, briefText, text;
   QuaffUsage (int& argc, char**& argv);
   string getCommand();
   bool parseUnknown();
@@ -81,7 +81,7 @@ int main (int argc, char** argv) {
 
     aligner.align (cout, refs.seqs, reads.seqs, params);
 
-  } else if (command == "train") {
+  } else if (command == "learn") {
     QuaffTrainer trainer;
     while (logger.parseLogArgs (argc, argv)
 	   || trainer.parseTrainingArgs (argc, argv)
@@ -97,9 +97,13 @@ int main (int argc, char** argv) {
 
     QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, prior);
     newParams.write (cout);
+
+  } else if (command == "help" || command == "-help" || command == "--help" || command == "-h") {
+    cout << usage.text;
+    return EXIT_SUCCESS;
     
   } else {
-    cerr << usage.text << "Unrecognized command: " << command << endl;
+    cerr << usage.briefText << "Unrecognized command: " << command << endl;
     return EXIT_FAILURE;
   }
 
@@ -114,6 +118,7 @@ bool QuaffParamsIn::parseParamFilename() {
       ifstream inFile (argv[1]);
       Assert (!inFile.fail(), "Couldn't open %s", argv[1]);
       read (inFile);
+      initialized = true;
       argc -= 2;
       argv += 2;
       return true;
@@ -174,23 +179,39 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     argv(argv),
     prog (argv[0])
 {
-  text = "Usage: " + prog + " {align,train} [options]\n"
+  briefText = "Usage: " + prog + " {help,learn,align} [options]\n";
+  
+  text = briefText
     + "\n"
-    + " " + prog + " train [-params seed-params.yaml] -fasta refs.fasta -fastq reads.fastq  >trained-params.yaml\n"
+    + "Commands:\n"
+    + "\n"
+    + " " + prog + " learn -fasta refs.fasta -fastq reads.fastq  >trainedParams.yaml\n"
     + "  (to fit a model to unaligned FASTQ reads/FASTA refs, using EM)\n"
+    + "\n"
+    + "   -params <file> Optional initial parameters\n"
+    + "   -maxiter <n>   Max number of EM iterations\n"
+    + "   -mininc <f>    EM convergence threshold (relative log-likelihood increase)\n"
     + "\n"
     + " " + prog + " align -params params.yaml -fasta refs.fasta -fastq reads.fastq\n"
     + "  (to align FASTQ reads to FASTA reference sequences, using Viterbi)\n"
     + "\n"
-    + "Other options (some are only available in certain command modes):\n"
-    + " -verbose, -vv, -vvv, -v4, etc.\n"
-    + " -log <function_name>\n"
-    + "                 various levels of logging\n";
+    + "   -format {fasta,stockholm,refseq}\n"
+    + "                   Alignment output format\n"
+    + "   -threshold <f>\n"
+    + "   -nothreshold    Score threshold for alignment reporting\n"
+    + "   -printall       Print all pairwise alignments, not just best for each read\n"
+    + "\n"
+    + "General options for all commands:\n"
+    + "   -verbose, -vv, -vvv, -v4, etc.\n"
+    + "   -log <function_name>\n"
+    + "                   Various levels of logging\n"
+    + "   -fwdstrand      Do not include reverse-complemented refseqs\n"
+    + "\n";
 }
 
 string QuaffUsage::getCommand() {
   if (argc < 2) {
-    cerr << text;
+    cerr << briefText;
     exit (EXIT_FAILURE);
   }
   const string command (argv[1]);

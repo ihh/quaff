@@ -220,9 +220,13 @@ void QuaffParamCounts::write (ostream& out) const {
       match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
 }
 
-void Alignment::writeGappedFasta (ostream& out) const {
+Alignment& Alignment::addScoreComment() {
   if (rows())
-    ((FastSeq&)gappedSeq[0]).comment = string("Score=") + to_string(score);
+    ((FastSeq&)gappedSeq[0]).comment = string("score(") + to_string(score) + ") " + gappedSeq[0].comment;
+  return *this;
+}
+
+void Alignment::writeGappedFasta (ostream& out) const {
   for (const auto& s : gappedSeq)
     s.writeFasta (out);
 }
@@ -284,7 +288,7 @@ QuaffForwardMatrix::QuaffForwardMatrix (const FastSeq& x, const FastSeq& y, cons
   : QuaffDPMatrix (x, y, qp)
 {
   if (LogThisAt(2))
-    initProgress ("Forward matrix");
+    initProgress ("Forward algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
   for (int i = 1; i <= xLen; ++i) {
@@ -321,7 +325,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
     qc()
 {
   if (LogThisAt(2))
-    initProgress ("Backward matrix");
+    initProgress ("Backward algorithm (%s vs %s)", px->name.c_str(), py->name.c_str());
 
   end = 0;
   for (size_t i = xLen; i > 0; --i) {
@@ -424,7 +428,7 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, cons
   : QuaffDPMatrix (x, y, qp)
 {
   if (LogThisAt(2))
-    initProgress ("Viterbi matrix");
+    initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
   for (int i = 1; i <= xLen; ++i) {
@@ -512,8 +516,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
   }
   const size_t xStart = i + 1;
   Alignment align(2);
-  align.gappedSeq[0].name = "substr(" + px->name + "," + to_string(xStart) + "," + to_string(xEnd) + ")";
-  align.gappedSeq[0].comment = px->name + " " + to_string(xStart) + " " + to_string(xEnd);
+  align.gappedSeq[0].name = "substr(" + px->name + "," + to_string(xStart) + ".." + to_string(xEnd) + ")";
   align.gappedSeq[1].name = py->name;
   align.gappedSeq[0].seq = string (xRow.begin(), xRow.end());
   align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
@@ -521,7 +524,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
   return align;
 }
 
-Alignment QuaffViterbiMatrix::alignment (const QuaffNullParams& nullModel) const {
+Alignment QuaffViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nullModel) const {
   Alignment a = alignment();
   a.score -= nullModel.logLikelihood (*py);
   return a;
@@ -682,9 +685,17 @@ double QuaffNullParams::logLikelihood (const FastSeq& s) const {
   return ll;
 }
 
+void QuaffNullParams::write (ostream& out) const {
+  QuaffParamWrite(nullEmit);
+  for (int i = 0; i < dnaAlphabetSize; ++i)
+    null[i].write (out, string("null") + dnaAlphabet[i]);
+}
+
 QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts) {
   QuaffParams qp = seed;
   const QuaffNullParams qnp (y);
+  if (LogThisAt(3))
+    qnp.write (cerr << "Null model:" << endl);
   double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
   for (int iter = 0; iter < maxIterations; ++iter) {
     QuaffParamCounts counts;
@@ -765,6 +776,12 @@ bool QuaffAligner::parseAlignmentArgs (int& argc, char**& argv) {
       argc -= 2;
       return true;
 
+    } else if (strcmp (arg, "-nothreshold") == 0) {
+      logOddsThreshold = -numeric_limits<double>::infinity();
+      argv += 1;
+      argc -= 1;
+      return true;
+
     } else if (strcmp (arg, "-printall") == 0) {
       printAllAlignments = true;
       argv += 1;
@@ -779,12 +796,14 @@ bool QuaffAligner::parseAlignmentArgs (int& argc, char**& argv) {
 
 void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params) {
   const QuaffNullParams qnp (y);
+  if (LogThisAt(3))
+    qnp.write (cerr << "Null model:" << endl);
   for (const auto& yfs : y) {
     size_t nBestAlign = 0;
     vguard<Alignment> xyAlign;
     for (const auto& xfs : x) {
       const QuaffViterbiMatrix viterbi (xfs, yfs, params);
-      const Alignment align = viterbi.alignment (qnp);
+      const Alignment align = viterbi.scoreAdjustedAlignment(qnp).addScoreComment();
       if (xyAlign.empty() || align.score > xyAlign[nBestAlign].score)
 	nBestAlign = xyAlign.size();
       xyAlign.push_back (align);
@@ -798,26 +817,29 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
 }
 
 void QuaffAligner::writeAlignment (ostream& out, const Alignment& align) const {
-  FastSeq ref;
-  switch (format) {
-  case GappedFastaAlignment:
-    align.writeGappedFasta (out);
-    break;
+  if (align.score >= logOddsThreshold) {
+    FastSeq ref;
+    switch (format) {
+    case GappedFastaAlignment:
+      align.writeGappedFasta (out);
+      out << endl;
+      break;
 
-  case StockholmAlignment:
-    align.writeStockholm (out);
-    break;
+    case StockholmAlignment:
+      align.writeStockholm (out);
+      break;
 
-  case UngappedFastaRef:
-    Assert (align.rows() == 2, "Not a pairwise alignment");
-    ref = align.getUngapped(0);
-    ref.comment += " aligns_to " + align.gappedSeq[1].name;
-    ref.writeFasta (out);
-    break;
+    case UngappedFastaRef:
+      Assert (align.rows() == 2, "Not a pairwise alignment");
+      ref = align.getUngapped(0);
+      ref.comment = string("matches(") + align.gappedSeq[1].name + ") " + ref.comment;
+      ref.writeFasta (out);
+      break;
 
-  default:
-    Abort ("Unrecognized alignment format");
-    break;
+    default:
+      Abort ("Unrecognized alignment format");
+      break;
+    }
   }
 }
 
