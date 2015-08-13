@@ -407,7 +407,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
   if (gsl_root_test_delta (result, fwd.result, 0, MAX_FRACTIONAL_FWDBACK_ERROR) != GSL_SUCCESS)
     cerr << endl << endl << "Warning: forward score (" << fwd.result << ") does not match backward score (" << result << ")" << endl << endl << endl;
 
-  if (LogThisAt(3)) {
+  if (LogThisAt(4)) {
     cerr << "Forward-backward counts, " << px->name << " vs " << py->name << ':' << endl;
     qc.write (cerr);
   }
@@ -675,7 +675,8 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     QuaffParamCounts counts;
     double logLike = 0;
     for (const auto& yfs : y) {
-      double yLogLike = qnp.logLikelihood (yfs);  // this initial value allows null model to "win"
+      const double yNullLogLike = qnp.logLikelihood (yfs);
+      double yLogLike = yNullLogLike;  // this initial value allows null model to "win"
       vguard<double> xyLogLike;
       vguard<QuaffParamCounts> xyCounts;
       for (const auto& xfs : x) {
@@ -686,8 +687,14 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
 	xyCounts.push_back (qpc);
 	yLogLike = log_sum_exp (yLogLike, ll);
       }
-      for (size_t nx = 0; nx < x.size(); ++nx)
-	counts.addWeighted (xyCounts[nx], exp (xyLogLike[nx] - yLogLike));
+      for (size_t nx = 0; nx < x.size(); ++nx) {
+	const double xyPostProb = exp (xyLogLike[nx] - yLogLike);
+	if (LogThisAt(2))
+	  cerr << "P(read " << yfs.name << " derived from ref " << x[nx].name << ") = " << xyPostProb << endl;
+	counts.addWeighted (xyCounts[nx], xyPostProb);
+      }
+      if (LogThisAt(2))
+	cerr << "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl;
       logLike += yLogLike;
     }
     const double logPrior = pseudocounts.logPrior (qp);
@@ -697,8 +704,16 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     if (iter > 0 && logLikeWithPrior < prevLogLikeWithPrior + abs(prevLogLikeWithPrior)*minFractionalLoglikeIncrement)
       break;
     prevLogLikeWithPrior = logLikeWithPrior;
+    if (LogThisAt(3)) {
+      cerr << "Parameter counts:" << endl;
+      counts.write (cerr);
+    }
     counts.addWeighted (pseudocounts, 1.);
+    const double oldExpectedLogLike = counts.logPrior(qp);
     qp = counts.fit();
+    const double newExpectedLogLike = counts.logPrior(qp);
+    if (LogThisAt(2))
+      cerr << "Expected log-likelihood went from " << oldExpectedLogLike << " to " << newExpectedLogLike << endl;
   }
   return qp;
 }
