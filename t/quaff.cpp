@@ -185,7 +185,7 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "\n"
     + "Commands:\n"
     + "\n"
-    + " " + prog + " learn -fasta refs.fasta -fastq reads.fastq  >trainedParams.yaml\n"
+    + " " + prog + " learn -fasta refs.fasta -fastq reads.fastq  >params.yaml\n"
     + "  (to fit a model to unaligned FASTQ reads/FASTA refs, using EM)\n"
     + "\n"
     + "   -params <file> Optional initial parameters\n"
