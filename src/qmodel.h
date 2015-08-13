@@ -4,7 +4,7 @@
 #include <map>
 #include <numeric>
 #include "fastseq.h"
-#include "logger.h"
+#include "diagenv.h"
 
 // struct describing the probability of a given FASTA symbol,
 // and a negative binomial distribution over the associated quality score
@@ -106,6 +106,7 @@ struct Alignment {
 // DP matrices
 struct QuaffDPMatrix {
   enum State { Start, Match, Insert, Delete };
+  const DiagonalEnvelope* penv;
   const FastSeq *px, *py;
   QuaffScores qs;
   vguard<int> xTok, yTok, yQual;
@@ -119,11 +120,12 @@ struct QuaffDPMatrix {
   inline double insertEmitScore (size_t j) const {
     return qs.insert[yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
-  QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
+  QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp);
+  void write (ostream& out) const;
 };
 
 struct QuaffForwardMatrix : QuaffDPMatrix {
-  QuaffForwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
+  QuaffForwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp);
 };
 
 struct QuaffBackwardMatrix : QuaffDPMatrix {
@@ -142,7 +144,7 @@ struct QuaffBackwardMatrix : QuaffDPMatrix {
 struct QuaffForwardBackwardMatrix {
   QuaffForwardMatrix fwd;
   QuaffBackwardMatrix back;
-  QuaffForwardBackwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
+  QuaffForwardBackwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp);
 };
   
 class QuaffViterbiMatrix : public QuaffDPMatrix {
@@ -150,7 +152,7 @@ private:
   const char gapChar = '-';
   static void updateMax (double& currentMax, State& currentMaxIdx, double candidateMax, State candidateMaxIdx);
 public:
-  QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
+  QuaffViterbiMatrix (const DiagonalEnvelope& env, const QuaffParams& qp);
   Alignment alignment() const;
   Alignment scoreAdjustedAlignment (const QuaffNullParams& nullModel) const;
 };

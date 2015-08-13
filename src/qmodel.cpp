@@ -8,6 +8,7 @@
 #include "qmodel.h"
 #include "logsumexp.h"
 #include "negbinom.h"
+#include "logger.h"
 
 #define MAX_FRACTIONAL_FWDBACK_ERROR .0001
 
@@ -262,31 +263,40 @@ FastSeq Alignment::getUngapped (int row) const {
   return s;
 }
 
-QuaffDPMatrix::QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp)
-  : px (&x),
-    py (&y),
+QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp)
+  : penv (&env),
+    px (env.px),
+    py (env.py),
     qs (qp),
-    xTok (x.tokens(dnaAlphabet)),
-    yTok (y.tokens(dnaAlphabet)),
-    yQual (y.qualScores()),
-    xLen (x.length()),
-    yLen (y.length()),
-    mat (x.length() + 1, vguard<double> (y.length() + 1, -numeric_limits<double>::infinity())),
-    ins (x.length() + 1, vguard<double> (y.length() + 1, -numeric_limits<double>::infinity())),
-    del (x.length() + 1, vguard<double> (y.length() + 1, -numeric_limits<double>::infinity())),
-    cachedInsertEmitScore (y.length() + 1, -numeric_limits<double>::infinity()),
+    xTok (px->tokens(dnaAlphabet)),
+    yTok (py->tokens(dnaAlphabet)),
+    yQual (py->qualScores()),
+    xLen (px->length()),
+    yLen (py->length()),
+    mat (px->length() + 1, vguard<double> (py->length() + 1, -numeric_limits<double>::infinity())),
+    ins (px->length() + 1, vguard<double> (py->length() + 1, -numeric_limits<double>::infinity())),
+    del (px->length() + 1, vguard<double> (py->length() + 1, -numeric_limits<double>::infinity())),
+    cachedInsertEmitScore (py->length() + 1, -numeric_limits<double>::infinity()),
     start (-numeric_limits<double>::infinity()),
     end (-numeric_limits<double>::infinity()),
     result (-numeric_limits<double>::infinity())
 {
-  Assert (y.hasQual(), "Read sequences must have quality scores (FASTQ, not FASTA)");
-  for (int j = 1; j <= y.length(); ++j)
+  Assert (py->hasQual(), "Read sequences must have quality scores (FASTQ, not FASTA)");
+  for (int j = 1; j <= py->length(); ++j)
     cachedInsertEmitScore[j] = insertEmitScore(j);
 }
 
-QuaffForwardMatrix::QuaffForwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp)
-  : QuaffDPMatrix (x, y, qp)
+void QuaffDPMatrix::write (ostream& out) const {
+  for (int i = 1; i <= xLen; ++i)
+    for (int j = 1; j <= yLen; ++j)
+      out << "i=" << i << " j=" << j << " mat=" << mat[i][j] << " ins=" << ins[i][j] << " del=" << del[i][j] << endl;
+}
+
+QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp)
+  : QuaffDPMatrix (env, qp)
 {
+  const FastSeq& x (*px);
+  const FastSeq& y (*py);
   if (LogThisAt(2))
     initProgress ("Forward algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
@@ -317,10 +327,13 @@ QuaffForwardMatrix::QuaffForwardMatrix (const FastSeq& x, const FastSeq& y, cons
   }
 
   result = end;
+
+  if (LogWhen("dpmatrix"))
+    write (cerr);
 }
 
 QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
-  : QuaffDPMatrix (*fwd.px, *fwd.py, *fwd.qs.pqp),
+  : QuaffDPMatrix (*fwd.penv, *fwd.qs.pqp),
     pfwd (&fwd),
     qc()
 {
@@ -408,6 +421,10 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
   }
 
   result = start;
+
+  if (LogWhen("dpmatrix"))
+    write (cerr);
+
   if (gsl_root_test_delta (result, fwd.result, 0, MAX_FRACTIONAL_FWDBACK_ERROR) != GSL_SUCCESS)
     cerr << endl << endl << "Warning: forward score (" << fwd.result << ") does not match backward score (" << result << ")" << endl << endl << endl;
 
@@ -424,9 +441,11 @@ double QuaffBackwardMatrix::transCount (double& backSrc, double fwdSrc, double t
   return count;
 }
 
-QuaffViterbiMatrix::QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp)
-  : QuaffDPMatrix (x, y, qp)
+QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const QuaffParams& qp)
+  : QuaffDPMatrix (env, qp)
 {
+  const FastSeq& x (*px);
+  const FastSeq& y (*py);
   if (LogThisAt(2))
     initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
@@ -457,6 +476,9 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, cons
   }
 
   result = end;
+
+  if (LogWhen("dpmatrix"))
+    write (cerr);
 }
 
 void QuaffViterbiMatrix::updateMax (double& currentMax, State& currentMaxIdx, double candidateMax, State candidateMaxIdx) {
@@ -643,8 +665,8 @@ QuaffParams QuaffParamCounts::fit() const {
   return qp;
 }
 
-QuaffForwardBackwardMatrix::QuaffForwardBackwardMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp)
-  : fwd (x, y, qp),
+QuaffForwardBackwardMatrix::QuaffForwardBackwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp)
+  : fwd (env, qp),
     back (fwd)
 { }
 
@@ -712,7 +734,9 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
       vguard<double> xyLogLike;
       vguard<QuaffParamCounts> xyCounts;
       for (const auto& xfs : x) {
-	const QuaffForwardBackwardMatrix fb (xfs, yfs, qp);
+	DiagonalEnvelope env (xfs, yfs);
+	env.initFull();
+	const QuaffForwardBackwardMatrix fb (env, qp);
 	const double ll = fb.fwd.result;
 	const QuaffParamCounts qpc (fb.back.qc);
 	xyLogLike.push_back (ll);
@@ -808,7 +832,9 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
     size_t nBestAlign = 0;
     vguard<Alignment> xyAlign;
     for (const auto& xfs : x) {
-      const QuaffViterbiMatrix viterbi (xfs, yfs, params);
+      DiagonalEnvelope env (xfs, yfs);
+      env.initFull();
+      const QuaffViterbiMatrix viterbi (env, params);
       const Alignment align = viterbi.scoreAdjustedAlignment(qnp).addScoreComment();
       if (xyAlign.empty() || align.score > xyAlign[nBestAlign].score)
 	nBestAlign = xyAlign.size();

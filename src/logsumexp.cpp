@@ -32,10 +32,14 @@ LogSumExpLookupTable::~LogSumExpLookupTable() {
 }
 
 double log_sum_exp (double a, double b) {
-  double min, max, diff, ret;
-  if (a < b) { min = a; max = b; }
-  else { min = b; max = a; }
-  diff = max - min;
+  double max, diff, ret;
+  // Note: Infinity plus or minus a finite quantity is still Infinity,
+  // but Infinity - Infinity = NaN.
+  // Thus, we are susceptible to NaN errors when trying to add 0+0 in log-space.
+  // To work around this, we explicitly test for a==b.
+  if (a == b) { max = a; diff = 0; }
+  else if (a < b) { max = b; diff = b - a; }
+  else { max = a; diff = a - b; }
   ret = max + log_sum_exp_unary (diff);
 #if defined(NAN_DEBUG)
   if (isnan(ret)) {

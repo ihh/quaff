@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include "../src/qmodel.h"
+#include "../src/logger.h"
 
 struct QuaffUsage {
   int& argc;

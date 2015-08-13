@@ -10,6 +10,9 @@ CPPFILES = $(wildcard src/*.cpp)
 
 all: test
 
+clean:
+	rm -rf bin/*
+
 test: testfast testquaffio testlogsumexp testnegbinom
 
 bin/%: $(CPPFILES) t/%.cpp

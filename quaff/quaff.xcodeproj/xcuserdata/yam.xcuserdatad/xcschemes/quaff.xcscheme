@@ -61,7 +61,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "train -fasta data/atgc.fastq -fastq data/atgc.fastq -v2"
+            argument = "learn -ref data/tiny.fastq -read data/tiny.fastq -v2"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

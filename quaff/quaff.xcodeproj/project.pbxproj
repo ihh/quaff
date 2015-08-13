@@ -7,13 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		283CC92E1B7D3005003ADD62 /* diagenv.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 283CC92C1B7D3005003ADD62 /* diagenv.cpp */; };
+		283CC9301B7D3189003ADD62 /* quaff.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 283CC92F1B7D3189003ADD62 /* quaff.cpp */; };
 		28586ED61B7C1FF400F39A98 /* fastseq.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586ECA1B7C1FF400F39A98 /* fastseq.cpp */; };
 		28586ED71B7C1FF400F39A98 /* logger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586ECC1B7C1FF400F39A98 /* logger.cpp */; };
 		28586ED81B7C1FF400F39A98 /* logsumexp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586ECE1B7C1FF400F39A98 /* logsumexp.cpp */; };
 		28586ED91B7C1FF400F39A98 /* negbinom.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586ED01B7C1FF400F39A98 /* negbinom.cpp */; };
 		28586EDA1B7C1FF400F39A98 /* qmodel.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586ED21B7C1FF400F39A98 /* qmodel.cpp */; };
 		28586EDB1B7C1FF400F39A98 /* util.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586ED41B7C1FF400F39A98 /* util.cpp */; };
-		28586EDE1B7C200A00F39A98 /* quaff.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586EDD1B7C200A00F39A98 /* quaff.cpp */; };
 		28586EE01B7C201D00F39A98 /* libz.1.2.5.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 28586EDF1B7C201D00F39A98 /* libz.1.2.5.dylib */; };
 		28586EE21B7C20B500F39A98 /* libgsl.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 28586EE11B7C20B500F39A98 /* libgsl.0.dylib */; };
 /* End PBXBuildFile section */
@@ -31,24 +32,26 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		283CC92C1B7D3005003ADD62 /* diagenv.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = diagenv.cpp; path = /Users/yam/quaff/src/diagenv.cpp; sourceTree = "<absolute>"; };
+		283CC92D1B7D3005003ADD62 /* diagenv.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = diagenv.h; path = /Users/yam/quaff/src/diagenv.h; sourceTree = "<absolute>"; };
+		283CC92F1B7D3189003ADD62 /* quaff.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = quaff.cpp; path = /Users/yam/quaff/t/quaff.cpp; sourceTree = "<absolute>"; };
 		28586EC01B7C1FD400F39A98 /* quaff */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = quaff; sourceTree = BUILT_PRODUCTS_DIR; };
-		28586ECA1B7C1FF400F39A98 /* fastseq.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = fastseq.cpp; path = ../../src/fastseq.cpp; sourceTree = "<group>"; };
-		28586ECB1B7C1FF400F39A98 /* fastseq.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = fastseq.h; path = ../../src/fastseq.h; sourceTree = "<group>"; };
-		28586ECC1B7C1FF400F39A98 /* logger.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = logger.cpp; path = ../../src/logger.cpp; sourceTree = "<group>"; };
-		28586ECD1B7C1FF400F39A98 /* logger.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = logger.h; path = ../../src/logger.h; sourceTree = "<group>"; };
-		28586ECE1B7C1FF400F39A98 /* logsumexp.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = logsumexp.cpp; path = ../../src/logsumexp.cpp; sourceTree = "<group>"; };
-		28586ECF1B7C1FF400F39A98 /* logsumexp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = logsumexp.h; path = ../../src/logsumexp.h; sourceTree = "<group>"; };
-		28586ED01B7C1FF400F39A98 /* negbinom.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = negbinom.cpp; path = ../../src/negbinom.cpp; sourceTree = "<group>"; };
-		28586ED11B7C1FF400F39A98 /* negbinom.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = negbinom.h; path = ../../src/negbinom.h; sourceTree = "<group>"; };
-		28586ED21B7C1FF400F39A98 /* qmodel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = qmodel.cpp; path = ../../src/qmodel.cpp; sourceTree = "<group>"; };
-		28586ED31B7C1FF400F39A98 /* qmodel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = qmodel.h; path = ../../src/qmodel.h; sourceTree = "<group>"; };
-		28586ED41B7C1FF400F39A98 /* util.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = util.cpp; path = ../../src/util.cpp; sourceTree = "<group>"; };
-		28586ED51B7C1FF400F39A98 /* util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = util.h; path = ../../src/util.h; sourceTree = "<group>"; };
-		28586EDC1B7C1FFF00F39A98 /* kseq.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = kseq.h; path = ../../kseq/kseq.h; sourceTree = "<group>"; };
-		28586EDD1B7C200A00F39A98 /* quaff.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = quaff.cpp; path = ../../t/quaff.cpp; sourceTree = "<group>"; };
+		28586ECA1B7C1FF400F39A98 /* fastseq.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = fastseq.cpp; path = /Users/yam/quaff/src/fastseq.cpp; sourceTree = "<absolute>"; };
+		28586ECB1B7C1FF400F39A98 /* fastseq.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = fastseq.h; path = /Users/yam/quaff/src/fastseq.h; sourceTree = "<absolute>"; };
+		28586ECC1B7C1FF400F39A98 /* logger.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = logger.cpp; path = /Users/yam/quaff/src/logger.cpp; sourceTree = "<absolute>"; };
+		28586ECD1B7C1FF400F39A98 /* logger.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = logger.h; path = /Users/yam/quaff/src/logger.h; sourceTree = "<absolute>"; };
+		28586ECE1B7C1FF400F39A98 /* logsumexp.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = logsumexp.cpp; path = /Users/yam/quaff/src/logsumexp.cpp; sourceTree = "<absolute>"; };
+		28586ECF1B7C1FF400F39A98 /* logsumexp.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = logsumexp.h; path = /Users/yam/quaff/src/logsumexp.h; sourceTree = "<absolute>"; };
+		28586ED01B7C1FF400F39A98 /* negbinom.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = negbinom.cpp; path = /Users/yam/quaff/src/negbinom.cpp; sourceTree = "<absolute>"; };
+		28586ED11B7C1FF400F39A98 /* negbinom.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = negbinom.h; path = /Users/yam/quaff/src/negbinom.h; sourceTree = "<absolute>"; };
+		28586ED21B7C1FF400F39A98 /* qmodel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = qmodel.cpp; path = /Users/yam/quaff/src/qmodel.cpp; sourceTree = "<absolute>"; };
+		28586ED31B7C1FF400F39A98 /* qmodel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = qmodel.h; path = /Users/yam/quaff/src/qmodel.h; sourceTree = "<absolute>"; };
+		28586ED41B7C1FF400F39A98 /* util.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = util.cpp; path = /Users/yam/quaff/src/util.cpp; sourceTree = "<absolute>"; };
+		28586ED51B7C1FF400F39A98 /* util.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = util.h; path = /Users/yam/quaff/src/util.h; sourceTree = "<absolute>"; };
+		28586EDC1B7C1FFF00F39A98 /* kseq */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = folder; name = kseq; path = /Users/yam/quaff/kseq; sourceTree = "<absolute>"; };
 		28586EDF1B7C201D00F39A98 /* libz.1.2.5.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.1.2.5.dylib; path = usr/lib/libz.1.2.5.dylib; sourceTree = SDKROOT; };
 		28586EE11B7C20B500F39A98 /* libgsl.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libgsl.0.dylib; path = ../../../../usr/local/Cellar/gsl/1.16/lib/libgsl.0.dylib; sourceTree = "<group>"; };
-		28586EE31B7C3A0500F39A98 /* vguard.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = vguard.h; path = ../../src/vguard.h; sourceTree = "<group>"; };
+		28586EE31B7C3A0500F39A98 /* vguard.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = vguard.h; path = /Users/yam/quaff/src/vguard.h; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,8 +88,10 @@
 		28586EC21B7C1FD400F39A98 /* quaff */ = {
 			isa = PBXGroup;
 			children = (
-				28586EDD1B7C200A00F39A98 /* quaff.cpp */,
-				28586EDC1B7C1FFF00F39A98 /* kseq.h */,
+				283CC92F1B7D3189003ADD62 /* quaff.cpp */,
+				283CC92C1B7D3005003ADD62 /* diagenv.cpp */,
+				283CC92D1B7D3005003ADD62 /* diagenv.h */,
+				28586EDC1B7C1FFF00F39A98 /* kseq */,
 				28586ECA1B7C1FF400F39A98 /* fastseq.cpp */,
 				28586ECB1B7C1FF400F39A98 /* fastseq.h */,
 				28586ECC1B7C1FF400F39A98 /* logger.cpp */,
@@ -161,10 +166,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				28586ED91B7C1FF400F39A98 /* negbinom.cpp in Sources */,
-				28586EDE1B7C200A00F39A98 /* quaff.cpp in Sources */,
+				283CC92E1B7D3005003ADD62 /* diagenv.cpp in Sources */,
 				28586ED61B7C1FF400F39A98 /* fastseq.cpp in Sources */,
 				28586ED81B7C1FF400F39A98 /* logsumexp.cpp in Sources */,
 				28586EDA1B7C1FF400F39A98 /* qmodel.cpp in Sources */,
+				283CC9301B7D3189003ADD62 /* quaff.cpp in Sources */,
 				28586ED71B7C1FF400F39A98 /* logger.cpp in Sources */,
 				28586EDB1B7C1FF400F39A98 /* util.cpp in Sources */,
 			);
@@ -309,6 +315,7 @@
 				28586EC91B7C1FD400F39A98 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
