@@ -656,18 +656,24 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
     for (auto& c : sqc.qualCount)
       c += pseudocount / FastSeq::qualScoreRange;
   double nullEmitYes = pseudocount, nullEmitNo = pseudocount;
-
+  vguard<double> symCount (dnaAlphabetSize, pseudocount);
+  
   for (const auto& s : seqs) {
     ++nullEmitNo;
     nullEmitYes += s.length();
     const vguard<int> tok = s.tokens (dnaAlphabet);
-    for (size_t i = 0; i < s.length(); ++i)
+    for (size_t i = 0; i < s.length(); ++i) {
+      ++symCount[tok[i]];
       ++nullCount[tok[i]].qualCount[s.getQualScoreAt(i)];
+    }
   }
 
   nullEmit = 1 / (1 + nullEmitNo / nullEmitYes);
-  for (size_t n = 0; n < dnaAlphabetSize; ++n)
+  const double symCountNorm = accumulate (symCount.begin(), symCount.end(), 0.);
+  for (size_t n = 0; n < dnaAlphabetSize; ++n) {
+    null[n].symProb = symCount[n] / symCountNorm;
     fitNegativeBinomial (nullCount[n].qualCount, null[n].qualTrialSuccessProb, null[n].qualNumSuccessfulTrials);
+  }
 }
 
 double QuaffNullParams::logLikelihood (const vguard<FastSeq>& seqs) const {
