@@ -77,6 +77,7 @@ struct QuaffParamCounts {
   void addWeighted (const QuaffParamCounts& counts, double weight);
   QuaffParams fit() const;  // maximum-likelihood fit
   double logPrior (const QuaffParams& qp) const;  // uses counts as hyperparameters to define a prior over params
+  double expectedLogLike (const QuaffParams& qp) const;  // as logPrior, but unnormalized
 };
 
 struct QuaffNullParams {

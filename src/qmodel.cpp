@@ -581,18 +581,33 @@ double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
     theta[i] = qp.insert[i].symProb;
     alpha[i] = accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 0.);
   }
-  lp += gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta);
+  lp += log (gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta));
   for (int i = 0; i < dnaAlphabetSize; ++i) {
     for (int j = 0; j < dnaAlphabetSize; ++j) {
       lp += qp.match[i][j].logQualProb (match[i][j].qualCount);  // not normalized...
       theta[j] = qp.match[i][j].symProb;
       alpha[j] = accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.);
     }
-    lp += gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta);
+    lp += log (gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta));
   }
   delete[] theta;
   delete[] alpha;
   return lp;
+}
+
+double QuaffParamCounts::expectedLogLike (const QuaffParams& qp) const {
+  double ll = 0;
+  for (int i = 0; i < dnaAlphabetSize; ++i) {
+    ll += qp.insert[i].logQualProb (insert[i].qualCount);
+    ll += log (qp.insert[i].symProb) * accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 0.);
+  }
+  for (int i = 0; i < dnaAlphabetSize; ++i) {
+    for (int j = 0; j < dnaAlphabetSize; ++j) {
+      ll += qp.match[i][j].logQualProb (match[i][j].qualCount);  // not normalized...
+      ll += log (qp.match[i][j].symProb) * accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.);
+    }
+  }
+  return ll;
 }
 
 QuaffParams QuaffParamCounts::fit() const {
@@ -705,15 +720,15 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
       break;
     prevLogLikeWithPrior = logLikeWithPrior;
     if (LogThisAt(3)) {
-      cerr << "Parameter counts:" << endl;
+      cerr << "Parameter counts computed during E-step:" << endl;
       counts.write (cerr);
     }
     counts.addWeighted (pseudocounts, 1.);
-    const double oldExpectedLogLike = counts.logPrior(qp);
+    const double oldExpectedLogLike = counts.expectedLogLike (qp);
     qp = counts.fit();
-    const double newExpectedLogLike = counts.logPrior(qp);
+    const double newExpectedLogLike = counts.expectedLogLike (qp);
     if (LogThisAt(2))
-      cerr << "Expected log-likelihood went from " << oldExpectedLogLike << " to " << newExpectedLogLike << endl;
+      cerr << "Expected log-likelihood went from " << oldExpectedLogLike << " to " << newExpectedLogLike << " during M-step" << endl;
   }
   return qp;
 }
