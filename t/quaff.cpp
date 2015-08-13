@@ -214,6 +214,9 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "                   Various levels of logging\n"
     + "   -fwdstrand      Do not include reverse-complemented refseqs\n"
     + "   -global         Force all of refseq to be aligned\n"
+    + "   -kmer           Length of kmer matches, for high-scoring diagonals heuristic\n"
+    + "   -band           Size of band around high-scoring diagonals\n"
+    + "   -dense          Do full DP, not just high-scoring diagonals (memory hog!)\n"
     + "\n";
 }
 

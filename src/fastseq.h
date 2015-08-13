@@ -10,10 +10,13 @@ using namespace std;
 
 #define dnaAlphabetSize 4
 extern const string dnaAlphabet;
-int tokenize (char c, const string& alphabet);
-unsigned long makeKmer (int k, int* tok);
 
 typedef unsigned int SeqIdx;
+
+int tokenize (char c, const string& alphabet);
+unsigned long makeKmer (SeqIdx k, vector<unsigned int>::const_iterator tok, unsigned int alphabetSize);
+string kmerToString (unsigned long kmer, SeqIdx k, const string& alphabet);
+
 struct FastSeq {
   string name, comment, seq, qual;
   static const char minQualityChar = '!', maxQualityChar = '~';

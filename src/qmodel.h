@@ -105,9 +105,11 @@ struct Alignment {
 
 // DP config
 struct QuaffDPConfig {
-  bool local;
-  QuaffDPConfig() : local(true) { }
+  bool local, sparse;
+  int kmerLen, bandSize;
+  QuaffDPConfig() : local(true), sparse(true), kmerLen(7), bandSize(20) { }
   bool parseConfigArgs (int& argc, char**& argv);
+  DiagonalEnvelope makeEnvelope (const FastSeq& x, const FastSeq& y) const;
 };
 
 // DP matrices

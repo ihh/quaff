@@ -14,9 +14,21 @@ int tokenize (char c, const string& alphabet) {
   return tok >= (int) strlen(alphStr) ? -1 : tok;
 }
 
-unsigned long makeKmer (int k, int* tok) {
-  throw;
-  return 0;
+unsigned long makeKmer (SeqIdx k, vector<unsigned int>::const_iterator tok, unsigned int alphabetSize) {
+  unsigned long kmer = 0, mul = 1;
+  for (SeqIdx j = 0; j < k; ++j) {
+    const unsigned int token = tok[k - j - 1];
+    kmer += mul * token;
+    mul *= alphabetSize;
+  }
+  return kmer;
+}
+
+string kmerToString (unsigned long kmer, SeqIdx k, const string& alphabet) {
+  string rev;
+  for (int j = 0; j < k; ++j, kmer = kmer / alphabet.size())
+    rev += alphabet[kmer % alphabet.size()];
+  return string (rev.rbegin(), rev.rend());
 }
 
 vguard<unsigned int> FastSeq::tokens (const string& alphabet) const {

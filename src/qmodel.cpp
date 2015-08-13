@@ -273,10 +273,42 @@ bool QuaffDPConfig::parseConfigArgs (int& argc, char**& argv) {
       argv += 1;
       argc -= 1;
       return true;
+
+    } else if (strcmp (arg, "-band") == 0) {
+      Assert (argc > 1, "%s must have an argument", arg);
+      const char* val = argv[1];
+      bandSize = atoi (val);
+      argv += 2;
+      argc -= 2;
+      return true;
+
+    } else if (strcmp (arg, "-kmer") == 0) {
+      Assert (argc > 1, "%s must have an argument", arg);
+      const char* val = argv[1];
+      kmerLen = atoi (val);
+      argv += 2;
+      argc -= 2;
+      return true;
+
+    } else if (strcmp (arg, "-dense") == 0) {
+      sparse = false;
+      argv += 1;
+      argc -= 1;
+      return true;
+
     }
   }
 
   return false;
+}
+
+DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const FastSeq& y) const {
+  DiagonalEnvelope env (x, y);
+  if (sparse)
+    env.initSparse (kmerLen, bandSize);
+  else
+    env.initFull();
+  return env;
 }
 
 QuaffDPCell::QuaffDPCell()
@@ -327,31 +359,36 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
     initProgress ("Forward algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
-  for (SeqIdx i = 1; i <= xLen; ++i) {
+  for (SeqIdx j = 1; j <= yLen; ++j) {
+
     if (LogThisAt(2))
-      logProgress (i / (double) xLen, "base %d/%d", i, xLen);
+      logProgress (j / (double) yLen, "base %d/%d", j, yLen);
 
-    for (SeqIdx j = 1; j <= yLen; ++j) {
-      mat(i,j) = log_sum_exp (mat(i-1,j-1) + qs.m2m,
-			      del(i-1,j-1) + qs.d2m,
-			      ins(i-1,j-1) + qs.i2m);
+    for (auto diag : env.diagonals) {
+      if (env.intersects (j, diag)) {
+	const SeqIdx i = env.get_i (j, diag);
 
-      if (j == 1 && (i == 1 || config.local))
-	mat(i,j) = log_sum_exp (mat(i,j),
-				start);
+	mat(i,j) = log_sum_exp (mat(i-1,j-1) + qs.m2m,
+				del(i-1,j-1) + qs.d2m,
+				ins(i-1,j-1) + qs.i2m);
 
-      mat(i,j) += matchEmitScore(i,j);
+	if (j == 1 && (i == 1 || config.local))
+	  mat(i,j) = log_sum_exp (mat(i,j),
+				  start);
 
-      ins(i,j) = cachedInsertEmitScore[j] + log_sum_exp (ins(i,j-1) + qs.i2i,
-							 mat(i,j-1) + qs.m2i);
+	mat(i,j) += matchEmitScore(i,j);
 
-      del(i,j) = log_sum_exp (del(i-1,j) + qs.d2d,
-			      mat(i-1,j) + qs.m2d);
+	ins(i,j) = cachedInsertEmitScore[j] + log_sum_exp (ins(i,j-1) + qs.i2i,
+							   mat(i,j-1) + qs.m2i);
+
+	del(i,j) = log_sum_exp (del(i-1,j) + qs.d2d,
+				mat(i-1,j) + qs.m2d);
+
+	if (j == yLen && (i == xLen || config.local))
+	  end = log_sum_exp (end,
+			     mat(i,yLen) + qs.m2e);
+      }
     }
-
-    if (i == xLen || config.local)
-      end = log_sum_exp (end,
-			 mat(i,yLen) + qs.m2e);
   }
 
   result = end;
@@ -369,84 +406,91 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
     initProgress ("Backward algorithm (%s vs %s)", px->name.c_str(), py->name.c_str());
 
   end = 0;
-  for (SeqIdx i = xLen; i > 0; --i) {
+  for (SeqIdx j = yLen; j > 0; --j) {
+
     if (LogThisAt(2))
-      logProgress ((xLen - i) / (double) xLen, "base %d/%d", i, xLen);
+      logProgress ((yLen - j) / (double) yLen, "base %d/%d", j, yLen);
 
-    if (i == xLen || pconfig->local) {
-      const double m2e = transCount (mat(i,yLen),
-				     fwd.mat(i,yLen),
-				     qs.m2e,
-				     end);
-      qc.m2e += m2e;
-    }
+    for (auto diagIter = penv->diagonals.rbegin();
+	 diagIter != penv->diagonals.rend();
+	 ++diagIter) {
 
-    for (SeqIdx j = yLen; j > 0; --j) {
-      
-      const double matEmit = matchEmitScore(i,j);
-      const double matDest = mat(i,j);
-      double& matCount = matchCount(i,j);
+      if (penv->intersects (j, *diagIter)) {
+	const SeqIdx i = penv->get_i (j, *diagIter);
 
-      const double m2m = transCount (mat(i-1,j-1),
-				     fwd.mat(i-1,j-1),
-				     qs.m2m + matEmit,
-				     matDest);
-      qc.m2m += m2m;
-      matCount += m2m;
+	if (j == yLen && (i == xLen || pconfig->local)) {
+	  const double m2e = transCount (mat(i,yLen),
+					 fwd.mat(i,yLen),
+					 qs.m2e,
+					 end);
+	  qc.m2e += m2e;
+	}
 
-      const double d2m = transCount (del(i-1,j-1),
-				     fwd.del(i-1,j-1),
-				     qs.d2m + matEmit,
-				     matDest);
-      qc.d2m += d2m;
-      matCount += d2m;
+	const double matEmit = matchEmitScore(i,j);
+	const double matDest = mat(i,j);
+	double& matCount = matchCount(i,j);
 
-      const double i2m = transCount (ins(i-1,j-1),
-				     fwd.ins(i-1,j-1),
-				     qs.i2m + matEmit,
-				     matDest);
-      qc.i2m += i2m;
-      matCount += i2m;
-
-      if (j == 1 && (i == 1 || pconfig->local)) {
-	const double s2m = transCount (start,
-				       fwd.start,
-				       matEmit,
+	const double m2m = transCount (mat(i-1,j-1),
+				       fwd.mat(i-1,j-1),
+				       qs.m2m + matEmit,
 				       matDest);
-	matCount += s2m;
+	qc.m2m += m2m;
+	matCount += m2m;
+
+	const double d2m = transCount (del(i-1,j-1),
+				       fwd.del(i-1,j-1),
+				       qs.d2m + matEmit,
+				       matDest);
+	qc.d2m += d2m;
+	matCount += d2m;
+
+	const double i2m = transCount (ins(i-1,j-1),
+				       fwd.ins(i-1,j-1),
+				       qs.i2m + matEmit,
+				       matDest);
+	qc.i2m += i2m;
+	matCount += i2m;
+
+	if (j == 1 && (i == 1 || pconfig->local)) {
+	  const double s2m = transCount (start,
+					 fwd.start,
+					 matEmit,
+					 matDest);
+	  matCount += s2m;
+	}
+
+	const double insEmit = cachedInsertEmitScore[j];
+	const double insDest = ins(i,j);
+	double& insCount = insertCount(j);
+
+	const double m2i = transCount (mat(i,j-1),
+				       fwd.mat(i,j-1),
+				       qs.m2i + insEmit,
+				       insDest);
+	qc.m2i += m2i;
+	insCount += m2i;
+
+	const double i2i = transCount (ins(i,j-1),
+				       fwd.ins(i,j-1),
+				       qs.i2i + insEmit,
+				       insDest);
+	qc.i2i += i2i;
+	insCount += i2i;
+
+	const double delDest = del(i,j);
+
+	const double m2d = transCount (mat(i-1,j),
+				       fwd.mat(i-1,j),
+				       qs.m2d,
+				       delDest);
+	qc.m2d += m2d;
+
+	const double d2d = transCount (del(i-1,j),
+				       fwd.del(i-1,j),
+				       qs.d2d,
+				       delDest);
+	qc.d2d += d2d;
       }
-
-      const double insEmit = cachedInsertEmitScore[j];
-      const double insDest = ins(i,j);
-      double& insCount = insertCount(j);
-
-      const double m2i = transCount (mat(i,j-1),
-				     fwd.mat(i,j-1),
-				     qs.m2i + insEmit,
-				     insDest);
-      qc.m2i += m2i;
-      insCount += m2i;
-
-      const double i2i = transCount (ins(i,j-1),
-				     fwd.ins(i,j-1),
-				     qs.i2i + insEmit,
-				     insDest);
-      qc.i2i += i2i;
-      insCount += i2i;
-
-      const double delDest = del(i,j);
-
-      const double m2d = transCount (mat(i-1,j),
-				     fwd.mat(i-1,j),
-				     qs.m2d,
-				     delDest);
-      qc.m2d += m2d;
-
-      const double d2d = transCount (del(i-1,j),
-				     fwd.del(i-1,j),
-				     qs.d2d,
-				     delDest);
-      qc.d2d += d2d;
     }
   }
 
@@ -480,15 +524,20 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
     initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
-  for (SeqIdx i = 1; i <= xLen; ++i) {
-    if (LogThisAt(2))
-      logProgress (i / (double) xLen, "base %d/%d", i, xLen);
+  for (SeqIdx j = 1; j <= yLen; ++j) {
 
-    for (SeqIdx j = 1; j <= yLen; ++j) {
+    if (LogThisAt(2))
+      logProgress (j / (double) yLen, "base %d/%d", j, yLen);
+
+    for (auto diag : env.diagonals) {
+      if (env.intersects (j, diag)) {
+	const SeqIdx i = env.get_i (j, diag);
+
       mat(i,j) = max (max (mat(i-1,j-1) + qs.m2m,
 			   del(i-1,j-1) + qs.d2m),
 		      ins(i-1,j-1) + qs.i2m);
-      if (j == 1)
+
+      if (j == 1 && (i == 1 || config.local))
 	mat(i,j) = max (mat(i,j),
 			start);
 
@@ -499,10 +548,12 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
 
       del(i,j) = max (del(i-1,j) + qs.d2d,
 		      mat(i-1,j) + qs.m2d);
-    }
 
-    end = max (end,
-	       mat(i,yLen) + qs.m2e);
+      if (j == yLen && (i == xLen || config.local))
+	end = max (end,
+		   mat(i,j) + qs.m2e);
+      }
+    }
   }
 
   result = end;
@@ -801,8 +852,7 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
       vguard<double> xyLogLike;
       vguard<QuaffParamCounts> xyCounts;
       for (const auto& xfs : x) {
-	DiagonalEnvelope env (xfs, yfs);
-	env.initFull();
+	DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
 	const QuaffForwardBackwardMatrix fb (env, qp, config);
 	const double ll = fb.fwd.result;
 	const QuaffParamCounts qpc (fb.back.qc);
@@ -899,8 +949,7 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
     size_t nBestAlign = 0;
     vguard<Alignment> xyAlign;
     for (const auto& xfs : x) {
-      DiagonalEnvelope env (xfs, yfs);
-      env.initFull();
+      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
       const QuaffViterbiMatrix viterbi (env, params, config);
       const Alignment align = viterbi.scoreAdjustedAlignment(qnp).addScoreComment();
       if (xyAlign.empty() || align.score > xyAlign[nBestAlign].score)
