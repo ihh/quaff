@@ -11,22 +11,24 @@ using namespace std;
 #define dnaAlphabetSize 4
 extern const string dnaAlphabet;
 int tokenize (char c, const string& alphabet);
+unsigned long makeKmer (int k, int* tok);
 
+typedef unsigned int SeqIdx;
 struct FastSeq {
   string name, comment, seq, qual;
   static const char minQualityChar = '!', maxQualityChar = '~';
-  static const int qualScoreRange = 94;
-  size_t length() const { return seq.size(); }
+  static const unsigned int qualScoreRange = 94;
+  SeqIdx length() const { return (SeqIdx) seq.size(); }
   bool hasQual() const { return qual.size() == length(); }
-  static inline int qualScoreForChar (char c) {
-    return max (0, min (qualScoreRange - 1, (int) (c - minQualityChar)));
+  static inline unsigned int qualScoreForChar (char c) {
+    return max (0, min ((int) qualScoreRange - 1, (int) (c - minQualityChar)));
   }
   static char charForQualScore (int q) {
     return max (minQualityChar, min (maxQualityChar, (char) (q + minQualityChar)));
   }
-  inline int getQualScoreAt (size_t pos) const { return qualScoreForChar (qual[pos]); }
-  vguard<int> tokens (const string& alphabet) const;
-  vguard<int> qualScores() const;
+  inline unsigned int getQualScoreAt (SeqIdx pos) const { return qualScoreForChar (qual[pos]); }
+  vguard<unsigned int> tokens (const string& alphabet) const;
+  vguard<unsigned int> qualScores() const;
   void writeFasta (ostream& out) const;
   void writeFastq (ostream& out) const;
   FastSeq revcomp() const;

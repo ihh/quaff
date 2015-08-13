@@ -72,7 +72,7 @@ struct QuaffParamCounts {
   double beginInsertYes, extendInsertYes, beginDeleteYes, extendDeleteYes;
   QuaffParamCounts();
   QuaffParamCounts (const QuaffCounts& counts);
-  void initCounts (double count);
+  void initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount);
   void write (ostream& out) const;
   void addWeighted (const QuaffParamCounts& counts, double weight);
   QuaffParams fit() const;  // maximum-likelihood fit
@@ -116,7 +116,7 @@ struct QuaffDPCell {
   QuaffDPCell();
 };
 
-typedef map<int,QuaffDPCell> QuaffDPColumn;
+typedef map<SeqIdx,QuaffDPCell> QuaffDPColumn;
 
 struct QuaffDPMatrix {
   enum State { Start, Match, Insert, Delete };
@@ -124,28 +124,28 @@ struct QuaffDPMatrix {
   const DiagonalEnvelope* penv;
   const FastSeq *px, *py;
   QuaffScores qs;
-  vguard<int> xTok, yTok, yQual;
-  size_t xLen, yLen;
+  vguard<unsigned int> xTok, yTok, yQual;
+  SeqIdx xLen, yLen;
   vguard<QuaffDPColumn> cell;
   double start, end, result;
   static QuaffDPCell dummy;
   vguard<double> cachedInsertEmitScore;
   QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
-  inline const QuaffDPCell& getCell (int i, int j) const {
+  inline const QuaffDPCell& getCell (SeqIdx i, SeqIdx j) const {
     const QuaffDPColumn& col = cell[j];
     auto c = col.find (i);
     return c == col.end() ? dummy : c->second;
   }
-  inline double& mat (int i, int j) { return cell[j][i].mat; }
-  inline double& ins (int i, int j) { return cell[j][i].ins; }
-  inline double& del (int i, int j) { return cell[j][i].del; }
-  inline const double& mat (int i, int j) const { return getCell(i,j).mat; }
-  inline const double& ins (int i, int j) const { return getCell(i,j).ins; }
-  inline const double& del (int i, int j) const { return getCell(i,j).del; }
-  inline double matchEmitScore (size_t i, size_t j) const {
+  inline double& mat (SeqIdx i, SeqIdx j) { return cell[j][i].mat; }
+  inline double& ins (SeqIdx i, SeqIdx j) { return cell[j][i].ins; }
+  inline double& del (SeqIdx i, SeqIdx j) { return cell[j][i].del; }
+  inline const double& mat (SeqIdx i, SeqIdx j) const { return getCell(i,j).mat; }
+  inline const double& ins (SeqIdx i, SeqIdx j) const { return getCell(i,j).ins; }
+  inline const double& del (SeqIdx i, SeqIdx j) const { return getCell(i,j).del; }
+  inline double matchEmitScore (SeqIdx i, SeqIdx j) const {
     return qs.match[xTok[i-1]][yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
-  inline double insertEmitScore (size_t j) const {
+  inline double insertEmitScore (SeqIdx j) const {
     return qs.insert[yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
   void write (ostream& out) const;
@@ -160,10 +160,10 @@ struct QuaffBackwardMatrix : QuaffDPMatrix {
   QuaffCounts qc;
   QuaffBackwardMatrix (const QuaffForwardMatrix& fwd);
   double transCount (double& backSrc, double fwdSrc, double trans, double backDest) const;
-  inline double& matchCount (size_t i, size_t j) {
+  inline double& matchCount (SeqIdx i, SeqIdx j) {
     return qc.match[xTok[i-1]][yTok[j-1]].qualCount[yQual[j-1]];
   }
-  inline double& insertCount (size_t j) {
+  inline double& insertCount (SeqIdx j) {
     return qc.insert[yTok[j-1]].qualCount[yQual[j-1]];
   }
 };

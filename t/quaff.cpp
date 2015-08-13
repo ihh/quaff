@@ -17,12 +17,14 @@ struct QuaffParamsIn : QuaffParams {
   char**& argv;
   bool initialized;
 
-  QuaffParamsIn (int& argc, char**& argv)
+  QuaffParamsIn (int& argc, char**& argv, const QuaffParamCounts& prior)
     : QuaffParams(),
       argc(argc),
       argv(argv),
       initialized(false)
-  { }
+  {
+    (QuaffParams&) *this = prior.fit();
+  }
 
   bool parseParamFilename();
   void requireParams();
@@ -55,9 +57,9 @@ int main (int argc, char** argv) {
   QuaffUsage usage (argc, argv);
   const string command = usage.getCommand();
 
-  QuaffParamsIn params (argc, argv);
   QuaffParamCounts prior;
-  prior.initCounts (1);
+  prior.initCounts (9, 9, 5, 1);
+  QuaffParamsIn params (argc, argv, prior);
 
   SeqList refs (argc, argv, "reference", "-ref");
   refs.wantRevcomps = true;

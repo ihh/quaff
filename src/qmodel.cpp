@@ -69,18 +69,13 @@ void SymQualCounts::write (ostream& out, const string& prefix) const {
 }
 
 QuaffParams::QuaffParams()
-  : beginInsert(.125),
+  : beginInsert(.5),
     extendInsert(.5),
-    beginDelete(.125),
+    beginDelete(.5),
     extendDelete(.5),
     insert (dnaAlphabetSize),
     match (dnaAlphabetSize, vguard<SymQualDist> (dnaAlphabetSize))
-{
-  // give the default params a match bonus
-  for (size_t i = 0; i < dnaAlphabetSize; ++i)
-    for (size_t j = 0; j < dnaAlphabetSize; ++j)
-      match[i][j].symProb = (i == j ? .625 : .125);
-}
+{ }
 
 #define QuaffParamWrite(X) out << #X ": " << X << endl
 void QuaffParams::write (ostream& out) const {
@@ -178,7 +173,7 @@ QuaffParamCounts::QuaffParamCounts()
   : insert (dnaAlphabetSize),
     match (dnaAlphabetSize, vguard<SymQualCounts> (dnaAlphabetSize))
 {
-  initCounts (0);
+  initCounts (0, 0, 0, 0);
 }
     
 QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
@@ -194,22 +189,22 @@ QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
     extendDeleteYes (counts.d2d)
 { }
 
-void QuaffParamCounts::initCounts (double count) {
+void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount) {
   for (auto& ins : insert)
     for (auto& qc : ins.qualCount)
-      qc = count / FastSeq::qualScoreRange;
-  for (auto& mx : match)
-    for (auto& mxy : mx)
-      for (auto& qc : mxy.qualCount)
-	qc = count / FastSeq::qualScoreRange;
-  beginInsertNo = count;
-  beginInsertYes = count;
-  extendInsertNo = count;
-  extendInsertYes = count;
-  beginDeleteNo = count;
-  beginDeleteYes = count;
-  extendDeleteNo = count;
-  extendDeleteYes = count;
+      qc = otherCount / FastSeq::qualScoreRange;
+  for (int i = 0; i < dnaAlphabetSize; ++i)
+    for (int j = 0; j < dnaAlphabetSize; ++j)
+      for (auto& qc : match[i][j].qualCount)
+	qc = (i == j ? matchIdentCount : otherCount) / FastSeq::qualScoreRange;
+  beginInsertNo = noBeginCount;
+  beginInsertYes = otherCount;
+  extendInsertNo = otherCount;
+  extendInsertYes = yesExtendCount;
+  beginDeleteNo = noBeginCount;
+  beginDeleteYes = otherCount;
+  extendDeleteNo = otherCount;
+  extendDeleteYes = yesExtendCount;
 }
 
 void QuaffParamCounts::write (ostream& out) const {
@@ -332,11 +327,11 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
     initProgress ("Forward algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
-  for (int i = 1; i <= xLen; ++i) {
+  for (SeqIdx i = 1; i <= xLen; ++i) {
     if (LogThisAt(2))
       logProgress (i / (double) xLen, "base %d/%d", i, xLen);
 
-    for (int j = 1; j <= yLen; ++j) {
+    for (SeqIdx j = 1; j <= yLen; ++j) {
       mat(i,j) = log_sum_exp (mat(i-1,j-1) + qs.m2m,
 			      del(i-1,j-1) + qs.d2m,
 			      ins(i-1,j-1) + qs.i2m);
@@ -374,7 +369,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
     initProgress ("Backward algorithm (%s vs %s)", px->name.c_str(), py->name.c_str());
 
   end = 0;
-  for (size_t i = xLen; i > 0; --i) {
+  for (SeqIdx i = xLen; i > 0; --i) {
     if (LogThisAt(2))
       logProgress ((xLen - i) / (double) xLen, "base %d/%d", i, xLen);
 
@@ -386,7 +381,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
       qc.m2e += m2e;
     }
 
-    for (size_t j = yLen; j > 0; --j) {
+    for (SeqIdx j = yLen; j > 0; --j) {
       
       const double matEmit = matchEmitScore(i,j);
       const double matDest = mat(i,j);
@@ -485,11 +480,11 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
     initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
-  for (int i = 1; i <= xLen; ++i) {
+  for (SeqIdx i = 1; i <= xLen; ++i) {
     if (LogThisAt(2))
       logProgress (i / (double) xLen, "base %d/%d", i, xLen);
 
-    for (int j = 1; j <= yLen; ++j) {
+    for (SeqIdx j = 1; j <= yLen; ++j) {
       mat(i,j) = max (max (mat(i-1,j-1) + qs.m2m,
 			   del(i-1,j-1) + qs.d2m),
 		      ins(i-1,j-1) + qs.i2m);
@@ -524,10 +519,10 @@ void QuaffViterbiMatrix::updateMax (double& currentMax, State& currentMaxIdx, do
 }
 
 Alignment QuaffViterbiMatrix::alignment() const {
-  size_t xEnd = xLen;
+  SeqIdx xEnd = xLen;
   if (pconfig->local) {
     double bestEndSc = -numeric_limits<double>::infinity(), sc;
-    for (size_t iEnd = xLen; iEnd > 0; --iEnd) {
+    for (SeqIdx iEnd = xLen; iEnd > 0; --iEnd) {
       sc = mat(iEnd,yLen) + qs.m2e;
       if (iEnd == xLen || sc > bestEndSc) {
 	bestEndSc = sc;
@@ -535,7 +530,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
       }
     }
   }
-  size_t i = xEnd, j = yLen;
+  SeqIdx i = xEnd, j = yLen;
   list<char> xRow, yRow;
   State state = Match;
   while (state != Start) {
@@ -573,7 +568,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
       break;
     }
   }
-  const size_t xStart = i + 1;
+  const SeqIdx xStart = i + 1;
   Alignment align(2);
   if (pconfig->local)
     align.gappedSeq[0].name = "substr(" + px->name + "," + to_string(xStart) + ".." + to_string(xEnd) + ")";
@@ -755,8 +750,8 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
   for (const auto& s : seqs) {
     ++nullEmitNo;
     nullEmitYes += s.length();
-    const vguard<int> tok = s.tokens (dnaAlphabet);
-    for (size_t i = 0; i < s.length(); ++i) {
+    const vguard<unsigned int> tok = s.tokens (dnaAlphabet);
+    for (SeqIdx i = 0; i < s.length(); ++i) {
       ++symCount[tok[i]];
       ++nullCount[tok[i]].qualCount[s.getQualScoreAt(i)];
     }
@@ -779,8 +774,8 @@ double QuaffNullParams::logLikelihood (const vguard<FastSeq>& seqs) const {
 
 double QuaffNullParams::logLikelihood (const FastSeq& s) const {
   double ll = s.length() * log(nullEmit) + log(1. - nullEmit);
-  const vguard<int> tok = s.tokens (dnaAlphabet);
-  for (size_t i = 0; i < s.length(); ++i)
+  const vguard<unsigned int> tok = s.tokens (dnaAlphabet);
+  for (SeqIdx i = 0; i < s.length(); ++i)
     ll += log (null[tok[i]].symProb) + null[tok[i]].logQualProb (s.getQualScoreAt(i));
   return ll;
 }

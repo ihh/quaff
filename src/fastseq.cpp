@@ -14,8 +14,13 @@ int tokenize (char c, const string& alphabet) {
   return tok >= (int) strlen(alphStr) ? -1 : tok;
 }
 
-vguard<int> FastSeq::tokens (const string& alphabet) const {
-  vguard<int> tok;
+unsigned long makeKmer (int k, int* tok) {
+  throw;
+  return 0;
+}
+
+vguard<unsigned int> FastSeq::tokens (const string& alphabet) const {
+  vguard<unsigned int> tok;
   tok.reserve (length());
   for (const auto& c : seq) {
     const int t = tokenize (c, alphabet);
@@ -28,8 +33,8 @@ vguard<int> FastSeq::tokens (const string& alphabet) const {
   return tok;
 }
 
-vguard<int> FastSeq::qualScores() const {
-  vguard<int> q;
+vguard<unsigned int> FastSeq::qualScores() const {
+  vguard<unsigned int> q;
   if (hasQual()) {
     q.reserve (length());
     for (const auto& c : qual)
