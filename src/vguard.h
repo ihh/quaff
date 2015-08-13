@@ -25,14 +25,14 @@ public:
 
   reference operator[] (size_type __n) {
 #ifdef USE_VECTOR_GUARDS
-    Assert (__n >= 0 && __n < this->size(), "vguard overflow");
+    Assert (__n >= 0 && __n < this->size(), "vector overflow: element %u, size is %u", __n, this->size());
 #endif  /* USE_VECTOR_GUARDS */
     return _vgbase::operator[] (__n);
   }
 
   const_reference operator[] (size_type __n) const {
 #ifdef USE_VECTOR_GUARDS
-    Assert (__n >= 0 && __n < this->size(), "vguard overflow");
+    Assert (__n >= 0 && __n < this->size(), "vector overflow (const): element %u, size is %u", __n, this->size());
 #endif  /* USE_VECTOR_GUARDS */
     return _vgbase::operator[] (__n);
   }
