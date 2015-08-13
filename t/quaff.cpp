@@ -58,10 +58,10 @@ int main (int argc, char** argv) {
   QuaffParamCounts prior;
   prior.initCounts (1);
 
-  SeqList refs (argc, argv, "reference", "-fasta");
+  SeqList refs (argc, argv, "reference", "-ref");
   refs.wantRevcomps = true;
   
-  SeqList reads (argc, argv, "read", "-fastq");
+  SeqList reads (argc, argv, "read", "-read");
   reads.wantFastq = true;
 
   if (command == "align") {
@@ -185,14 +185,14 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "\n"
     + "Commands:\n"
     + "\n"
-    + " " + prog + " learn -fasta refs.fasta -fastq reads.fastq  >params.yaml\n"
+    + " " + prog + " learn -ref refs.fasta -read reads.fastq  >params.yaml\n"
     + "  (to fit a model to unaligned sequences, using EM)\n"
     + "\n"
     + "   -params <file>  Optional initial parameters\n"
     + "   -maxiter <n>    Max number of EM iterations\n"
     + "   -mininc <f>     EM convergence threshold (relative log-likelihood increase)\n"
     + "\n"
-    + " " + prog + " align -params params.yaml -fasta refs.fasta -fastq reads.fastq\n"
+    + " " + prog + " align -params params.yaml -ref refs.fasta -read reads.fastq\n"
     + "  (to align FASTQ reads to FASTA reference sequences, using Viterbi)\n"
     + "\n"
     + "   -format {fasta,stockholm,refseq}\n"
