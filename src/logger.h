@@ -11,6 +11,8 @@ struct Logger {
   int verbosity;
   set<string> logTags;
   Logger() : verbosity(0) { }
+  void addTag (const char* tag);
+  void setVerbose (int v);
   bool parseLogArgs (int& argc, char**& argv);
 };
 
@@ -18,7 +20,7 @@ extern Logger logger;
 
 #define LogAt(V)     (logger.verbosity >= (V))
 #define LogWhen(TAG) (logger.logTags.find(TAG) != logger.logTags.end())
-#define LogThis      LogWhen(__FUNCTION__)
+#define LogThis      (LogWhen(__FUNCTION__) || LogWhen(__FILE__))
 #define LogThisAt(V) (LogAt(V) || LogThis)
 
 #endif /* LOGGER_INCLUDED */

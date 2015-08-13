@@ -47,7 +47,7 @@ int main (int argc, char **argv) {
   cerr << "      Sample: mean = " << kSampleMean << ", variance = " << kSampleVariance << endl;
   
   double pFit, rFit;
-  logger.verbosity = 3;
+  logger.setVerbose (10);  // set verbosity high enough to log everything
   const int status = fitNegativeBinomial (kFreq, pFit, rFit);
 
   if (status != GSL_SUCCESS)

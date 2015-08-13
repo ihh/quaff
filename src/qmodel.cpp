@@ -51,10 +51,12 @@ SymQualCounts::SymQualCounts()
 
 void SymQualCounts::write (ostream& out, const string& prefix) const {
   if (qualCount.size()) {
-    out << prefix << ": [" << qualCount[0];
-    for (unsigned int i = 1; i < qualCount.size(); ++i)
-      out << ", " << qualCount[i];
-    out << ']' << endl;
+    out << prefix << ": {";
+    int n = 0;
+    for (size_t i = 0; i < qualCount.size(); ++i)
+      if (qualCount[i] > 0)
+	out << (n++ ? ", " : "") << i << ": " << qualCount[i];
+    out << '}' << endl;
   }
 }
 
@@ -147,6 +149,22 @@ QuaffCounts::QuaffCounts()
     i2i(0),
     i2m(0)
 { }
+
+void QuaffCounts::write (ostream& out) const {
+  QuaffParamWrite(m2m);
+  QuaffParamWrite(m2i);
+  QuaffParamWrite(m2d);
+  QuaffParamWrite(m2e);
+  QuaffParamWrite(d2d);
+  QuaffParamWrite(d2m);
+  QuaffParamWrite(i2i);
+  QuaffParamWrite(i2m);
+  for (int i = 0; i < dnaAlphabetSize; ++i)
+    insert[i].write (out, string("insert") + dnaAlphabet[i]);
+  for (int i = 0; i < dnaAlphabetSize; ++i)
+    for (int j = 0; j < dnaAlphabetSize; ++j)
+      match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
+}
 
 QuaffParamCounts::QuaffParamCounts()
   : insert (dnaAlphabetSize),
@@ -318,86 +336,81 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 
     for (size_t j = yLen; j > 0; --j) {
       
-      if (i < xLen && j < yLen) {
-	const double matEmit = matchEmitScore(i+1,j+1);
-	const double matDest = mat[i+1][j+1];
-	double& matCount = matchCount(i+1,j+1);
+      const double matEmit = matchEmitScore(i,j);
+      const double matDest = mat[i][j];
+      double& matCount = matchCount(i,j);
 
-	const double m2m = transCount (mat[i][j],
-				       fwd.mat[i][j],
-				       qs.m2m + matEmit,
-				       matDest);
-	qc.m2m += m2m;
-	matCount += m2m;
-
-      	const double i2m = transCount (ins[i][j],
-				       fwd.ins[i][j],
-				       qs.i2m + matEmit,
-				       matDest);
-	qc.i2m += i2m;
-	matCount += i2m;
-
-      	const double d2m = transCount (del[i][j],
-				       fwd.del[i][j],
-				       qs.d2m + matEmit,
-				       matDest);
-	qc.d2m += d2m;
-	matCount += d2m;
-      }
-
-      if (j < yLen) {
-	const double insEmit = cachedInsertEmitScore[j+1];
-	const double insDest = ins[i][j+1];
-	double& insCount = insertCount(j+1);
-
-	const double m2i = transCount (mat[i][j],
-				       fwd.mat[i][j],
-				       qs.m2i + insEmit,
-				       insDest);
-	qc.m2i += m2i;
-	insCount += m2i;
-
-      	const double i2i = transCount (ins[i][j],
-				       fwd.ins[i][j],
-				       qs.i2i + insEmit,
-				       insDest);
-	qc.i2i += i2i;
-	insCount += i2i;
-      }
-
-      if (i < xLen) {
-	const double delDest = del[i+1][j];
-
-	const double m2d = transCount (mat[i][j],
-				       fwd.mat[i][j],
-				       qs.m2d,
-				       delDest);
-	qc.m2d += m2d;
-
-      	const double d2d = transCount (del[i][j],
-				       fwd.del[i][j],
-				       qs.d2d,
-				       delDest);
-	qc.d2d += d2d;
-      }
-    }
-
-    if (i < xLen && yLen > 0) {
-      const double matEmit = matchEmitScore(i+1,1);
-      const double matDest = mat[i+1][1];
-      double& matCount = matchCount(i+1,1);
-
-      const double m2s = transCount (start,
-				     fwd.start,
-				     matEmit,
+      const double m2m = transCount (mat[i-1][j-1],
+				     fwd.mat[i-1][j-1],
+				     qs.m2m + matEmit,
 				     matDest);
-      matCount += m2s;
+      qc.m2m += m2m;
+      matCount += m2m;
+
+      const double d2m = transCount (del[i-1][j-1],
+				     fwd.del[i-1][j-1],
+				     qs.d2m + matEmit,
+				     matDest);
+      qc.d2m += d2m;
+      matCount += d2m;
+
+      const double i2m = transCount (ins[i-1][j-1],
+				     fwd.ins[i-1][j-1],
+				     qs.i2m + matEmit,
+				     matDest);
+      qc.i2m += i2m;
+      matCount += i2m;
+
+      if (j == 1) {
+	const double m2s = transCount (start,
+				       fwd.start,
+				       matEmit,
+				       matDest);
+	matCount += m2s;
+      }
+
+      const double insEmit = cachedInsertEmitScore[j];
+      const double insDest = ins[i][j];
+      double& insCount = insertCount(j);
+
+      const double m2i = transCount (mat[i][j-1],
+				     fwd.mat[i][j-1],
+				     qs.m2i + insEmit,
+				     insDest);
+      qc.m2i += m2i;
+      insCount += m2i;
+
+      const double i2i = transCount (ins[i][j-1],
+				     fwd.ins[i][j-1],
+				     qs.i2i + insEmit,
+				     insDest);
+      qc.i2i += i2i;
+      insCount += i2i;
+
+      const double delDest = del[i][j];
+
+      const double m2d = transCount (mat[i-1][j],
+				     fwd.mat[i-1][j],
+				     qs.m2d,
+				     delDest);
+      qc.m2d += m2d;
+
+      const double d2d = transCount (del[i-1][j],
+				     fwd.del[i-1][j],
+				     qs.d2d,
+				     delDest);
+      qc.d2d += d2d;
     }
   }
 
   result = start;
   if (gsl_root_test_delta (result, fwd.result, 0, MAX_FRACTIONAL_FWDBACK_ERROR) != GSL_SUCCESS)
     cerr << endl << endl << "Warning: forward score (" << fwd.result << ") does not match backward score (" << result << ")" << endl << endl << endl;
+
+  if (LogThisAt(3)) {
+    cerr << "Forward-backward counts, " << px->name << " vs " << py->name << ':' << endl;
+    qc.write (cerr);
+  }
 }
 
 double QuaffBackwardMatrix::transCount (double& backSrc, double fwdSrc, double trans, double backDest) const {

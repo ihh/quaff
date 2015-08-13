@@ -62,6 +62,7 @@ struct QuaffCounts {
   double d2d, d2m;
   double i2i, i2m;
   QuaffCounts();
+  void write (ostream& out) const;
 };
 
 struct QuaffParamCounts {
