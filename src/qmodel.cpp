@@ -303,7 +303,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
     initProgress ("Backward matrix");
 
   end = 0;
-  for (int i = xLen; i > 0; --i) {
+  for (size_t i = xLen; i > 0; --i) {
     if (LogThisAt(2))
       logProgress ((xLen - i) / (double) xLen, "base %d/%d", i, xLen);
 
@@ -313,7 +313,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 				   end);
     qc.m2e += m2e;
 
-    for (int j = yLen; j > 0; --j) {
+    for (size_t j = yLen; j > 0; --j) {
       
       if (i < xLen && j < yLen) {
 	const double matEmit = matchEmitScore(i+1,j+1);
@@ -447,14 +447,16 @@ void QuaffViterbiMatrix::updateMax (double& currentMax, State& currentMaxIdx, do
 }
 
 Alignment QuaffViterbiMatrix::alignment() const {
-  int xEnd = -1;
+  size_t xEnd = -1;
   double bestEndSc = -numeric_limits<double>::infinity(), sc;
-  for (int iEnd = xLen; iEnd > 0; --iEnd)
-    if (iEnd == xLen || (sc = mat[iEnd][yLen] + qs.m2e) > bestEndSc) {
-      bestEndSc = sc;
-      xEnd = iEnd;
+    for (size_t iEnd = xLen; iEnd > 0; --iEnd) {
+        sc = mat[iEnd][yLen] + qs.m2e;
+        if (iEnd == xLen || sc > bestEndSc) {
+            bestEndSc = sc;
+            xEnd = iEnd;
+        }
     }
-  int i = xEnd, j = yLen;
+  size_t i = xEnd, j = yLen;
   list<char> xRow, yRow;
   State state = Match;
   while (state != Start) {
@@ -492,7 +494,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
       break;
     }
   }
-  const int xStart = i + 1;
+  const size_t xStart = i + 1;
   Alignment align(2);
   align.gappedSeq[0].name = "substr(" + px->name + "," + to_string(xStart) + "," + to_string(xEnd) + ")";
   align.gappedSeq[0].comment = px->name + " " + to_string(xStart) + " " + to_string(xEnd);
@@ -653,7 +655,7 @@ double QuaffNullParams::logLikelihood (const FastSeq& s) const {
 QuaffParams QuaffTrainer::fit (const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts) {
   QuaffParams qp = seed;
   const QuaffNullParams qnp (y);
-  double prevLogLikeWithPrior;
+  double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
   for (int iter = 0; iter < maxIterations; ++iter) {
     QuaffParamCounts counts;
     double logLike = 0;
@@ -733,8 +735,7 @@ bool QuaffAligner::parseAlignmentArgs (int& argc, char**& argv) {
 void QuaffAligner::align (ostream& out, const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& params) {
   const QuaffNullParams qnp (y);
   for (const auto& yfs : y) {
-    double yLogLike = qnp.logLikelihood (yfs);  // this initial value allows null model to "win"
-    size_t nBestAlign;
+    size_t nBestAlign = 0;
     vector<Alignment> xyAlign;
     for (const auto& xfs : x) {
       const QuaffViterbiMatrix viterbi (xfs, yfs, params);

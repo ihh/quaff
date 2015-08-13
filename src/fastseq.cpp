@@ -90,8 +90,8 @@ vector<FastSeq> readFastSeqs (const char* filename) {
 
 string revcomp (const string& dnaSeq) {
   string rev = dnaSeq;
-  const int len = dnaSeq.size();
-  for (int i = 0; i < len; ++i) {
+  const size_t len = dnaSeq.size();
+  for (size_t i = 0; i < len; ++i) {
     const int tok = tokenize (dnaSeq[i], dnaAlphabet);
     rev[len - 1 - i] = tok < 0 ? 'N' : dnaAlphabet[3 - tok];
   }

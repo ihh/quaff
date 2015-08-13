@@ -16,7 +16,7 @@ struct FastSeq {
   string name, comment, seq, qual;
   static const char minQualityChar = '!', maxQualityChar = '~';
   static const int qualScoreRange = 94;
-  int length() const { return seq.size(); }
+  size_t length() const { return seq.size(); }
   bool hasQual() const { return qual.size() == length(); }
   static inline int qualScoreForChar (char c) {
     return max (0, min (qualScoreRange - 1, (int) (c - minQualityChar)));
@@ -24,7 +24,7 @@ struct FastSeq {
   static char charForQualScore (int q) {
     return max (minQualityChar, min (maxQualityChar, (char) (q + minQualityChar)));
   }
-  inline int getQualScoreAt (int pos) const { return qualScoreForChar (qual[pos]); }
+  inline int getQualScoreAt (size_t pos) const { return qualScoreForChar (qual[pos]); }
   vector<int> tokens (const string& alphabet) const;
   vector<int> qualScores() const;
   void writeFasta (ostream& out) const;

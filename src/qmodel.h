@@ -105,14 +105,14 @@ struct QuaffDPMatrix {
   const FastSeq *px, *py;
   QuaffScores qs;
   vector<int> xTok, yTok, yQual;
-  int xLen, yLen;
+  size_t xLen, yLen;
   vector<vector<double> > mat, ins, del;
   double start, end, result;
   vector<double> cachedInsertEmitScore;
-  inline double matchEmitScore (int i, int j) const {
+  inline double matchEmitScore (size_t i, size_t j) const {
     return qs.match[xTok[i-1]][yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
-  inline double insertEmitScore (int j) const {
+  inline double insertEmitScore (size_t j) const {
     return qs.insert[yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
   QuaffDPMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
@@ -127,10 +127,10 @@ struct QuaffBackwardMatrix : QuaffDPMatrix {
   QuaffCounts qc;
   QuaffBackwardMatrix (const QuaffForwardMatrix& fwd);
   double transCount (double& backSrc, double fwdSrc, double trans, double backDest) const;
-  inline double& matchCount (int i, int j) {
+  inline double& matchCount (size_t i, size_t j) {
     return qc.match[xTok[i-1]][yTok[j-1]].qualCount[yQual[j-1]];
   }
-  inline double& insertCount (int j) {
+  inline double& insertCount (size_t j) {
     return qc.insert[yTok[j-1]].qualCount[yQual[j-1]];
   }
 };

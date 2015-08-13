@@ -157,7 +157,7 @@ int bracketFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, d
   int status;
   const gsl_root_fsolver_type *bracketType;
   gsl_root_fsolver *bracketSolver;
-  double nSuccessGuess;
+  double nSuccessGuess = 0;
   gsl_function F;
 
   /* guess sensible values in case of failure */
@@ -246,7 +246,6 @@ int gradientFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, 
   const gsl_root_fdfsolver_type *derivType;
   gsl_root_fdfsolver *derivSolver;
   double nSuccessGuess = nSuccess;
-  gsl_function F;
   gsl_function_fdf FDF;
 
   // solve
