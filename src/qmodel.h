@@ -13,21 +13,21 @@ struct SymQualDist {
   double qualTrialSuccessProb, qualNumSuccessfulTrials;  // parameters of neg.binom. distribution
   SymQualDist();
   double logQualProb (int k) const;
-  double logQualProb (const vector<double>& kFreq) const;
+  double logQualProb (const vguard<double>& kFreq) const;
   void write (ostream& out, const string& prefix) const;
   void read (map<string,double>& paramVal, const string& prefix);
 };
 
 // Memo-ized log scores for a SymQualDist
 struct SymQualScores {
-  vector<double> logSymQualProb;  // logSymQualProb[q] = P(this symbol wih quality score q)
+  vguard<double> logSymQualProb;  // logSymQualProb[q] = P(this symbol wih quality score q)
   SymQualScores() { }
   SymQualScores (const SymQualDist& sqd);
 };
 
 // Summary statistics for a SymQualDist
 struct SymQualCounts {
-  vector<double> qualCount;  // no. of times each quality score seen
+  vguard<double> qualCount;  // no. of times each quality score seen
   SymQualCounts();
   double symCount() const { return accumulate (qualCount.begin(), qualCount.end(), 0.); }
   void write (ostream& out, const string& prefix) const;
@@ -36,8 +36,8 @@ struct SymQualCounts {
 // Parameters of a quaff model
 struct QuaffParams {
   double beginInsert, extendInsert, beginDelete, extendDelete;
-  vector<SymQualDist> insert;  // emissions from insert state
-  vector<vector<SymQualDist> > match;  // substitutions from match state (conditional on input)
+  vguard<SymQualDist> insert;  // emissions from insert state
+  vguard<vguard<SymQualDist> > match;  // substitutions from match state (conditional on input)
   QuaffParams();
   void write (ostream& out) const;
   void read (istream& in);
@@ -46,8 +46,8 @@ struct QuaffParams {
 // Memo-ized scores for transitions & emissions in quaff HMM
 struct QuaffScores {
   const QuaffParams *pqp;
-  vector<SymQualScores> insert;
-  vector<vector<SymQualScores> > match;
+  vguard<SymQualScores> insert;
+  vguard<vguard<SymQualScores> > match;
   double m2m, m2i, m2d, m2e;
   double d2d, d2m;
   double i2i, i2m;
@@ -56,8 +56,8 @@ struct QuaffScores {
 
 // Summary statistics for a quaff model
 struct QuaffCounts {
-  vector<SymQualCounts> insert;
-  vector<vector<SymQualCounts> > match;
+  vguard<SymQualCounts> insert;
+  vguard<vguard<SymQualCounts> > match;
   double m2m, m2i, m2d, m2e;
   double d2d, d2m;
   double i2i, i2m;
@@ -65,8 +65,8 @@ struct QuaffCounts {
 };
 
 struct QuaffParamCounts {
-  vector<SymQualCounts> insert;
-  vector<vector<SymQualCounts> > match;
+  vguard<SymQualCounts> insert;
+  vguard<vguard<SymQualCounts> > match;
   double beginInsertNo, extendInsertNo, beginDeleteNo, extendDeleteNo;
   double beginInsertYes, extendInsertYes, beginDeleteYes, extendDeleteYes;
   QuaffParamCounts();
@@ -80,15 +80,15 @@ struct QuaffParamCounts {
 
 struct QuaffNullParams {
   double nullEmit;
-  vector<SymQualDist> null;
-  QuaffNullParams (const vector<FastSeq>& seqs, double pseudocount = 1);
+  vguard<SymQualDist> null;
+  QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocount = 1);
   double logLikelihood (const FastSeq& seq) const;
-  double logLikelihood (const vector<FastSeq>& seqs) const;
+  double logLikelihood (const vguard<FastSeq>& seqs) const;
 };
 
 // Alignment
 struct Alignment {
-  vector<FastSeq> gappedSeq;
+  vguard<FastSeq> gappedSeq;
   double score;
   Alignment (int numRows = 0)
     : gappedSeq(numRows)
@@ -104,11 +104,11 @@ struct QuaffDPMatrix {
   enum State { Start, Match, Insert, Delete };
   const FastSeq *px, *py;
   QuaffScores qs;
-  vector<int> xTok, yTok, yQual;
+  vguard<int> xTok, yTok, yQual;
   size_t xLen, yLen;
-  vector<vector<double> > mat, ins, del;
+  vguard<vguard<double> > mat, ins, del;
   double start, end, result;
-  vector<double> cachedInsertEmitScore;
+  vguard<double> cachedInsertEmitScore;
   inline double matchEmitScore (size_t i, size_t j) const {
     return qs.match[xTok[i-1]][yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
@@ -158,7 +158,7 @@ struct QuaffTrainer {
 
   QuaffTrainer();
   bool parseTrainingArgs (int& argc, char**& argv);
-  QuaffParams fit (const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts);
+  QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts);
 };
 
 // config/wrapper struct for Viterbi alignment
@@ -169,7 +169,7 @@ struct QuaffAligner {
   
   QuaffAligner();
   bool parseAlignmentArgs (int& argc, char**& argv);
-  void align (ostream& out, const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& params);
+  void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params);
   void writeAlignment (ostream& out, const Alignment& align) const;
 };
 

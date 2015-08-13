@@ -25,7 +25,7 @@ int main (int argc, char **argv) {
   rngType = gsl_rng_default;
   rng = gsl_rng_alloc (rngType);
 
-  vector<double> kFreq;
+  vguard<double> kFreq;
   for (int n = 0; n < N; ++n) {
     const unsigned int k = gsl_ran_negative_binomial (rng, p, r);
     while (kFreq.size() <= k)

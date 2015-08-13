@@ -7,7 +7,7 @@ int main (int argc, char **argv) {
     exit (EXIT_FAILURE);
   }
 
-  vector<FastSeq> seqs = readFastSeqs (argv[1]);
+  vguard<FastSeq> seqs = readFastSeqs (argv[1]);
   writeFastqSeqs (cout, seqs);
 
   exit (EXIT_SUCCESS);

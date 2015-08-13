@@ -14,8 +14,8 @@ int tokenize (char c, const string& alphabet) {
   return tok >= (int) strlen(alphStr) ? -1 : tok;
 }
 
-vector<int> FastSeq::tokens (const string& alphabet) const {
-  vector<int> tok;
+vguard<int> FastSeq::tokens (const string& alphabet) const {
+  vguard<int> tok;
   tok.reserve (length());
   for (const auto& c : seq) {
     const int t = tokenize (c, alphabet);
@@ -28,8 +28,8 @@ vector<int> FastSeq::tokens (const string& alphabet) const {
   return tok;
 }
 
-vector<int> FastSeq::qualScores() const {
-  vector<int> q;
+vguard<int> FastSeq::qualScores() const {
+  vguard<int> q;
   if (hasQual()) {
     q.reserve (length());
     for (const auto& c : qual)
@@ -56,18 +56,18 @@ void FastSeq::writeFastq (ostream& out) const {
     out << '+' << endl << qual << endl;
 }
 
-void writeFastaSeqs (ostream& out, const vector<FastSeq>& fastSeqs) {
+void writeFastaSeqs (ostream& out, const vguard<FastSeq>& fastSeqs) {
   for (const auto& s : fastSeqs)
     s.writeFasta (out);
 }
 
-void writeFastqSeqs (ostream& out, const vector<FastSeq>& fastSeqs) {
+void writeFastqSeqs (ostream& out, const vguard<FastSeq>& fastSeqs) {
   for (const auto& s : fastSeqs)
     s.writeFastq (out);
 }
 
-vector<FastSeq> readFastSeqs (const char* filename) {
-  vector<FastSeq> seqs;
+vguard<FastSeq> readFastSeqs (const char* filename) {
+  vguard<FastSeq> seqs;
 
   gzFile fp = gzopen(filename, "r");
   Assert (fp != Z_NULL, "Couldn't open %s", filename);
@@ -108,8 +108,8 @@ FastSeq FastSeq::revcomp() const {
   return fs;
 }
 
-void addRevcomps (vector<FastSeq>& db) {
-  vector<FastSeq> revcomps;
+void addRevcomps (vguard<FastSeq>& db) {
+  vguard<FastSeq> revcomps;
   revcomps.reserve (db.size());
   for (const auto& fs : db)
     revcomps.push_back (fs.revcomp());

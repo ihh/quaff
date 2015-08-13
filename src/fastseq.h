@@ -2,8 +2,8 @@
 #define FASTSEQ_INCLUDED
 
 #include <string>
-#include <vector>
 #include <algorithm>
+#include "vguard.h"
 #include "../kseq/kseq.h"
 
 using namespace std;
@@ -25,18 +25,18 @@ struct FastSeq {
     return max (minQualityChar, min (maxQualityChar, (char) (q + minQualityChar)));
   }
   inline int getQualScoreAt (size_t pos) const { return qualScoreForChar (qual[pos]); }
-  vector<int> tokens (const string& alphabet) const;
-  vector<int> qualScores() const;
+  vguard<int> tokens (const string& alphabet) const;
+  vguard<int> qualScores() const;
   void writeFasta (ostream& out) const;
   void writeFastq (ostream& out) const;
   FastSeq revcomp() const;
 };
 
-vector<FastSeq> readFastSeqs (const char* filename);
-void writeFastaSeqs (ostream& out, const vector<FastSeq>& fastSeqs);
-void writeFastqSeqs (ostream& out, const vector<FastSeq>& fastSeqs);
+vguard<FastSeq> readFastSeqs (const char* filename);
+void writeFastaSeqs (ostream& out, const vguard<FastSeq>& fastSeqs);
+void writeFastqSeqs (ostream& out, const vguard<FastSeq>& fastSeqs);
 
 string revcomp (const string& dnaSeq);
-void addRevcomps (vector<FastSeq>& db);
+void addRevcomps (vguard<FastSeq>& db);
 
 #endif /* KSEQCONTAINER_INCLUDED */

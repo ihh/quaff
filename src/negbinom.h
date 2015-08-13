@@ -1,7 +1,7 @@
 #ifndef NEGBINOM_INCLUDED
 #define NEGBINOM_INCLUDED
 
-#include <vector>
+#include "vguard.h"
 #include "logger.h"
 
 using namespace std;
@@ -14,24 +14,24 @@ template <typename T> int sgn(T val) {
 
 /* evaluate the log-pdf of the negative binomial distribution for a point, and for a frequency distribution */
 double logNegativeBinomial (int k, double pSuccess, double nSuccess);
-double logNegativeBinomial (const vector<double>& kFreq, double pSuccess, double nSuccess);
+double logNegativeBinomial (const vguard<double>& kFreq, double pSuccess, double nSuccess);
 
 /* calculate moments of an integer frequency distribution */
-void calcIntDistribMoments (const vector<double>& kFreq, double& count, double& mean, double& variance);
+void calcIntDistribMoments (const vguard<double>& kFreq, double& count, double& mean, double& variance);
 
 /* fit methods return GSL status/error codes */
 /* fitNegativeBinomial wraps other methods */
-int fitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nSuccess);
+int fitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, double& nSuccess);
 
 /* momentFitNegativeBinomial uses method of moments */
-int momentFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nSuccess);  /* method of moments */
+int momentFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, double& nSuccess);  /* method of moments */
 int momentFitNegativeBinomial (double mean, double variance, double& pSuccess, double& nSuccess);
 
 /* bracketFitNegativeBinomial uses first derivative */
-int bracketFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nSuccess);
-int bracketFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nSuccess, double nSuccessLowerBound, double nSuccessUpperBound);
+int bracketFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, double& nSuccess);
+int bracketFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, double& nSuccess, double nSuccessLowerBound, double nSuccessUpperBound);
 
 /* gradientFitNegativeBinomial uses first & second derivatives, requires an initial estimate */
-int gradientFitNegativeBinomial (const vector<double>& kFreq, double& pSuccess, double& nSuccess);
+int gradientFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, double& nSuccess);
 
 #endif /* NEGBINOM_INCLUDED */

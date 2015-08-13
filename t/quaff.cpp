@@ -28,12 +28,12 @@ struct QuaffParamsIn : QuaffParams {
 };
 
 struct SeqList {
-  vector<string> filenames;
+  vguard<string> filenames;
   string type, tag;
   int& argc;
   char**& argv;
   bool wantFastq, wantRevcomps;
-  vector<FastSeq> seqs;
+  vguard<FastSeq> seqs;
 
   SeqList (int& argc, char**& argv, const char* type, const char* tag)
     : argc(argc),
@@ -157,7 +157,7 @@ void SeqList::loadSequences() {
   Assert (filenames.size() > 0, "Please specify at least one %s file using %s", type.c_str(), tag.c_str());
 
   for (const auto& s : filenames) {
-    const vector<FastSeq> fsvec = readFastSeqs (s.c_str());
+    const vguard<FastSeq> fsvec = readFastSeqs (s.c_str());
     if (wantFastq)
       for (const auto& fs: fsvec)
 	Assert (fs.hasQual(), "Sequence %s in file %s does not have quality scores", fs.name.c_str(), s.c_str());

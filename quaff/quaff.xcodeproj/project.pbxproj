@@ -48,6 +48,7 @@
 		28586EDD1B7C200A00F39A98 /* quaff.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = quaff.cpp; path = ../../t/quaff.cpp; sourceTree = "<group>"; };
 		28586EDF1B7C201D00F39A98 /* libz.1.2.5.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.1.2.5.dylib; path = usr/lib/libz.1.2.5.dylib; sourceTree = SDKROOT; };
 		28586EE11B7C20B500F39A98 /* libgsl.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libgsl.0.dylib; path = ../../../../usr/local/Cellar/gsl/1.16/lib/libgsl.0.dylib; sourceTree = "<group>"; };
+		28586EE31B7C3A0500F39A98 /* vguard.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = vguard.h; path = ../../src/vguard.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,6 +99,7 @@
 				28586ED31B7C1FF400F39A98 /* qmodel.h */,
 				28586ED41B7C1FF400F39A98 /* util.cpp */,
 				28586ED51B7C1FF400F39A98 /* util.h */,
+				28586EE31B7C3A0500F39A98 /* vguard.h */,
 			);
 			path = quaff;
 			sourceTree = "<group>";
