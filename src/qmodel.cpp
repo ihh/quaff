@@ -194,13 +194,16 @@ void QuaffParamCounts::write (ostream& out) const {
       match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
 }
 
-void Alignment::writeFasta (ostream& out) const {
+void Alignment::writeGappedFasta (ostream& out) const {
+  if (rows())
+    ((FastSeq&)gappedSeq[0]).comment = string("Score=") + to_string(score);
   for (const auto& s : gappedSeq)
     s.writeFasta (out);
 }
 
 void Alignment::writeStockholm (ostream& out) const {
   out << "# STOCKHOLM 1.0" << endl;
+  out << "#=GF SC " << score << endl;
   size_t nameWidth = 0;
   for (const auto& s : gappedSeq)
     nameWidth = max (s.name.size(), nameWidth);
@@ -491,7 +494,14 @@ Alignment QuaffViterbiMatrix::alignment() const {
   align.gappedSeq[1].name = py->name;
   align.gappedSeq[0].seq = string (xRow.begin(), xRow.end());
   align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
+  align.score = result;
   return align;
+}
+
+Alignment QuaffViterbiMatrix::alignment (const QuaffNullParams& nullModel) const {
+  Alignment a = alignment();
+  a.score -= nullModel.logLikelihood (*py);
+  return a;
 }
 
 QuaffTrainer::QuaffTrainer()
@@ -637,7 +647,7 @@ double QuaffNullParams::logLikelihood (const FastSeq& s) const {
 
 QuaffParams QuaffTrainer::fit (const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts) {
   QuaffParams qp = seed;
-  QuaffNullParams qnp (y);
+  const QuaffNullParams qnp (y);
   double prevLogLikeWithPrior;
   for (int iter = 0; iter < maxIterations; ++iter) {
     QuaffParamCounts counts;
@@ -647,7 +657,7 @@ QuaffParams QuaffTrainer::fit (const vector<FastSeq>& x, const vector<FastSeq>& 
       vector<double> xyLogLike;
       vector<QuaffParamCounts> xyCounts;
       for (const auto& xfs : x) {
-	QuaffForwardBackwardMatrix fb (xfs, yfs, qp);
+	const QuaffForwardBackwardMatrix fb (xfs, yfs, qp);
 	const double ll = fb.fwd.result;
 	const QuaffParamCounts qpc (fb.back.qc);
 	xyLogLike.push_back (ll);
@@ -715,7 +725,48 @@ bool QuaffAligner::parseAlignmentArgs (int& argc, char**& argv) {
   return false;
 }
 
-void QuaffAligner::alignAndPrint (const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& params) {
-  // WRITE ME
+void QuaffAligner::align (ostream& out, const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& params) {
+  const QuaffNullParams qnp (y);
+  for (const auto& yfs : y) {
+    double yLogLike = qnp.logLikelihood (yfs);  // this initial value allows null model to "win"
+    size_t nBestAlign;
+    vector<Alignment> xyAlign;
+    for (const auto& xfs : x) {
+      const QuaffViterbiMatrix viterbi (xfs, yfs, params);
+      const Alignment align = viterbi.alignment (qnp);
+      if (xyAlign.empty() || align.score > xyAlign[nBestAlign].score)
+	nBestAlign = xyAlign.size();
+      xyAlign.push_back (align);
+    }
+    if (printAllAlignments)
+      for (const auto& a : xyAlign)
+	writeAlignment (out, a);
+    else
+      writeAlignment (out, xyAlign[nBestAlign]);
+  }
+}
+
+void QuaffAligner::writeAlignment (ostream& out, const Alignment& align) const {
+  FastSeq ref;
+  switch (format) {
+  case GappedFastaAlignment:
+    align.writeGappedFasta (out);
+    break;
+
+  case StockholmAlignment:
+    align.writeStockholm (out);
+    break;
+
+  case UngappedFastaRef:
+    Assert (align.rows() == 2, "Not a pairwise alignment");
+    ref = align.getUngapped(0);
+    ref.comment += " aligns_to " + align.gappedSeq[1].name;
+    ref.writeFasta (out);
+    break;
+
+  default:
+    Abort ("Unrecognized alignment format");
+    break;
+  }
 }
 

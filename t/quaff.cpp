@@ -38,6 +38,7 @@ struct SeqList {
   SeqList (int& argc, char**& argv, const char* type, const char* tag)
     : argc(argc),
       argv(argv),
+      type(type),
       tag(tag),
       wantFastq(false),
       wantRevcomps(false)
@@ -54,7 +55,6 @@ int main (int argc, char** argv) {
   const string command = usage.getCommand();
 
   QuaffParamsIn params (argc, argv);
-  QuaffTrainer trainer;
   QuaffParamCounts prior;
   prior.initCounts (1);
 
@@ -65,7 +65,9 @@ int main (int argc, char** argv) {
   reads.wantFastq = true;
 
   if (command == "align") {
+    QuaffAligner aligner;
     while (logger.parseLogArgs (argc, argv)
+	   || aligner.parseAlignmentArgs (argc, argv)
 	   || params.parseParamFilename()
 	   || refs.parseSeqFilename()
 	   || reads.parseSeqFilename()
@@ -77,9 +79,10 @@ int main (int argc, char** argv) {
     refs.loadSequences();
     params.loadParams();
 
-    // WRITE ME
+    aligner.align (cout, refs.seqs, reads.seqs, params);
 
   } else if (command == "train") {
+    QuaffTrainer trainer;
     while (logger.parseLogArgs (argc, argv)
 	   || trainer.parseTrainingArgs (argc, argv)
 	   || params.parseParamFilename()

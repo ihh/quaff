@@ -89,10 +89,12 @@ struct QuaffNullParams {
 // Alignment
 struct Alignment {
   vector<FastSeq> gappedSeq;
+  double score;
   Alignment (int numRows = 0)
     : gappedSeq(numRows)
   { }
-  void writeFasta (ostream& out) const;
+  const size_t rows() const { return gappedSeq.size(); }
+  void writeGappedFasta (ostream& out) const;
   void writeStockholm (ostream& out) const;
   FastSeq getUngapped (int row) const;
 };
@@ -146,6 +148,7 @@ private:
 public:
   QuaffViterbiMatrix (const FastSeq& x, const FastSeq& y, const QuaffParams& qp);
   Alignment alignment() const;
+  Alignment alignment (const QuaffNullParams& nullModel) const;
 };
 
 // config/wrapper struct for Baum-Welch style EM algorithm
@@ -166,7 +169,8 @@ struct QuaffAligner {
   
   QuaffAligner();
   bool parseAlignmentArgs (int& argc, char**& argv);
-  void alignAndPrint (const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& params);
+  void align (ostream& out, const vector<FastSeq>& x, const vector<FastSeq>& y, const QuaffParams& params);
+  void writeAlignment (ostream& out, const Alignment& align) const;
 };
 
 #endif /* QMODEL_INCLUDED */
