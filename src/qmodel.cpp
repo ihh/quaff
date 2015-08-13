@@ -56,13 +56,18 @@ void SymQualCounts::write (ostream& out, const string& prefix) const {
 }
 
 QuaffParams::QuaffParams()
-  : beginInsert(.5),
+  : beginInsert(.125),
     extendInsert(.5),
-    beginDelete(.5),
+    beginDelete(.125),
     extendDelete(.5),
     insert (dnaAlphabetSize),
     match (dnaAlphabetSize, vector<SymQualDist> (dnaAlphabetSize))
-{ }
+{
+  // give the default params a match bonus
+  for (size_t i = 0; i < dnaAlphabetSize; ++i)
+    for (size_t j = 0; j < dnaAlphabetSize; ++j)
+      match[i][j].symProb = (i == j ? .625 : .125);
+}
 
 #define QuaffParamWrite(X) out << #X ": " << X << endl
 void QuaffParams::write (ostream& out) const {

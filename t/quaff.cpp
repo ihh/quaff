@@ -24,7 +24,7 @@ struct QuaffParamsIn : QuaffParams {
   { }
 
   bool parseParamFilename();
-  void loadParams();
+  void requireParams();
 };
 
 struct SeqList {
@@ -77,7 +77,7 @@ int main (int argc, char** argv) {
 
     reads.loadSequences();
     refs.loadSequences();
-    params.loadParams();
+    params.requireParams();
 
     aligner.align (cout, refs.seqs, reads.seqs, params);
 
@@ -94,7 +94,6 @@ int main (int argc, char** argv) {
 
     reads.loadSequences();
     refs.loadSequences();
-    params.loadParams();
 
     QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, prior);
     newParams.write (cout);
@@ -122,7 +121,7 @@ bool QuaffParamsIn::parseParamFilename() {
   return false;
 }
 
-void QuaffParamsIn::loadParams() {
+void QuaffParamsIn::requireParams() {
   Assert (initialized, "Please specify a parameter file using -params");
 }
 
