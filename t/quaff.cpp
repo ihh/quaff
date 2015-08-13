@@ -65,10 +65,13 @@ int main (int argc, char** argv) {
   SeqList reads (argc, argv, "read", "-read");
   reads.wantFastq = true;
 
+  QuaffDPConfig config;
+
   if (command == "align") {
     QuaffAligner aligner;
     while (logger.parseLogArgs (argc, argv)
 	   || aligner.parseAlignmentArgs (argc, argv)
+	   || config.parseConfigArgs (argc, argv)
 	   || params.parseParamFilename()
 	   || refs.parseSeqFilename()
 	   || reads.parseSeqFilename()
@@ -80,12 +83,13 @@ int main (int argc, char** argv) {
     refs.loadSequences();
     params.requireParams();
 
-    aligner.align (cout, refs.seqs, reads.seqs, params);
+    aligner.align (cout, refs.seqs, reads.seqs, params, config);
 
   } else if (command == "learn") {
     QuaffTrainer trainer;
     while (logger.parseLogArgs (argc, argv)
 	   || trainer.parseTrainingArgs (argc, argv)
+	   || config.parseConfigArgs (argc, argv)
 	   || params.parseParamFilename()
 	   || refs.parseSeqFilename()
 	   || reads.parseSeqFilename()
@@ -96,7 +100,7 @@ int main (int argc, char** argv) {
     reads.loadSequences();
     refs.loadSequences();
 
-    QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, prior);
+    QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, prior, config);
     newParams.write (cout);
 
   } else if (command == "help" || command == "-help" || command == "--help" || command == "-h") {
@@ -207,6 +211,7 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "   -log <function_name>\n"
     + "                   Various levels of logging\n"
     + "   -fwdstrand      Do not include reverse-complemented refseqs\n"
+    + "   -global         Force all of refseq to be aligned\n"
     + "\n";
 }
 

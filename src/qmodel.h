@@ -103,9 +103,17 @@ struct Alignment {
   FastSeq getUngapped (int row) const;
 };
 
+// DP config
+struct QuaffDPConfig {
+  bool local;
+  QuaffDPConfig() : local(true) { }
+  bool parseConfigArgs (int& argc, char**& argv);
+};
+
 // DP matrices
 struct QuaffDPMatrix {
   enum State { Start, Match, Insert, Delete };
+  const QuaffDPConfig* pconfig;
   const DiagonalEnvelope* penv;
   const FastSeq *px, *py;
   QuaffScores qs;
@@ -120,12 +128,12 @@ struct QuaffDPMatrix {
   inline double insertEmitScore (size_t j) const {
     return qs.insert[yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
-  QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp);
+  QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
   void write (ostream& out) const;
 };
 
 struct QuaffForwardMatrix : QuaffDPMatrix {
-  QuaffForwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp);
+  QuaffForwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
 };
 
 struct QuaffBackwardMatrix : QuaffDPMatrix {
@@ -144,7 +152,11 @@ struct QuaffBackwardMatrix : QuaffDPMatrix {
 struct QuaffForwardBackwardMatrix {
   QuaffForwardMatrix fwd;
   QuaffBackwardMatrix back;
-  QuaffForwardBackwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp);
+  QuaffForwardBackwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
+  double postMatch (int i, int j) const;
+  double postDelete (int i, int j) const;
+  double postInsert (int i, int j) const;
+  void write (ostream& out) const;
 };
   
 class QuaffViterbiMatrix : public QuaffDPMatrix {
@@ -152,7 +164,7 @@ private:
   const char gapChar = '-';
   static void updateMax (double& currentMax, State& currentMaxIdx, double candidateMax, State candidateMaxIdx);
 public:
-  QuaffViterbiMatrix (const DiagonalEnvelope& env, const QuaffParams& qp);
+  QuaffViterbiMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
   Alignment alignment() const;
   Alignment scoreAdjustedAlignment (const QuaffNullParams& nullModel) const;
 };
@@ -164,7 +176,7 @@ struct QuaffTrainer {
 
   QuaffTrainer();
   bool parseTrainingArgs (int& argc, char**& argv);
-  QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts);
+  QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config);
 };
 
 // config/wrapper struct for Viterbi alignment
@@ -175,7 +187,7 @@ struct QuaffAligner {
   
   QuaffAligner();
   bool parseAlignmentArgs (int& argc, char**& argv);
-  void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params);
+  void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffDPConfig& config);
   void writeAlignment (ostream& out, const Alignment& align) const;
 };
 

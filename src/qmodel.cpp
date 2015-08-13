@@ -10,8 +10,15 @@
 #include "negbinom.h"
 #include "logger.h"
 
+// internal #defines
 #define MAX_FRACTIONAL_FWDBACK_ERROR .0001
 
+// useful helper methods
+double logBetaPdf (double prob, double yesCount, double noCount) {
+  return log (gsl_ran_beta_pdf (prob, yesCount + 1, noCount + 1));
+}
+
+// main method bodies
 SymQualDist::SymQualDist()
   : symProb(1. / dnaAlphabetSize),
     qualTrialSuccessProb(.5),
@@ -263,10 +270,25 @@ FastSeq Alignment::getUngapped (int row) const {
   return s;
 }
 
-QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp)
+bool QuaffDPConfig::parseConfigArgs (int& argc, char**& argv) {
+  if (argc > 0) {
+    const char* arg = argv[0];
+    if (strcmp (arg, "-global") == 0) {
+      local = false;
+      argv += 1;
+      argc -= 1;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config)
   : penv (&env),
     px (env.px),
     py (env.py),
+    pconfig (&config),
     qs (qp),
     xTok (px->tokens(dnaAlphabet)),
     yTok (py->tokens(dnaAlphabet)),
@@ -287,13 +309,16 @@ QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp
 }
 
 void QuaffDPMatrix::write (ostream& out) const {
-  for (int i = 1; i <= xLen; ++i)
+  for (int i = 1; i <= xLen; ++i) {
     for (int j = 1; j <= yLen; ++j)
-      out << "i=" << i << " j=" << j << " mat=" << mat[i][j] << " ins=" << ins[i][j] << " del=" << del[i][j] << endl;
+      out << "i=" << i << "(" << px->seq[i-1] << ") j=" << j << "(" << py->seq[j-1] << py->qual[j-1] << ")\tmat " << mat[i][j] << "\tins " << ins[i][j] << "\tdel " << del[i][j] << endl;
+    out << endl;
+  }
+  out << "result " << result << endl;
 }
 
-QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp)
-  : QuaffDPMatrix (env, qp)
+QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config)
+  : QuaffDPMatrix (env, qp, config)
 {
   const FastSeq& x (*px);
   const FastSeq& y (*py);
@@ -309,7 +334,8 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
       mat[i][j] = log_sum_exp (mat[i-1][j-1] + qs.m2m,
 			       del[i-1][j-1] + qs.d2m,
 			       ins[i-1][j-1] + qs.i2m);
-      if (j == 1)
+
+      if (j == 1 && (i == 1 || config.local))
 	mat[i][j] = log_sum_exp (mat[i][j],
 				 start);
 
@@ -322,8 +348,9 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
 			       mat[i-1][j] + qs.m2d);
     }
 
-    end = log_sum_exp (end,
-		       mat[i][yLen] + qs.m2e);
+    if (i == xLen || config.local)
+      end = log_sum_exp (end,
+			 mat[i][yLen] + qs.m2e);
   }
 
   result = end;
@@ -333,7 +360,7 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
 }
 
 QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
-  : QuaffDPMatrix (*fwd.penv, *fwd.qs.pqp),
+  : QuaffDPMatrix (*fwd.penv, *fwd.qs.pqp, *fwd.pconfig),
     pfwd (&fwd),
     qc()
 {
@@ -345,11 +372,13 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
     if (LogThisAt(2))
       logProgress ((xLen - i) / (double) xLen, "base %d/%d", i, xLen);
 
-    const double m2e = transCount (mat[i][yLen],
-				   fwd.mat[i][yLen],
-				   qs.m2e,
-				   end);
-    qc.m2e += m2e;
+    if (i == xLen || pconfig->local) {
+      const double m2e = transCount (mat[i][yLen],
+				     fwd.mat[i][yLen],
+				     qs.m2e,
+				     end);
+      qc.m2e += m2e;
+    }
 
     for (size_t j = yLen; j > 0; --j) {
       
@@ -378,12 +407,12 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
       qc.i2m += i2m;
       matCount += i2m;
 
-      if (j == 1) {
-	const double m2s = transCount (start,
+      if (j == 1 && (i == 1 || pconfig->local)) {
+	const double s2m = transCount (start,
 				       fwd.start,
 				       matEmit,
 				       matDest);
-	matCount += m2s;
+	matCount += s2m;
       }
 
       const double insEmit = cachedInsertEmitScore[j];
@@ -441,8 +470,8 @@ double QuaffBackwardMatrix::transCount (double& backSrc, double fwdSrc, double t
   return count;
 }
 
-QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const QuaffParams& qp)
-  : QuaffDPMatrix (env, qp)
+QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config)
+  : QuaffDPMatrix (env, qp, config)
 {
   const FastSeq& x (*px);
   const FastSeq& y (*py);
@@ -489,15 +518,17 @@ void QuaffViterbiMatrix::updateMax (double& currentMax, State& currentMaxIdx, do
 }
 
 Alignment QuaffViterbiMatrix::alignment() const {
-  size_t xEnd = -1;
-  double bestEndSc = -numeric_limits<double>::infinity(), sc;
+  size_t xEnd = xLen;
+  if (pconfig->local) {
+    double bestEndSc = -numeric_limits<double>::infinity(), sc;
     for (size_t iEnd = xLen; iEnd > 0; --iEnd) {
-        sc = mat[iEnd][yLen] + qs.m2e;
-        if (iEnd == xLen || sc > bestEndSc) {
-            bestEndSc = sc;
-            xEnd = iEnd;
-        }
+      sc = mat[iEnd][yLen] + qs.m2e;
+      if (iEnd == xLen || sc > bestEndSc) {
+	bestEndSc = sc;
+	xEnd = iEnd;
+      }
     }
+  }
   size_t i = xEnd, j = yLen;
   list<char> xRow, yRow;
   State state = Match;
@@ -512,7 +543,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
       updateMax (srcSc, state, mat[i][j] + qs.m2m + emitSc, Match);
       updateMax (srcSc, state, ins[i][j] + qs.i2m + emitSc, Insert);
       updateMax (srcSc, state, del[i][j] + qs.d2m + emitSc, Delete);
-      if (j == 0)
+      if (j == 0 && (i == 0 || pconfig->local))
 	updateMax (srcSc, state, emitSc, Start);
       break;
 
@@ -538,7 +569,10 @@ Alignment QuaffViterbiMatrix::alignment() const {
   }
   const size_t xStart = i + 1;
   Alignment align(2);
-  align.gappedSeq[0].name = "substr(" + px->name + "," + to_string(xStart) + ".." + to_string(xEnd) + ")";
+  if (pconfig->local)
+    align.gappedSeq[0].name = "substr(" + px->name + "," + to_string(xStart) + ".." + to_string(xEnd) + ")";
+  else
+    align.gappedSeq[0].name = px->name;
   align.gappedSeq[1].name = py->name;
   align.gappedSeq[0].seq = string (xRow.begin(), xRow.end());
   align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
@@ -600,18 +634,22 @@ void QuaffParamCounts::addWeighted (const QuaffParamCounts& counts, double weigh
 
 double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
   double lp = 0;
+  lp += logBetaPdf (qp.beginInsert, beginInsertYes, beginInsertNo);
+  lp += logBetaPdf (qp.extendInsert, extendInsertYes, extendInsertNo);
+  lp += logBetaPdf (qp.beginDelete, beginDeleteYes, beginDeleteNo);
+  lp += logBetaPdf (qp.extendDelete, extendDeleteYes, extendDeleteNo);
   double *alpha = new double[dnaAlphabetSize], *theta = new double[dnaAlphabetSize];
   for (int i = 0; i < dnaAlphabetSize; ++i) {
     lp += qp.insert[i].logQualProb (insert[i].qualCount);  // not normalized...
     theta[i] = qp.insert[i].symProb;
-    alpha[i] = accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 0.);
+    alpha[i] = accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 1.);
   }
   lp += log (gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta));
   for (int i = 0; i < dnaAlphabetSize; ++i) {
     for (int j = 0; j < dnaAlphabetSize; ++j) {
       lp += qp.match[i][j].logQualProb (match[i][j].qualCount);  // not normalized...
       theta[j] = qp.match[i][j].symProb;
-      alpha[j] = accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.);
+      alpha[j] = accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 1.);
     }
     lp += log (gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta));
   }
@@ -622,6 +660,10 @@ double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
 
 double QuaffParamCounts::expectedLogLike (const QuaffParams& qp) const {
   double ll = 0;
+  ll += log (qp.beginInsert) * beginInsertYes + log (1 - qp.beginInsert) * beginInsertNo;
+  ll += log (qp.extendInsert) * extendInsertYes + log (1 - qp.extendInsert) * extendInsertNo;
+  ll += log (qp.beginDelete) * beginDeleteYes + log (1 - qp.beginDelete) * beginDeleteNo;
+  ll += log (qp.extendDelete) * extendDeleteYes + log (1 - qp.extendDelete) * extendDeleteNo;
   for (int i = 0; i < dnaAlphabetSize; ++i) {
     ll += qp.insert[i].logQualProb (insert[i].qualCount);
     ll += log (qp.insert[i].symProb) * accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 0.);
@@ -665,10 +707,34 @@ QuaffParams QuaffParamCounts::fit() const {
   return qp;
 }
 
-QuaffForwardBackwardMatrix::QuaffForwardBackwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp)
-  : fwd (env, qp),
+QuaffForwardBackwardMatrix::QuaffForwardBackwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config)
+  : fwd (env, qp, config),
     back (fwd)
-{ }
+{
+  if (LogWhen("postmatrix"))
+    write (cerr);
+}
+
+double QuaffForwardBackwardMatrix::postMatch (int i, int j) const {
+  return exp (fwd.mat[i][j] + back.mat[i][j] - fwd.result);
+}
+
+double QuaffForwardBackwardMatrix::postDelete (int i, int j) const {
+  return exp (fwd.del[i][j] + back.del[i][j] - fwd.result);
+}
+
+double QuaffForwardBackwardMatrix::postInsert (int i, int j) const {
+  return exp (fwd.ins[i][j] + back.ins[i][j] - fwd.result);
+}
+
+void QuaffForwardBackwardMatrix::write (ostream& out) const {
+  for (int i = 1; i <= fwd.xLen; ++i) {
+    for (int j = 1; j <= fwd.yLen; ++j)
+      out << "i=" << i << "(" << fwd.px->seq[i-1] << ") j=" << j << "(" << fwd.py->seq[j-1] << fwd.py->qual[j-1] << ")\tmat " << postMatch(i,j) << "\tins " << postInsert(i,j) << "\tdel " << postDelete(i,j) << endl;
+    out << endl;
+  }
+}
+
 
 QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocount)
   : null (dnaAlphabetSize)
@@ -719,7 +785,7 @@ void QuaffNullParams::write (ostream& out) const {
     null[i].write (out, string("null") + dnaAlphabet[i]);
 }
 
-QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts) {
+QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config) {
   QuaffParams qp = seed;
   const QuaffNullParams qnp (y);
   if (LogThisAt(3))
@@ -736,7 +802,7 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
       for (const auto& xfs : x) {
 	DiagonalEnvelope env (xfs, yfs);
 	env.initFull();
-	const QuaffForwardBackwardMatrix fb (env, qp);
+	const QuaffForwardBackwardMatrix fb (env, qp, config);
 	const double ll = fb.fwd.result;
 	const QuaffParamCounts qpc (fb.back.qc);
 	xyLogLike.push_back (ll);
@@ -824,7 +890,7 @@ bool QuaffAligner::parseAlignmentArgs (int& argc, char**& argv) {
   return false;
 }
 
-void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params) {
+void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffDPConfig& config) {
   const QuaffNullParams qnp (y);
   if (LogThisAt(3))
     qnp.write (cerr << "Null model:" << endl);
@@ -834,7 +900,7 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
     for (const auto& xfs : x) {
       DiagonalEnvelope env (xfs, yfs);
       env.initFull();
-      const QuaffViterbiMatrix viterbi (env, params);
+      const QuaffViterbiMatrix viterbi (env, params, config);
       const Alignment align = viterbi.scoreAdjustedAlignment(qnp).addScoreComment();
       if (xyAlign.empty() || align.score > xyAlign[nBestAlign].score)
 	nBestAlign = xyAlign.size();
