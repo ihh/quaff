@@ -4,9 +4,12 @@
 #include <cmath>
 #include <cstdlib>
 #include <gsl/gsl_randist.h>
+#include <gsl/gsl_roots.h>
 #include "qmodel.h"
 #include "logsumexp.h"
 #include "negbinom.h"
+
+#define MAX_FRACTIONAL_FWDBACK_ERROR .0001
 
 SymQualDist::SymQualDist()
   : symProb(1. / dnaAlphabetSize),
@@ -342,9 +345,9 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 	matCount += d2m;
       }
 
-      if (i < xLen) {
+      if (j < yLen) {
 	const double insEmit = cachedInsertEmitScore[j+1];
-	const double insDest = ins[i+1][j];
+	const double insDest = ins[i][j+1];
 	double& insCount = insertCount(j+1);
 
 	const double m2i = transCount (mat[i][j],
@@ -362,8 +365,8 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 	insCount += i2i;
       }
 
-      if (j < yLen) {
-	const double delDest = del[i][j+1];
+      if (i < xLen) {
+	const double delDest = del[i+1][j];
 
 	const double m2d = transCount (mat[i][j],
 				       fwd.mat[i][j],
@@ -393,8 +396,8 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
   }
 
   result = start;
-  if (result != fwd.result)
-    cerr << "Warning: forward score (" << fwd.result << ") does not match backward score (" << result << ")" << endl;
+  if (gsl_root_test_delta (result, fwd.result, 0, MAX_FRACTIONAL_FWDBACK_ERROR) != GSL_SUCCESS)
+    cerr << endl << endl << "Warning: forward score (" << fwd.result << ") does not match backward score (" << result << ")" << endl << endl << endl;
 }
 
 double QuaffBackwardMatrix::transCount (double& backSrc, double fwdSrc, double trans, double backDest) const {
@@ -596,17 +599,16 @@ QuaffParams QuaffParamCounts::fit() const {
   }
 
   for (int i = 0; i < dnaAlphabetSize; ++i) {
-    vguard<double> iMatFreq;
+    vguard<double> iMatFreq (dnaAlphabetSize);
+    for (int j = 0; j < dnaAlphabetSize; ++j)
+      iMatFreq[j] = accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.);
+    const double iMatNorm = accumulate (iMatFreq.begin(), iMatFreq.end(), 0.);
     for (int j = 0; j < dnaAlphabetSize; ++j) {
-      iMatFreq.push_back (accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.));
-      const double iMatNorm = accumulate (iMatFreq.begin(), iMatFreq.end(), 0.);
-      for (int j = 0; j < dnaAlphabetSize; ++j) {
-	qp.match[i][j].symProb = iMatFreq[j] / iMatNorm;
-	fitNegativeBinomial (match[i][j].qualCount, qp.match[i][j].qualTrialSuccessProb, qp.match[i][j].qualNumSuccessfulTrials);
-      }
+      qp.match[i][j].symProb = iMatFreq[j] / iMatNorm;
+      fitNegativeBinomial (match[i][j].qualCount, qp.match[i][j].qualTrialSuccessProb, qp.match[i][j].qualNumSuccessfulTrials);
     }
   }
-  
+
   return qp;
 }
 
