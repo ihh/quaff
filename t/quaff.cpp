@@ -1,7 +1,6 @@
 #include <iostream>
 #include <fstream>
 #include "../src/qmodel.h"
-#include "../src/util.h"
 
 struct QuaffUsage {
   int& argc;
@@ -113,7 +112,7 @@ bool QuaffParamsIn::parseParamFilename() {
     if (arg == "-params") {
       Assert (argc > 1, "%s needs an argument", arg.c_str());
       ifstream inFile (argv[1]);
-      Assert (inFile, "Couldn't open %s", argv[1]);
+      Assert (!inFile.fail(), "Couldn't open %s", argv[1]);
       read (inFile);
       argc -= 2;
       argv += 2;
