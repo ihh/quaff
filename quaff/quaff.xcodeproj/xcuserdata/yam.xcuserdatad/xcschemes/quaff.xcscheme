@@ -58,6 +58,12 @@
             ReferencedContainer = "container:quaff.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+         <CommandLineArgument
+            argument = "train -fasta data/tiny.fastq -fastq data/tiny.fastq -v2"
+            isEnabled = "YES">
+         </CommandLineArgument>
+      </CommandLineArguments>
       <AdditionalOptions>
       </AdditionalOptions>
    </LaunchAction>

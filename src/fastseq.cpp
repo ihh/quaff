@@ -69,21 +69,21 @@ vector<FastSeq> readFastSeqs (const char* filename) {
   vector<FastSeq> seqs;
 
   gzFile fp = gzopen(filename, "r");
-  if (fp != Z_NULL) {
-    kseq_t *ks = kseq_init(fp);
-    while (kseq_read(ks) != -1) {
-      FastSeq seq;
-      seq.name = string(ks->name.s);
-      seq.seq = string(ks->seq.s);
-      if (ks->comment.l)
-	seq.comment = string(ks->comment.s);
-      if (ks->qual.l == ks->seq.l)
+  Assert (fp != Z_NULL, "Couldn't open %s", filename);
+
+  kseq_t *ks = kseq_init(fp);
+  while (kseq_read(ks) != -1) {
+    FastSeq seq;
+    seq.name = string(ks->name.s);
+    seq.seq = string(ks->seq.s);
+    if (ks->comment.l)
+      seq.comment = string(ks->comment.s);
+    if (ks->qual.l == ks->seq.l)
 	seq.qual = string(ks->qual.s);
-      seqs.push_back (seq);
+    seqs.push_back (seq);
     }
-    kseq_destroy (ks);
-    gzclose (fp);
-  }
+  kseq_destroy (ks);
+  gzclose (fp);
 
   return seqs;
 }
