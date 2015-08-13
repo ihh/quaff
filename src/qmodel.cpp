@@ -284,6 +284,12 @@ bool QuaffDPConfig::parseConfigArgs (int& argc, char**& argv) {
   return false;
 }
 
+QuaffDPCell::QuaffDPCell()
+  : mat (-numeric_limits<double>::infinity()),
+    ins (-numeric_limits<double>::infinity()),
+    del (-numeric_limits<double>::infinity())
+{ }
+
 QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config)
   : penv (&env),
     px (env.px),
@@ -295,9 +301,7 @@ QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp
     yQual (py->qualScores()),
     xLen (px->length()),
     yLen (py->length()),
-    mat (px->length() + 1, vguard<double> (py->length() + 1, -numeric_limits<double>::infinity())),
-    ins (px->length() + 1, vguard<double> (py->length() + 1, -numeric_limits<double>::infinity())),
-    del (px->length() + 1, vguard<double> (py->length() + 1, -numeric_limits<double>::infinity())),
+    cell (py->length() + 1),
     cachedInsertEmitScore (py->length() + 1, -numeric_limits<double>::infinity()),
     start (-numeric_limits<double>::infinity()),
     end (-numeric_limits<double>::infinity()),
@@ -308,10 +312,12 @@ QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp
     cachedInsertEmitScore[j] = insertEmitScore(j);
 }
 
+QuaffDPCell QuaffDPMatrix::dummy;
+
 void QuaffDPMatrix::write (ostream& out) const {
   for (int i = 1; i <= xLen; ++i) {
     for (int j = 1; j <= yLen; ++j)
-      out << "i=" << i << "(" << px->seq[i-1] << ") j=" << j << "(" << py->seq[j-1] << py->qual[j-1] << ")\tmat " << mat[i][j] << "\tins " << ins[i][j] << "\tdel " << del[i][j] << endl;
+      out << "i=" << i << "(" << px->seq[i-1] << ") j=" << j << "(" << py->seq[j-1] << py->qual[j-1] << ")\tmat " << mat(i,j) << "\tins " << ins(i,j) << "\tdel " << del(i,j) << endl;
     out << endl;
   }
   out << "result " << result << endl;
@@ -331,26 +337,26 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
       logProgress (i / (double) xLen, "base %d/%d", i, xLen);
 
     for (int j = 1; j <= yLen; ++j) {
-      mat[i][j] = log_sum_exp (mat[i-1][j-1] + qs.m2m,
-			       del[i-1][j-1] + qs.d2m,
-			       ins[i-1][j-1] + qs.i2m);
+      mat(i,j) = log_sum_exp (mat(i-1,j-1) + qs.m2m,
+			      del(i-1,j-1) + qs.d2m,
+			      ins(i-1,j-1) + qs.i2m);
 
       if (j == 1 && (i == 1 || config.local))
-	mat[i][j] = log_sum_exp (mat[i][j],
-				 start);
+	mat(i,j) = log_sum_exp (mat(i,j),
+				start);
 
-      mat[i][j] += matchEmitScore(i,j);
+      mat(i,j) += matchEmitScore(i,j);
 
-      ins[i][j] = cachedInsertEmitScore[j] + log_sum_exp (ins[i][j-1] + qs.i2i,
-							  mat[i][j-1] + qs.m2i);
+      ins(i,j) = cachedInsertEmitScore[j] + log_sum_exp (ins(i,j-1) + qs.i2i,
+							 mat(i,j-1) + qs.m2i);
 
-      del[i][j] = log_sum_exp (del[i-1][j] + qs.d2d,
-			       mat[i-1][j] + qs.m2d);
+      del(i,j) = log_sum_exp (del(i-1,j) + qs.d2d,
+			      mat(i-1,j) + qs.m2d);
     }
 
     if (i == xLen || config.local)
       end = log_sum_exp (end,
-			 mat[i][yLen] + qs.m2e);
+			 mat(i,yLen) + qs.m2e);
   }
 
   result = end;
@@ -373,8 +379,8 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
       logProgress ((xLen - i) / (double) xLen, "base %d/%d", i, xLen);
 
     if (i == xLen || pconfig->local) {
-      const double m2e = transCount (mat[i][yLen],
-				     fwd.mat[i][yLen],
+      const double m2e = transCount (mat(i,yLen),
+				     fwd.mat(i,yLen),
 				     qs.m2e,
 				     end);
       qc.m2e += m2e;
@@ -383,25 +389,25 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
     for (size_t j = yLen; j > 0; --j) {
       
       const double matEmit = matchEmitScore(i,j);
-      const double matDest = mat[i][j];
+      const double matDest = mat(i,j);
       double& matCount = matchCount(i,j);
 
-      const double m2m = transCount (mat[i-1][j-1],
-				     fwd.mat[i-1][j-1],
+      const double m2m = transCount (mat(i-1,j-1),
+				     fwd.mat(i-1,j-1),
 				     qs.m2m + matEmit,
 				     matDest);
       qc.m2m += m2m;
       matCount += m2m;
 
-      const double d2m = transCount (del[i-1][j-1],
-				     fwd.del[i-1][j-1],
+      const double d2m = transCount (del(i-1,j-1),
+				     fwd.del(i-1,j-1),
 				     qs.d2m + matEmit,
 				     matDest);
       qc.d2m += d2m;
       matCount += d2m;
 
-      const double i2m = transCount (ins[i-1][j-1],
-				     fwd.ins[i-1][j-1],
+      const double i2m = transCount (ins(i-1,j-1),
+				     fwd.ins(i-1,j-1),
 				     qs.i2m + matEmit,
 				     matDest);
       qc.i2m += i2m;
@@ -416,33 +422,33 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
       }
 
       const double insEmit = cachedInsertEmitScore[j];
-      const double insDest = ins[i][j];
+      const double insDest = ins(i,j);
       double& insCount = insertCount(j);
 
-      const double m2i = transCount (mat[i][j-1],
-				     fwd.mat[i][j-1],
+      const double m2i = transCount (mat(i,j-1),
+				     fwd.mat(i,j-1),
 				     qs.m2i + insEmit,
 				     insDest);
       qc.m2i += m2i;
       insCount += m2i;
 
-      const double i2i = transCount (ins[i][j-1],
-				     fwd.ins[i][j-1],
+      const double i2i = transCount (ins(i,j-1),
+				     fwd.ins(i,j-1),
 				     qs.i2i + insEmit,
 				     insDest);
       qc.i2i += i2i;
       insCount += i2i;
 
-      const double delDest = del[i][j];
+      const double delDest = del(i,j);
 
-      const double m2d = transCount (mat[i-1][j],
-				     fwd.mat[i-1][j],
+      const double m2d = transCount (mat(i-1,j),
+				     fwd.mat(i-1,j),
 				     qs.m2d,
 				     delDest);
       qc.m2d += m2d;
 
-      const double d2d = transCount (del[i-1][j],
-				     fwd.del[i-1][j],
+      const double d2d = transCount (del(i-1,j),
+				     fwd.del(i-1,j),
 				     qs.d2d,
 				     delDest);
       qc.d2d += d2d;
@@ -484,24 +490,24 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
       logProgress (i / (double) xLen, "base %d/%d", i, xLen);
 
     for (int j = 1; j <= yLen; ++j) {
-      mat[i][j] = max (max (mat[i-1][j-1] + qs.m2m,
-			    del[i-1][j-1] + qs.d2m),
-		       ins[i-1][j-1] + qs.i2m);
+      mat(i,j) = max (max (mat(i-1,j-1) + qs.m2m,
+			   del(i-1,j-1) + qs.d2m),
+		      ins(i-1,j-1) + qs.i2m);
       if (j == 1)
-	mat[i][j] = max (mat[i][j],
-			 start);
+	mat(i,j) = max (mat(i,j),
+			start);
 
-      mat[i][j] += matchEmitScore(i,j);
+      mat(i,j) += matchEmitScore(i,j);
 
-      ins[i][j] = cachedInsertEmitScore[j] + max (ins[i][j-1] + qs.i2i,
-						  mat[i][j-1] + qs.m2i);
+      ins(i,j) = cachedInsertEmitScore[j] + max (ins(i,j-1) + qs.i2i,
+						 mat(i,j-1) + qs.m2i);
 
-      del[i][j] = max (del[i-1][j] + qs.d2d,
-		       mat[i-1][j] + qs.m2d);
+      del(i,j) = max (del(i-1,j) + qs.d2d,
+		      mat(i-1,j) + qs.m2d);
     }
 
     end = max (end,
-	       mat[i][yLen] + qs.m2e);
+	       mat(i,yLen) + qs.m2e);
   }
 
   result = end;
@@ -522,7 +528,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
   if (pconfig->local) {
     double bestEndSc = -numeric_limits<double>::infinity(), sc;
     for (size_t iEnd = xLen; iEnd > 0; --iEnd) {
-      sc = mat[iEnd][yLen] + qs.m2e;
+      sc = mat(iEnd,yLen) + qs.m2e;
       if (iEnd == xLen || sc > bestEndSc) {
 	bestEndSc = sc;
 	xEnd = iEnd;
@@ -540,9 +546,9 @@ Alignment QuaffViterbiMatrix::alignment() const {
       emitSc = matchEmitScore(i,j);
       xRow.push_front (px->seq[--i]);
       yRow.push_front (py->seq[--j]);
-      updateMax (srcSc, state, mat[i][j] + qs.m2m + emitSc, Match);
-      updateMax (srcSc, state, ins[i][j] + qs.i2m + emitSc, Insert);
-      updateMax (srcSc, state, del[i][j] + qs.d2m + emitSc, Delete);
+      updateMax (srcSc, state, mat(i,j) + qs.m2m + emitSc, Match);
+      updateMax (srcSc, state, ins(i,j) + qs.i2m + emitSc, Insert);
+      updateMax (srcSc, state, del(i,j) + qs.d2m + emitSc, Delete);
       if (j == 0 && (i == 0 || pconfig->local))
 	updateMax (srcSc, state, emitSc, Start);
       break;
@@ -551,15 +557,15 @@ Alignment QuaffViterbiMatrix::alignment() const {
       emitSc = cachedInsertEmitScore[j];
       xRow.push_front (gapChar);
       yRow.push_front (py->seq[--j]);
-      updateMax (srcSc, state, mat[i][j] + qs.m2i + emitSc, Match);
-      updateMax (srcSc, state, ins[i][j] + qs.i2i + emitSc, Insert);
+      updateMax (srcSc, state, mat(i,j) + qs.m2i + emitSc, Match);
+      updateMax (srcSc, state, ins(i,j) + qs.i2i + emitSc, Insert);
       break;
 
     case Delete:
       xRow.push_front (px->seq[--i]);
       yRow.push_front (gapChar);
-      updateMax (srcSc, state, mat[i][j] + qs.m2d, Match);
-      updateMax (srcSc, state, ins[i][j] + qs.d2d, Delete);
+      updateMax (srcSc, state, mat(i,j) + qs.m2d, Match);
+      updateMax (srcSc, state, ins(i,j) + qs.d2d, Delete);
       break;
 
     default:
@@ -716,15 +722,15 @@ QuaffForwardBackwardMatrix::QuaffForwardBackwardMatrix (const DiagonalEnvelope& 
 }
 
 double QuaffForwardBackwardMatrix::postMatch (int i, int j) const {
-  return exp (fwd.mat[i][j] + back.mat[i][j] - fwd.result);
+  return exp (fwd.mat(i,j) + back.mat(i,j) - fwd.result);
 }
 
 double QuaffForwardBackwardMatrix::postDelete (int i, int j) const {
-  return exp (fwd.del[i][j] + back.del[i][j] - fwd.result);
+  return exp (fwd.del(i,j) + back.del(i,j) - fwd.result);
 }
 
 double QuaffForwardBackwardMatrix::postInsert (int i, int j) const {
-  return exp (fwd.ins[i][j] + back.ins[i][j] - fwd.result);
+  return exp (fwd.ins(i,j) + back.ins(i,j) - fwd.result);
 }
 
 void QuaffForwardBackwardMatrix::write (ostream& out) const {

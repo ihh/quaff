@@ -111,6 +111,13 @@ struct QuaffDPConfig {
 };
 
 // DP matrices
+struct QuaffDPCell {
+  double mat, ins, del;
+  QuaffDPCell();
+};
+
+typedef map<int,QuaffDPCell> QuaffDPColumn;
+
 struct QuaffDPMatrix {
   enum State { Start, Match, Insert, Delete };
   const QuaffDPConfig* pconfig;
@@ -119,16 +126,28 @@ struct QuaffDPMatrix {
   QuaffScores qs;
   vguard<int> xTok, yTok, yQual;
   size_t xLen, yLen;
-  vguard<vguard<double> > mat, ins, del;
+  vguard<QuaffDPColumn> cell;
   double start, end, result;
+  static QuaffDPCell dummy;
   vguard<double> cachedInsertEmitScore;
+  QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
+  inline const QuaffDPCell& getCell (int i, int j) const {
+    const QuaffDPColumn& col = cell[j];
+    auto c = col.find (i);
+    return c == col.end() ? dummy : c->second;
+  }
+  inline double& mat (int i, int j) { return cell[j][i].mat; }
+  inline double& ins (int i, int j) { return cell[j][i].ins; }
+  inline double& del (int i, int j) { return cell[j][i].del; }
+  inline const double& mat (int i, int j) const { return getCell(i,j).mat; }
+  inline const double& ins (int i, int j) const { return getCell(i,j).ins; }
+  inline const double& del (int i, int j) const { return getCell(i,j).del; }
   inline double matchEmitScore (size_t i, size_t j) const {
     return qs.match[xTok[i-1]][yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
   inline double insertEmitScore (size_t j) const {
     return qs.insert[yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
-  QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
   void write (ostream& out) const;
 };
 
