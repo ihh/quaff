@@ -87,7 +87,7 @@ int main (int argc, char** argv) {
 
     aligner.align (cout, refs.seqs, reads.seqs, params, config);
 
-  } else if (command == "learn") {
+  } else if (command == "train") {
     QuaffTrainer trainer;
     while (logger.parseLogArgs (argc, argv)
 	   || trainer.parseTrainingArgs (argc, argv)
@@ -186,13 +186,13 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     argv(argv),
     prog (argv[0])
 {
-  briefText = "Usage: " + prog + " {help,learn,align} [options]\n";
+  briefText = "Usage: " + prog + " {help,train,align} [options]\n";
   
   text = briefText
     + "\n"
     + "Commands:\n"
     + "\n"
-    + " " + prog + " learn -ref refs.fasta -read reads.fastq  >params.yaml\n"
+    + " " + prog + " train -ref refs.fasta -read reads.fastq  >params.yaml\n"
     + "  (to fit a model to unaligned sequences, using EM)\n"
     + "\n"
     + "   -params <file>  Optional initial parameters\n"

@@ -393,6 +393,9 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
 
   result = end;
 
+  if (LogThisAt(2))
+    cerr << "Forward score: " << result << endl;
+  
   if (LogWhen("dpmatrix"))
     write (cerr);
 }
@@ -496,6 +499,9 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 
   result = start;
 
+  if (LogThisAt(2))
+    cerr << "Backward score: " << result << endl;
+  
   if (LogWhen("dpmatrix"))
     write (cerr);
 
@@ -558,6 +564,9 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
 
   result = end;
 
+  if (LogThisAt(2))
+    cerr << "Viterbi score: " << result << endl;
+  
   if (LogWhen("dpmatrix"))
     write (cerr);
 }

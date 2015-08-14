@@ -27,7 +27,7 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize) 
   for (SeqIdx j = 0; j <= yLen - kmerLen; ++j)
     yKmerIndex[makeKmer (kmerLen, yTok.begin() + j, dnaAlphabetSize)].insert (j);
 
-  if (LogThisAt(5)) {
+  if (LogThisAt(6)) {
     cerr << "kmer distribution for " << py->name << ':' << endl;
     for (const auto& yKmerIndexElt : yKmerIndex) {
       cerr << kmerToString (yKmerIndexElt.first, kmerLen, dnaAlphabet) << ' ' << yKmerIndexElt.second.size() << endl;
@@ -40,6 +40,15 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize) 
     if (yKmerIndexIter != yKmerIndex.end())
       for (auto j : yKmerIndexIter->second)
 	++diagKmerCount[get_diag(i,j)];
+  }
+
+  if (LogThisAt(5)) {
+    cerr << "Distribution of " << kmerLen << "-mer matches per diagonal for " << px->name << " vs " << py->name << ':' << endl;
+    map<unsigned int,unsigned int> countDistrib;
+    for (const auto& diagKmerCountElt : diagKmerCount)
+      ++countDistrib[diagKmerCountElt.second];
+    for (const auto& countDistribElt : countDistrib)
+      cerr << countDistribElt.second << " diagonals have " << countDistribElt.first << " matches" << endl;
   }
 
   double n = 0, sum = 0, sqsum = 0;
