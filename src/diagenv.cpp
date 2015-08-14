@@ -5,6 +5,11 @@
 #include "diagenv.h"
 #include "logger.h"
 
+// A somewhat arbitrary number:
+// The number of standard deviations of the # of kmer matches per diagonal,
+// above which the diagonal is selected to be the center of a band for DP.
+#define THRESHOLD_KMER_STDEVS 10
+
 void DiagonalEnvelope::initFull() {
   diagonals.clear();
   diagonals.reserve (xLen + yLen - 1);
@@ -28,7 +33,7 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize) 
     yKmerIndex[makeKmer (kmerLen, yTok.begin() + j, dnaAlphabetSize)].insert (j);
 
   if (LogThisAt(6)) {
-    cerr << "kmer distribution for " << py->name << ':' << endl;
+    cerr << "Frequencies of " << kmerLen << "-mers in " << py->name << ':' << endl;
     for (const auto& yKmerIndexElt : yKmerIndex) {
       cerr << kmerToString (yKmerIndexElt.first, kmerLen, dnaAlphabet) << ' ' << yKmerIndexElt.second.size() << endl;
     }
@@ -66,10 +71,10 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize) 
     variance = sqsum / n - mean*mean,
     stdev = sqrt(variance);
 
-  const unsigned int threshold = (unsigned int) (mean + 10*stdev);  // 10 standard deviations is arbitrary city!
+  const unsigned int threshold = (unsigned int) (mean + THRESHOLD_KMER_STDEVS * stdev);  // 10 standard deviations is arbitrary city!
 
   if (LogThisAt(3))
-    cerr << "kmers per diagonal: mean " << mean << ", sd " << stdev << ". Threshold for inclusion: " << threshold << endl;
+    cerr << "Per-diagonal " << kmerLen << "-mer matches: mean " << mean << ", sd " << stdev << ". Threshold for inclusion: " << threshold << endl;
 
   set<int> diags;
   int nPastThreshold = 0;
