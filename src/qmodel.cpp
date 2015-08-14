@@ -13,6 +13,7 @@
 
 // internal #defines
 #define MAX_FRACTIONAL_FWDBACK_ERROR .0001
+#define MAX_TRAINING_LOG_DELTA 20
 
 // useful helper methods
 double logBetaPdf (double prob, double yesCount, double noCount) {
@@ -977,19 +978,28 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
   QuaffParams qp = seed;
   QuaffParamCounts counts, countsWithPrior;
   double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
+  vector<size_t> initialSortOrder (x.size());
+  iota (initialSortOrder.begin(), initialSortOrder.end(), (size_t) 0);
+  vector<vector<size_t> > sortOrder (y.size(), initialSortOrder);
   for (int iter = 0; iter < maxIterations; ++iter) {
     counts.zeroCounts();
     double logLike = 0;
-    for (const auto& yfs : y) {
+    for (size_t ny = 0; ny < y.size(); ++ny) {
+      const auto& yfs = y[ny];
       const double yNullLogLike = allowNullModel ? nullModel.logLikelihood(yfs) : -numeric_limits<double>::infinity();
       double yLogLike = yNullLogLike;  // this initial value allows null model to "win"
       vguard<double> xyLogLike;
       vguard<QuaffParamCounts> xyCounts;
-      for (const auto& xfs : x) {
+      for (auto nx : sortOrder[ny]) {
+	const auto& xfs = x[nx];
 	DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
-	const QuaffForwardBackwardMatrix fb (env, qp, config);
-	const double ll = fb.fwd.result;
-	const QuaffParamCounts qpc (fb.back.qc);
+	const QuaffForwardMatrix fwd (env, qp, config);
+	const double ll = fwd.result;
+	QuaffParamCounts qpc;
+	if (ll >= yLogLike - MAX_TRAINING_LOG_DELTA) {  // don't waste time computing low-weight counts
+	  const QuaffBackwardMatrix back (fwd);
+	  qpc = back.qc;
+	}
 	xyLogLike.push_back (ll);
 	xyCounts.push_back (qpc);
 	yLogLike = log_sum_exp (yLogLike, ll);
@@ -1003,6 +1013,8 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
       if (LogThisAt(2))
 	cerr << "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl;
       logLike += yLogLike;
+      const vector<size_t> ascendingOrder = orderedIndices (xyLogLike);
+      sortOrder[ny] = vector<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
     }
     const double logPrior = pseudocounts.logPrior (qp);
     const double logLikeWithPrior = logLike + logPrior;
