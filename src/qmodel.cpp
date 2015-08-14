@@ -173,7 +173,7 @@ QuaffParamCounts::QuaffParamCounts()
   : insert (dnaAlphabetSize),
     match (dnaAlphabetSize, vguard<SymQualCounts> (dnaAlphabetSize))
 {
-  initCounts (0, 0, 0, 0);
+  initCounts (0, 0, 0, 0, NULL);
 }
     
 QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
@@ -189,14 +189,22 @@ QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
     extendDeleteYes (counts.d2d)
 { }
 
-void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount) {
-  for (auto& ins : insert)
-    for (auto& qc : ins.qualCount)
-      qc = otherCount / FastSeq::qualScoreRange;
+void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount, const QuaffNullParams* nullModel) {
+  for (int j = 0; j < dnaAlphabetSize; ++j)
+    for (int k = 0; k < FastSeq::qualScoreRange; ++k)
+      if (nullModel)
+	insert[j].qualCount[k] = otherCount * nullModel->null[j].symProb * dnaAlphabetSize * gsl_ran_negative_binomial_pdf (k, nullModel->null[j].qualTrialSuccessProb, nullModel->null[j].qualNumSuccessfulTrials);
+      else
+	insert[j].qualCount[k] = otherCount / FastSeq::qualScoreRange;
   for (int i = 0; i < dnaAlphabetSize; ++i)
     for (int j = 0; j < dnaAlphabetSize; ++j)
-      for (auto& qc : match[i][j].qualCount)
-	qc = (i == j ? matchIdentCount : otherCount) / FastSeq::qualScoreRange;
+      for (int k = 0; k < FastSeq::qualScoreRange; ++k) {
+	const double count = i == j ? matchIdentCount : otherCount;
+      if (nullModel)
+	match[i][j].qualCount[k] = count * nullModel->null[j].symProb * dnaAlphabetSize * gsl_ran_negative_binomial_pdf (k, nullModel->null[j].qualTrialSuccessProb, nullModel->null[j].qualNumSuccessfulTrials);
+      else
+	match[i][j].qualCount[k] = count / FastSeq::qualScoreRange;
+      }
   beginInsertNo = noBeginCount;
   beginInsertYes = otherCount;
   extendInsertNo = otherCount;
@@ -863,6 +871,9 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
     null[n].symProb = symCount[n] / symCountNorm;
     fitNegativeBinomial (nullCount[n].qualCount, null[n].qualTrialSuccessProb, null[n].qualNumSuccessfulTrials);
   }
+
+  if (LogThisAt(3))
+    write (cerr << "Null model:" << endl);
 }
 
 double QuaffNullParams::logLikelihood (const vguard<FastSeq>& seqs) const {
@@ -893,17 +904,14 @@ void QuaffNullParams::write (ostream& out) const {
     null[i].write (out, string("null") + dnaAlphabet[i]);
 }
 
-QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config) {
+QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config) {
   QuaffParams qp = seed;
-  const QuaffNullParams qnp (y);
-  if (LogThisAt(3))
-    qnp.write (cerr << "Null model:" << endl);
   double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
   for (int iter = 0; iter < maxIterations; ++iter) {
     QuaffParamCounts counts;
     double logLike = 0;
     for (const auto& yfs : y) {
-      const double yNullLogLike = allowNullModel ? qnp.logLikelihood(yfs) : -numeric_limits<double>::infinity();
+      const double yNullLogLike = allowNullModel ? nullModel.logLikelihood(yfs) : -numeric_limits<double>::infinity();
       double yLogLike = yNullLogLike;  // this initial value allows null model to "win"
       vguard<double> xyLogLike;
       vguard<QuaffParamCounts> xyCounts;
@@ -997,10 +1005,7 @@ bool QuaffAligner::parseAlignmentArgs (int& argc, char**& argv) {
   return false;
 }
 
-void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffDPConfig& config) {
-  const QuaffNullParams qnp (y);
-  if (LogThisAt(3))
-    qnp.write (cerr << "Null model:" << endl);
+void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
   for (const auto& yfs : y) {
     size_t nBestAlign = 0;
     vguard<Alignment> xyAlign;
@@ -1008,7 +1013,7 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
       DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
       const QuaffViterbiMatrix viterbi (env, params, config);
       if (viterbi.resultIsFinite()) {
-	const Alignment align = viterbi.scoreAdjustedAlignment(qnp).addScoreComment();
+	const Alignment align = viterbi.scoreAdjustedAlignment(nullModel).addScoreComment();
 	if (xyAlign.empty() || align.score > xyAlign[nBestAlign].score)
 	  nBestAlign = xyAlign.size();
 	xyAlign.push_back (align);

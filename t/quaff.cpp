@@ -17,17 +17,16 @@ struct QuaffParamsIn : QuaffParams {
   char**& argv;
   bool initialized;
 
-  QuaffParamsIn (int& argc, char**& argv, const QuaffParamCounts& prior)
+  QuaffParamsIn (int& argc, char**& argv)
     : QuaffParams(),
       argc(argc),
       argv(argv),
       initialized(false)
-  {
-    (QuaffParams&) *this = prior.fit();
-  }
+  { }
 
   bool parseParamFilename();
   void requireParams();
+  void requireParamsOrUsePrior (const QuaffParamCounts& prior);
 };
 
 struct SeqList {
@@ -57,9 +56,7 @@ int main (int argc, char** argv) {
   QuaffUsage usage (argc, argv);
   const string command = usage.getCommand();
 
-  QuaffParamCounts prior;
-  prior.initCounts (9, 9, 5, 1);
-  QuaffParamsIn params (argc, argv, prior);
+  QuaffParamsIn params (argc, argv);
 
   SeqList refs (argc, argv, "reference", "-ref");
   refs.wantRevcomps = true;
@@ -85,7 +82,8 @@ int main (int argc, char** argv) {
     refs.loadSequences();
     params.requireParams();
 
-    aligner.align (cout, refs.seqs, reads.seqs, params, config);
+    const QuaffNullParams nullModel (reads.seqs);
+    aligner.align (cout, refs.seqs, reads.seqs, params, nullModel, config);
 
   } else if (command == "train") {
     QuaffTrainer trainer;
@@ -102,7 +100,13 @@ int main (int argc, char** argv) {
     reads.loadSequences();
     refs.loadSequences();
 
-    QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, prior, config);
+    const QuaffNullParams nullModel (reads.seqs);
+    QuaffParamCounts prior;
+    prior.initCounts (9, 9, 5, 1, &nullModel);
+
+    params.requireParamsOrUsePrior (prior);
+
+    QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, nullModel, prior, config);
     newParams.write (cout);
 
   } else if (command == "help" || command == "-help" || command == "--help" || command == "-h") {
@@ -136,6 +140,11 @@ bool QuaffParamsIn::parseParamFilename() {
 
 void QuaffParamsIn::requireParams() {
   Assert (initialized, "Please specify a parameter file using -params");
+}
+
+void QuaffParamsIn::requireParamsOrUsePrior (const QuaffParamCounts& prior) {
+  if (!initialized)
+    (QuaffParams&) *this = prior.fit();
 }
 
 bool SeqList::parseSeqFilename() {

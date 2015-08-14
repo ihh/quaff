@@ -43,6 +43,15 @@ struct QuaffParams {
   void read (istream& in);
 };
 
+struct QuaffNullParams {
+  double nullEmit;
+  vguard<SymQualDist> null;
+  QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocount = 1);
+  double logLikelihood (const FastSeq& seq) const;
+  double logLikelihood (const vguard<FastSeq>& seqs) const;
+  void write (ostream& out) const;
+};
+
 // Memo-ized scores for transitions & emissions in quaff HMM
 struct QuaffScores {
   const QuaffParams *pqp;
@@ -72,21 +81,12 @@ struct QuaffParamCounts {
   double beginInsertYes, extendInsertYes, beginDeleteYes, extendDeleteYes;
   QuaffParamCounts();
   QuaffParamCounts (const QuaffCounts& counts);
-  void initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount);
+  void initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount, const QuaffNullParams* nullModel = NULL);
   void write (ostream& out) const;
   void addWeighted (const QuaffParamCounts& counts, double weight);
   QuaffParams fit() const;  // maximum-likelihood fit
   double logPrior (const QuaffParams& qp) const;  // uses counts as hyperparameters to define a prior over params
   double expectedLogLike (const QuaffParams& qp) const;  // as logPrior, but unnormalized
-};
-
-struct QuaffNullParams {
-  double nullEmit;
-  vguard<SymQualDist> null;
-  QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocount = 1);
-  double logLikelihood (const FastSeq& seq) const;
-  double logLikelihood (const vguard<FastSeq>& seqs) const;
-  void write (ostream& out) const;
 };
 
 // Alignment
@@ -201,7 +201,7 @@ struct QuaffTrainer {
   
   QuaffTrainer();
   bool parseTrainingArgs (int& argc, char**& argv);
-  QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config);
+  QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config);
 };
 
 // config/wrapper struct for Viterbi alignment
@@ -212,7 +212,7 @@ struct QuaffAligner {
   
   QuaffAligner();
   bool parseAlignmentArgs (int& argc, char**& argv);
-  void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffDPConfig& config);
+  void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
   void writeAlignment (ostream& out, const Alignment& align) const;
 };
 
