@@ -12,23 +12,6 @@ struct QuaffUsage {
   bool parseUnknown();
 };
 
-struct QuaffParamsIn : QuaffParams {
-  int& argc;
-  char**& argv;
-  bool initialized;
-
-  QuaffParamsIn (int& argc, char**& argv)
-    : QuaffParams(),
-      argc(argc),
-      argv(argv),
-      initialized(false)
-  { }
-
-  bool parseParamFilename();
-  void requireParams();
-  void requireParamsOrUsePrior (const QuaffParamCounts& prior);
-};
-
 struct SeqList {
   vguard<string> filenames;
   string type, tag;
@@ -51,6 +34,58 @@ struct SeqList {
   void loadSequences();
 };
 
+struct QuaffParamsIn : QuaffParams {
+  int& argc;
+  char**& argv;
+  bool initialized;
+
+  QuaffParamsIn (int& argc, char**& argv)
+    : QuaffParams(),
+      argc(argc),
+      argv(argv),
+      initialized(false)
+  { }
+
+  bool parseParamFilename();
+  void requireParams();
+  void requireParamsOrUsePrior (const QuaffParamCounts& prior);
+};
+
+struct QuaffNullParamsIn : QuaffNullParams {
+  int& argc;
+  char**& argv;
+  bool initialized;
+  string saveFilename;
+  
+  QuaffNullParamsIn (int& argc, char**& argv)
+    : QuaffNullParams(),
+      argc(argc),
+      argv(argv),
+      initialized(false)
+  { }
+
+  bool parseNullModelFilename();
+  void requireNullModelOrFit (const SeqList& seqList);
+};
+
+struct QuaffPriorIn : QuaffParamCounts {
+  int& argc;
+  char**& argv;
+  bool initialized;
+  string saveFilename;
+
+  QuaffPriorIn (int& argc, char**& argv)
+    : QuaffParamCounts(),
+      argc(argc),
+      argv(argv),
+      initialized(false)
+  { }
+
+  bool parsePriorFilename();
+  void requirePrior();
+  void requirePriorOrUseNullModel (const QuaffNullParams& nullModel);
+};
+
 int main (int argc, char** argv) {
 
   QuaffUsage usage (argc, argv);
@@ -68,10 +103,12 @@ int main (int argc, char** argv) {
 
   if (command == "align") {
     QuaffAligner aligner;
+    QuaffNullParamsIn nullModel (argc, argv);
     while (logger.parseLogArgs (argc, argv)
 	   || aligner.parseAlignmentArgs (argc, argv)
 	   || config.parseConfigArgs (argc, argv)
 	   || params.parseParamFilename()
+	   || nullModel.parseNullModelFilename()
 	   || refs.parseSeqFilename()
 	   || reads.parseSeqFilename()
 	   || refs.parseFwdStrand()
@@ -81,16 +118,20 @@ int main (int argc, char** argv) {
     reads.loadSequences();
     refs.loadSequences();
     params.requireParams();
-
-    const QuaffNullParams nullModel (reads.seqs);
+    nullModel.requireNullModelOrFit (reads);
+    
     aligner.align (cout, refs.seqs, reads.seqs, params, nullModel, config);
 
   } else if (command == "train") {
     QuaffTrainer trainer;
+    QuaffNullParamsIn nullModel (argc, argv);
+    QuaffPriorIn prior (argc, argv);
     while (logger.parseLogArgs (argc, argv)
 	   || trainer.parseTrainingArgs (argc, argv)
 	   || config.parseConfigArgs (argc, argv)
 	   || params.parseParamFilename()
+	   || nullModel.parseNullModelFilename()
+	   || prior.parsePriorFilename()
 	   || refs.parseSeqFilename()
 	   || reads.parseSeqFilename()
 	   || refs.parseFwdStrand()
@@ -100,10 +141,8 @@ int main (int argc, char** argv) {
     reads.loadSequences();
     refs.loadSequences();
 
-    const QuaffNullParams nullModel (reads.seqs);
-    QuaffParamCounts prior;
-    prior.initCounts (9, 9, 5, 1, &nullModel);
-
+    nullModel.requireNullModelOrFit (reads);
+    prior.requirePriorOrUseNullModel (nullModel);
     params.requireParamsOrUsePrior (prior);
 
     QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, nullModel, prior, config);
@@ -145,6 +184,72 @@ void QuaffParamsIn::requireParams() {
 void QuaffParamsIn::requireParamsOrUsePrior (const QuaffParamCounts& prior) {
   if (!initialized)
     (QuaffParams&) *this = prior.fit();
+}
+
+bool QuaffNullParamsIn::parseNullModelFilename() {
+  if (argc > 0) {
+    const string arg = argv[0];
+    if (arg == "-null") {
+      Assert (argc > 1, "%s needs an argument", arg.c_str());
+      ifstream inFile (argv[1]);
+      Assert (!inFile.fail(), "Couldn't open %s", argv[1]);
+      read (inFile);
+      initialized = true;
+      argc -= 2;
+      argv += 2;
+      return true;
+
+    } else if (arg == "-savenull") {
+      Assert (argc > 1, "%s needs an argument", arg.c_str());
+      saveFilename = argv[1];
+      argc -= 2;
+      argv += 2;
+      return true;
+    }
+  }
+  return false;
+}
+
+void QuaffNullParamsIn::requireNullModelOrFit (const SeqList& seqList) {
+  if (!initialized)
+    (QuaffNullParams&) *this = QuaffNullParams (seqList.seqs);
+  if (saveFilename.size()) {
+    ofstream out (saveFilename);
+    write (out);
+  }
+}
+
+bool QuaffPriorIn::parsePriorFilename() {
+  if (argc > 0) {
+    const string arg = argv[0];
+    if (arg == "-prior") {
+      Assert (argc > 1, "%s needs an argument", arg.c_str());
+      ifstream inFile (argv[1]);
+      Assert (!inFile.fail(), "Couldn't open %s", argv[1]);
+      read (inFile);
+      initialized = true;
+      argc -= 2;
+      argv += 2;
+      return true;
+
+    } else if (arg == "-saveprior") {
+      Assert (argc > 1, "%s needs an argument", arg.c_str());
+      saveFilename = argv[1];
+      argc -= 2;
+      argv += 2;
+      return true;
+    }
+  }
+  return false;
+}
+
+void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffNullParams& nullModel) {
+  if (!initialized)
+    initCounts (9, 9, 5, 1, &nullModel);
+  if (saveFilename.size()) {
+    ofstream out (saveFilename);
+    write (out);
+  }
 }
 
 bool SeqList::parseSeqFilename() {
@@ -208,6 +313,11 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "   -maxiter <n>    Max number of EM iterations\n"
     + "   -mininc <f>     EM convergence threshold (relative log-likelihood increase)\n"
     + "   -force          Force each read to match a refseq, i.e. disallow null model\n"
+    + "   -prior <file>, -saveprior <file>\n"
+    + "                   Respectively: load/save prior pseudocounts from/to file\n"
+    + "   -counts <file>  Save E-step counts to file, which can then be used as a prior\n"
+    + "   -countswithprior <file>\n"
+    + "                   Like -counts, but adds in prior pseudocounts as well\n"
     + "\n"
     + " " + prog + " align -params params.yaml -ref refs.fasta -read reads.fastq\n"
     + "  (to align FASTQ reads to FASTA reference sequences, using Viterbi)\n"
@@ -227,6 +337,8 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "   -kmer           Length of kmer matches, for high-scoring diagonals heuristic\n"
     + "   -band           Size of band around high-scoring diagonals\n"
     + "   -dense          Do full DP, not just high-scoring diagonals (memory hog!)\n"
+    + "   -null <file>, -savenull <file>\n"
+    + "                   Respectively: load/save null model from/to file\n"
     + "\n";
 }
 

@@ -15,7 +15,7 @@ struct SymQualDist {
   double logQualProb (int k) const;
   double logQualProb (const vguard<double>& kFreq) const;
   void write (ostream& out, const string& prefix) const;
-  void read (map<string,double>& paramVal, const string& prefix);
+  void read (map<string,string>& paramVal, const string& prefix);
 };
 
 // Memo-ized log scores for a SymQualDist
@@ -31,6 +31,7 @@ struct SymQualCounts {
   SymQualCounts();
   double symCount() const { return accumulate (qualCount.begin(), qualCount.end(), 0.); }
   void write (ostream& out, const string& prefix) const;
+  void read (const string& counts);
 };
 
 // Parameters of a quaff model
@@ -46,10 +47,12 @@ struct QuaffParams {
 struct QuaffNullParams {
   double nullEmit;
   vguard<SymQualDist> null;
+  QuaffNullParams();
   QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocount = 1);
   double logLikelihood (const FastSeq& seq) const;
   double logLikelihood (const vguard<FastSeq>& seqs) const;
   void write (ostream& out) const;
+  void read (istream& in);
 };
 
 // Memo-ized scores for transitions & emissions in quaff HMM
@@ -81,8 +84,10 @@ struct QuaffParamCounts {
   double beginInsertYes, extendInsertYes, beginDeleteYes, extendDeleteYes;
   QuaffParamCounts();
   QuaffParamCounts (const QuaffCounts& counts);
+  void zeroCounts();
   void initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount, const QuaffNullParams* nullModel = NULL);
   void write (ostream& out) const;
+  void read (istream& in);
   void addWeighted (const QuaffParamCounts& counts, double weight);
   QuaffParams fit() const;  // maximum-likelihood fit
   double logPrior (const QuaffParams& qp) const;  // uses counts as hyperparameters to define a prior over params
@@ -198,6 +203,7 @@ struct QuaffTrainer {
   int maxIterations;
   double minFractionalLoglikeIncrement;
   bool allowNullModel;
+  string rawCountsFilename, countsWithPriorFilename;
   
   QuaffTrainer();
   bool parseTrainingArgs (int& argc, char**& argv);

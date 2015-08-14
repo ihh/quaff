@@ -70,6 +70,10 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "train -ref /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -read /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -v -fwdstrand -global -params /Users/yam/latex/nanopair/nanopair-data/p.yaml -v -force -mininc 0"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "train -ref /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -read /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -v -fwdstrand -global -v -mininc 0 -prior prior -saveprior prior2 -null null -savenull null2"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

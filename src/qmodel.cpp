@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <regex>
 #include <list>
 #include <cmath>
@@ -18,6 +19,22 @@ double logBetaPdf (double prob, double yesCount, double noCount) {
   return log (gsl_ran_beta_pdf (prob, yesCount + 1, noCount + 1));
 }
 
+map<string,string> readParamFile (istream& in) {
+  map<string,string> val;
+  regex paramVal ("^\\s*(\\S+)\\s*:\\s+(.*)$");
+  regex nonWhite ("\\S");
+  while (!in.eof()) {
+    string line;
+    getline(in,line);
+    smatch sm;
+    if (regex_match (line, sm, paramVal))
+      val[sm.str(1)] = sm.str(2);
+    else if (regex_search (line, nonWhite))
+      cerr << "Ignoring line: " << line;
+  }
+  return val;
+}
+
 // main method bodies
 SymQualDist::SymQualDist()
   : symProb(1. / dnaAlphabetSize),
@@ -31,10 +48,14 @@ void SymQualDist::write (ostream& out, const string& prefix) const {
   out << prefix << "qr: " << qualNumSuccessfulTrials << endl;
 }
 
-void SymQualDist::read (map<string,double>& paramVal, const string& prefix) {
-  symProb = paramVal[prefix];
-  qualTrialSuccessProb = paramVal[prefix + "qp"];
-  qualNumSuccessfulTrials = paramVal[prefix + "qr"];
+void SymQualDist::read (map<string,string>& paramVal, const string& prefix) {
+  const string qp = prefix + "qp", qr = prefix + "qr";
+  Assert (paramVal.find(prefix) != paramVal.end(), "Missing parameter: %s", prefix.c_str());
+  Assert (paramVal.find(qp) != paramVal.end(), "Missing parameter: %s", qp.c_str());
+  Assert (paramVal.find(qr) != paramVal.end(), "Missing parameter: %s", qr.c_str());
+  symProb = atof (paramVal[prefix].c_str());
+  qualTrialSuccessProb = atof (paramVal[qp].c_str());
+  qualNumSuccessfulTrials = atof (paramVal[qr].c_str());
 }
 
 double SymQualDist::logQualProb (int k) const {
@@ -68,6 +89,17 @@ void SymQualCounts::write (ostream& out, const string& prefix) const {
   }
 }
 
+void SymQualCounts::read (const string& counts) {
+  string c = counts;
+  qualCount = vguard<double> (FastSeq::qualScoreRange, 0.);
+  regex countRegex ("(\\d+)\\s*:\\s*([\\d\\+\\-eE\\.]+)");
+  smatch sm;
+  while (regex_search (c, sm, countRegex)) {
+    qualCount[atoi (sm.str(1).c_str())] = atof (sm.str(2).c_str());
+    c = sm.suffix().str();
+  }
+}
+
 QuaffParams::QuaffParams()
   : beginInsert(.5),
     extendInsert(.5),
@@ -90,20 +122,9 @@ void QuaffParams::write (ostream& out) const {
       match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
 }
 
-#define QuaffParamRead(X) X = val[#X]
+#define QuaffParamRead(X) Assert(val.find(#X) != val.end(),"Couldn't read " #X), X = atof(val[#X].c_str())
 void QuaffParams::read (istream& in) {
-  map<string,double> val;
-  regex paramVal ("^\\s*(\\S+)\\s*:\\s+([\\d\\+\\-\\.eE]+)\\s*$");
-  regex nonWhite ("\\S");
-  while (!in.eof()) {
-    string line;
-    getline(in,line);
-    smatch sm;
-    if (regex_match (line, sm, paramVal))
-      val[sm.str(1)] = atof (sm.str(2).c_str());
-    else if (regex_search (line, nonWhite))
-      cerr << "Ignoring line: " << line;
-  }
+  map<string,string> val = readParamFile (in);
 
   QuaffParamRead(beginInsert);
   QuaffParamRead(extendInsert);
@@ -173,7 +194,7 @@ QuaffParamCounts::QuaffParamCounts()
   : insert (dnaAlphabetSize),
     match (dnaAlphabetSize, vguard<SymQualCounts> (dnaAlphabetSize))
 {
-  initCounts (0, 0, 0, 0, NULL);
+  zeroCounts();
 }
     
 QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
@@ -188,6 +209,10 @@ QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
     extendDeleteNo (counts.d2m),
     extendDeleteYes (counts.d2d)
 { }
+
+void QuaffParamCounts::zeroCounts() {
+  initCounts (0, 0, 0, 0, NULL);
+}
 
 void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount, const QuaffNullParams* nullModel) {
   for (int j = 0; j < dnaAlphabetSize; ++j)
@@ -227,6 +252,26 @@ void QuaffParamCounts::write (ostream& out) const {
   for (int i = 0; i < dnaAlphabetSize; ++i)
     for (int j = 0; j < dnaAlphabetSize; ++j)
       match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
+}
+
+void QuaffParamCounts::read (istream& in) {
+  map<string,string> val = readParamFile (in);
+
+  QuaffParamRead(beginInsertYes);
+  QuaffParamRead(extendInsertYes);
+  QuaffParamRead(beginDeleteYes);
+  QuaffParamRead(extendDeleteYes);
+
+  QuaffParamRead(beginInsertNo);
+  QuaffParamRead(extendInsertNo);
+  QuaffParamRead(beginDeleteNo);
+  QuaffParamRead(extendDeleteNo);
+
+  for (int i = 0; i < dnaAlphabetSize; ++i)
+    insert[i].read (val[string("insert") + dnaAlphabet[i]]);
+  for (int i = 0; i < dnaAlphabetSize; ++i)
+    for (int j = 0; j < dnaAlphabetSize; ++j)
+      match[i][j].read (val[string("match") + dnaAlphabet[i] + dnaAlphabet[j]]);
 }
 
 Alignment& Alignment::addScoreComment() {
@@ -686,42 +731,6 @@ Alignment QuaffViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nul
   return a;
 }
 
-QuaffTrainer::QuaffTrainer()
-  : maxIterations (100),
-    minFractionalLoglikeIncrement (.01),
-    allowNullModel (true)
-{ }
-
-bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
-  if (argc > 0) {
-    const char* arg = argv[0];
-    if (strcmp (arg, "-maxiter") == 0) {
-      Assert (argc > 1, "%s must have an argument", arg);
-      const char* val = argv[1];
-      maxIterations = atoi (val);
-      argv += 2;
-      argc -= 2;
-      return true;
-
-    } else if (strcmp (arg, "-mininc") == 0) {
-      Assert (argc > 1, "%s must have an argument", arg);
-      const char* val = argv[1];
-      minFractionalLoglikeIncrement = atof (val);
-      argv += 2;
-      argc -= 2;
-      return true;
-    
-    } else if (strcmp (arg, "-force") == 0) {
-      allowNullModel = false;
-      argv += 1;
-      argc -= 1;
-      return true;
-    }
-  }
-
-  return false;
-}
-
 void QuaffParamCounts::addWeighted (const QuaffParamCounts& counts, double weight) {
   for (int q = 0; q < FastSeq::qualScoreRange; ++q)
     for (int i = 0; i < dnaAlphabetSize; ++i) {
@@ -842,6 +851,10 @@ void QuaffForwardBackwardMatrix::write (ostream& out) const {
   }
 }
 
+QuaffNullParams::QuaffNullParams()
+  : nullEmit (.5),
+    null (dnaAlphabetSize)
+{ }
 
 QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocount)
   : null (dnaAlphabetSize)
@@ -874,6 +887,14 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
     write (cerr << "Null model:" << endl);
 }
 
+void QuaffNullParams::read (istream& in) {
+  map<string,string> val = readParamFile (in);
+
+  QuaffParamRead(nullEmit);
+  for (int i = 0; i < dnaAlphabetSize; ++i)
+    null[i].read (val, string("null") + dnaAlphabet[i]);
+}
+
 double QuaffNullParams::logLikelihood (const vguard<FastSeq>& seqs) const {
   double ll = 0;
   for (const auto& s : seqs)
@@ -902,11 +923,62 @@ void QuaffNullParams::write (ostream& out) const {
     null[i].write (out, string("null") + dnaAlphabet[i]);
 }
 
+QuaffTrainer::QuaffTrainer()
+  : maxIterations (100),
+    minFractionalLoglikeIncrement (.01),
+    allowNullModel (true)
+{ }
+
+bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
+  if (argc > 0) {
+    const char* arg = argv[0];
+    if (strcmp (arg, "-maxiter") == 0) {
+      Assert (argc > 1, "%s must have an argument", arg);
+      const char* val = argv[1];
+      maxIterations = atoi (val);
+      argv += 2;
+      argc -= 2;
+      return true;
+
+    } else if (strcmp (arg, "-mininc") == 0) {
+      Assert (argc > 1, "%s must have an argument", arg);
+      const char* val = argv[1];
+      minFractionalLoglikeIncrement = atof (val);
+      argv += 2;
+      argc -= 2;
+      return true;
+    
+    } else if (strcmp (arg, "-force") == 0) {
+      allowNullModel = false;
+      argv += 1;
+      argc -= 1;
+      return true;
+
+    } else if (strcmp (arg, "-counts") == 0) {
+      Assert (argc > 1, "%s must have an argument", arg);
+      rawCountsFilename = argv[1];
+      argv += 2;
+      argc -= 2;
+      return true;
+
+    } else if (strcmp (arg, "-countswithprior") == 0) {
+      Assert (argc > 1, "%s must have an argument", arg);
+      countsWithPriorFilename = argv[1];
+      argv += 2;
+      argc -= 2;
+      return true;
+}
+  }
+
+  return false;
+}
+
 QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config) {
   QuaffParams qp = seed;
+  QuaffParamCounts counts, countsWithPrior;
   double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
   for (int iter = 0; iter < maxIterations; ++iter) {
-    QuaffParamCounts counts;
+    counts.zeroCounts();
     double logLike = 0;
     for (const auto& yfs : y) {
       const double yNullLogLike = allowNullModel ? nullModel.logLikelihood(yfs) : -numeric_limits<double>::infinity();
@@ -943,12 +1015,21 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
       cerr << "Parameter counts computed during E-step:" << endl;
       counts.write (cerr);
     }
-    counts.addWeighted (pseudocounts, 1.);
-    const double oldExpectedLogLike = counts.expectedLogLike (qp);
-    qp = counts.fit();
-    const double newExpectedLogLike = counts.expectedLogLike (qp);
+    countsWithPrior = counts;
+    countsWithPrior.addWeighted (pseudocounts, 1.);
+    const double oldExpectedLogLike = countsWithPrior.expectedLogLike (qp);
+    qp = countsWithPrior.fit();
+    const double newExpectedLogLike = countsWithPrior.expectedLogLike (qp);
     if (LogThisAt(2))
       cerr << "Expected log-likelihood went from " << oldExpectedLogLike << " to " << newExpectedLogLike << " during M-step" << endl;
+  }
+  if (rawCountsFilename.size()) {
+    ofstream out (rawCountsFilename);
+    counts.write (out);
+  }
+  if (countsWithPriorFilename.size()) {
+    ofstream out (countsWithPriorFilename);
+    countsWithPrior.write (out);
   }
   return qp;
 }
