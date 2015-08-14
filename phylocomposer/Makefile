@@ -3,6 +3,8 @@
 DARTDIR = $(HOME)/dart
 PHYLOCOMPOSER = $(DARTDIR)/bin/phylocomposer
 
+all: overlap.pdf overlap.sexpr overlap.dot
+
 overlap.sexpr overlap.dot: quaff.sexpr
 	$(PHYLOCOMPOSER) $< --compdot overlap.dot >overlap.sexpr
 

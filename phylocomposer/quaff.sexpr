@@ -57,6 +57,6 @@
  (state (name I) (type insert))
 
  (transition (from S) (to I))
- (transition (from I) (to I) (label r2r))
- (transition (from I) (to W) (label r2e))
+ (transition (from I) (to I) (label r))
+ (transition (from I) (to W) (label !r))
  (transition (from W) (to E)))
