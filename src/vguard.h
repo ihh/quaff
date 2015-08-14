@@ -2,7 +2,7 @@
 #define VGUARD_INCLUDED
 
 #include <vector>
-#include "util.h"
+#include <iostream>
 
 /* vector with accessor guards */
 template<typename T>
@@ -25,14 +25,20 @@ public:
 
   reference operator[] (size_type __n) {
 #ifdef USE_VECTOR_GUARDS
-    Assert (__n >= 0 && __n < this->size(), "vector overflow: element %u, size is %u", __n, this->size());
+    if (__n < 0 || __n >= this->size()) {
+      std::cerr << "vector overflow: element " << __n << ", size is " << this->size() << std::endl;
+      throw;
+    }
 #endif  /* USE_VECTOR_GUARDS */
     return _vgbase::operator[] (__n);
   }
 
   const_reference operator[] (size_type __n) const {
 #ifdef USE_VECTOR_GUARDS
-    Assert (__n >= 0 && __n < this->size(), "vector overflow (const): element %u, size is %u", __n, this->size());
+    if (__n < 0 || __n >= this->size()) {
+      std::cerr << "const vector overflow: element " << __n << ", size is " << this->size() << std::endl;
+      throw;
+    }
 #endif  /* USE_VECTOR_GUARDS */
     return _vgbase::operator[] (__n);
   }

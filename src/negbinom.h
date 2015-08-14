@@ -2,17 +2,13 @@
 #define NEGBINOM_INCLUDED
 
 #include "vguard.h"
+#include "util.h"
 
 using namespace std;
 
 /* error codes for momentFitNegativeBinomial */
 #define NEG_BINOM_ZERO_VARIANCE GSL_EZERODIV
 #define NEG_BINOM_LOW_VARIANCE  GSL_ERANGE
-
-/* sgn function */
-template <typename T> int sgn(T val) {
-    return (T(0) < val) - (val < T(0));
-}
 
 /* evaluate the log-pdf of the negative binomial distribution for a point, and for a frequency distribution */
 double logNegativeBinomial (int k, double pSuccess, double nSuccess);

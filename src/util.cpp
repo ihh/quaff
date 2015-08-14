@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
+#include <time.h>
 #include "util.h"
 
 void Warn(const char* warning, ...) {

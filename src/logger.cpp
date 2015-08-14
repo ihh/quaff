@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "logger.h"
 
 Logger logger;
