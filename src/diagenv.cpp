@@ -95,16 +95,10 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize) 
 
 vector<SeqIdx> DiagonalEnvelope::forward_i (SeqIdx j) const {
   vector<SeqIdx> i_vec;
-  if (j == 1 || j == yLen) {
-    i_vec.reserve (xLen);
-    for (SeqIdx i = 1; i <= xLen; ++i)
-      i_vec.push_back (i);
-  } else {
-    i_vec.reserve (diagonals.size());
-    for (auto d : diagonals)
-      if (intersects (j, d))
-	i_vec.push_back (get_i (j, d));
-  }
+  i_vec.reserve (diagonals.size());
+  for (auto d : diagonals)
+    if (intersects (j, d))
+      i_vec.push_back (get_i (j, d));
   return i_vec;
 }
 
