@@ -1,0 +1,62 @@
+; tree
+(branch
+ (transducer refseq)
+ (branch (transducer quaff))
+ (branch (transducer quaff)))
+
+; quaff branch transducer
+(transducer
+
+ (name quaff)
+
+ (state (name S) (type start))
+ (state (name E) (type end))
+ (state (name WL) (type wait))
+ (state (name WR) (type wait))
+ (state (name WM) (type wait))
+ (state (name WD) (type wait))
+ (state (name M) (type match))
+ (state (name D) (type delete))
+ (state (name DL) (type delete))
+ (state (name DR) (type delete))
+ (state (name I) (type insert))
+
+ (transition (from S) (to WL))
+ (transition (from S) (to WM))
+
+ (transition (from WL) (to DL))
+ (transition (from DL) (to WL))
+ (transition (from DL) (to WM))
+
+ (transition (from WM) (to M))
+ (transition (from M) (to I) (label m2i))
+ (transition (from M) (to WM) (label m2m))
+ (transition (from M) (to WD) (label m2d))
+ (transition (from M) (to WR) (label m2e))
+
+ (transition (from I) (to I) (label i2i))
+ (transition (from I) (to WM) (label i2m))
+
+ (transition (from WD) (to D))
+ (transition (from D) (to WD) (label d2d))
+ (transition (from D) (to WM) (label d2m))
+
+ (transition (from WR) (to DR))
+ (transition (from WR) (to E))
+ (transition (from DR) (to WR)))
+
+
+; generator for root branch
+(transducer
+
+ (name refseq)
+
+ (state (name S) (type start))
+ (state (name E) (type end))
+ (state (name W) (type wait))
+ (state (name I) (type insert))
+
+ (transition (from S) (to I))
+ (transition (from I) (to I) (label r2r))
+ (transition (from I) (to W) (label r2e))
+ (transition (from W) (to E)))

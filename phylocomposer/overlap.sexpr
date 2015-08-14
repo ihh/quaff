@@ -1,0 +1,233 @@
+
+(transducer
+ (name quaff)
+
+ (state (name E) (type end))
+ (state (name S) (type start))
+ (state (name WL) (type wait))
+ (state (name WR) (type wait))
+ (state (name WM) (type wait))
+ (state (name WD) (type wait))
+ (state (name M) (type match))
+ (state (name D) (type delete))
+ (state (name DL) (type delete))
+ (state (name DR) (type delete))
+ (state (name I) (type insert))
+
+ (transition (from S) (to WL))
+ (transition (from S) (to WM))
+
+ (transition (from WL) (to DL))
+
+ (transition (from WR) (to E))
+ (transition (from WR) (to DR))
+
+ (transition (from WM) (to M))
+
+ (transition (from WD) (to D))
+
+ (transition (from M) (to WR) (label m2e))
+ (transition (from M) (to WM) (label m2m))
+ (transition (from M) (to WD) (label m2d))
+ (transition (from M) (to I) (label m2i))
+
+ (transition (from D) (to WM) (label d2m))
+ (transition (from D) (to WD) (label d2d))
+
+ (transition (from DL) (to WL))
+ (transition (from DL) (to WM))
+
+ (transition (from DR) (to WR))
+
+ (transition (from I) (to WM) (label i2m))
+ (transition (from I) (to I) (label i2i))
+
+)
+
+(transducer
+ (name refseq)
+
+ (state (name E) (type end))
+ (state (name S) (type start))
+ (state (name W) (type wait))
+ (state (name I) (type insert))
+
+ (transition (from S) (to I))
+
+ (transition (from W) (to E))
+
+ (transition (from I) (to W) (label r2e))
+ (transition (from I) (to I) (label r2r))
+
+)
+
+(branch (from $0) (to $1) (name $0:$1) (transducer refseq)
+ (branch (from $1) (to $2) (name $1:$2) (transducer quaff))
+ (branch (from $1) (to $3) (name $1:$3) (transducer quaff))
+)
+(composite-name-format ($0:$1($1:$2 $1:$3)))
+
+(composite-transducer
+ (name ($0:$1($1:$2 $1:$3)))
+
+ (state (name (E(E E))) (type end))
+ (state (name (S(S S))) (type start))
+ (state (name (W(WR WR))) (type wait))
+ (state (name (I(I WL))) (type ($2)))
+ (state (name (I(I WR))) (type ($2)))
+ (state (name (I(I WM))) (type ($2)))
+ (state (name (I(I WD))) (type ($2)))
+ (state (name (I(M M))) (type ($1 $2 $3)))
+ (state (name (I(D M))) (type ($1 $3)))
+ (state (name (I(DL M))) (type ($1 $3)))
+ (state (name (I(DR M))) (type ($1 $3)))
+ (state (name (I(M D))) (type ($1 $2)))
+ (state (name (I(M DL))) (type ($1 $2)))
+ (state (name (I(M DR))) (type ($1 $2)))
+ (state (name (I(D D))) (type ($1)))
+ (state (name (I(DL D))) (type ($1)))
+ (state (name (I(DR D))) (type ($1)))
+ (state (name (I(D DL))) (type ($1)))
+ (state (name (I(DL DL))) (type ($1)))
+ (state (name (I(DR DL))) (type ($1)))
+ (state (name (I(D DR))) (type ($1)))
+ (state (name (I(DL DR))) (type ($1)))
+ (state (name (I(DR DR))) (type ($1)))
+ (state (name (I(M I))) (type ($3)))
+ (state (name (I(D I))) (type ($3)))
+ (state (name (I(DL I))) (type ($3)))
+ (state (name (I(DR I))) (type ($3)))
+
+ (transition (from (S(S S))) (to (I(M M))))
+ (transition (from (S(S S))) (to (I(DL M))))
+ (transition (from (S(S S))) (to (I(M DL))))
+ (transition (from (S(S S))) (to (I(DL DL))))
+
+ (transition (from (W(WR WR))) (to (E(E E))))
+
+ (transition (from (I(I WL))) (to (I(I WL))) (bit-value -0) (label (i2i)))
+ (transition (from (I(I WL))) (to (I(M DL))) (bit-value -0) (label (r2r * i2m)))
+
+ (transition (from (I(I WR))) (to (I(I WR))) (bit-value -0) (label (i2i)))
+ (transition (from (I(I WR))) (to (I(M DR))) (bit-value -0) (label (r2r * i2m)))
+
+ (transition (from (I(I WM))) (to (I(I WM))) (bit-value -0) (label (i2i)))
+ (transition (from (I(I WM))) (to (I(M M))) (bit-value -0) (label (r2r * i2m)))
+
+ (transition (from (I(I WD))) (to (I(I WD))) (bit-value -0) (label (i2i)))
+ (transition (from (I(I WD))) (to (I(M D))) (bit-value -0) (label (r2r * i2m)))
+
+ (transition (from (I(M M))) (to (W(WR WR))) (bit-value -0) (label (r2e * m2e * m2e)))
+ (transition (from (I(M M))) (to (I(I WR))) (bit-value -0) (label (m2i * m2e)))
+ (transition (from (I(M M))) (to (I(I WM))) (bit-value -0) (label (m2i * m2m)))
+ (transition (from (I(M M))) (to (I(I WD))) (bit-value -0) (label (m2i * m2d)))
+ (transition (from (I(M M))) (to (I(M M))) (bit-value -0) (label (r2r * m2m * m2m)))
+ (transition (from (I(M M))) (to (I(D M))) (bit-value -0) (label (r2r * m2d * m2m)))
+ (transition (from (I(M M))) (to (I(DR M))) (bit-value -0) (label (r2r * m2e * m2m)))
+ (transition (from (I(M M))) (to (I(M D))) (bit-value -0) (label (r2r * m2m * m2d)))
+ (transition (from (I(M M))) (to (I(M DR))) (bit-value -0) (label (r2r * m2m * m2e)))
+ (transition (from (I(M M))) (to (I(D D))) (bit-value -0) (label (r2r * m2d * m2d)))
+ (transition (from (I(M M))) (to (I(DR D))) (bit-value -0) (label (r2r * m2e * m2d)))
+ (transition (from (I(M M))) (to (I(D DR))) (bit-value -0) (label (r2r * m2d * m2e)))
+ (transition (from (I(M M))) (to (I(DR DR))) (bit-value -0) (label (r2r * m2e * m2e)))
+ (transition (from (I(M M))) (to (I(M I))) (bit-value -0) (label (m2i)))
+
+ (transition (from (I(D M))) (to (I(M M))) (bit-value -0) (label (r2r * d2m * m2m)))
+ (transition (from (I(D M))) (to (I(D M))) (bit-value -0) (label (r2r * d2d * m2m)))
+ (transition (from (I(D M))) (to (I(M D))) (bit-value -0) (label (r2r * d2m * m2d)))
+ (transition (from (I(D M))) (to (I(M DR))) (bit-value -0) (label (r2r * d2m * m2e)))
+ (transition (from (I(D M))) (to (I(D D))) (bit-value -0) (label (r2r * d2d * m2d)))
+ (transition (from (I(D M))) (to (I(D DR))) (bit-value -0) (label (r2r * d2d * m2e)))
+ (transition (from (I(D M))) (to (I(D I))) (bit-value -0) (label (m2i)))
+
+ (transition (from (I(DL M))) (to (I(M M))) (bit-value -0) (label (r2r * m2m)))
+ (transition (from (I(DL M))) (to (I(DL M))) (bit-value -0) (label (r2r * m2m)))
+ (transition (from (I(DL M))) (to (I(M D))) (bit-value -0) (label (r2r * m2d)))
+ (transition (from (I(DL M))) (to (I(M DR))) (bit-value -0) (label (r2r * m2e)))
+ (transition (from (I(DL M))) (to (I(DL D))) (bit-value -0) (label (r2r * m2d)))
+ (transition (from (I(DL M))) (to (I(DL DR))) (bit-value -0) (label (r2r * m2e)))
+ (transition (from (I(DL M))) (to (I(DL I))) (bit-value -0) (label (m2i)))
+
+ (transition (from (I(DR M))) (to (W(WR WR))) (bit-value -0) (label (r2e * m2e)))
+ (transition (from (I(DR M))) (to (I(DR M))) (bit-value -0) (label (r2r * m2m)))
+ (transition (from (I(DR M))) (to (I(DR D))) (bit-value -0) (label (r2r * m2d)))
+ (transition (from (I(DR M))) (to (I(DR DR))) (bit-value -0) (label (r2r * m2e)))
+ (transition (from (I(DR M))) (to (I(DR I))) (bit-value -0) (label (m2i)))
+
+ (transition (from (I(M D))) (to (I(I WM))) (bit-value -0) (label (m2i * d2m)))
+ (transition (from (I(M D))) (to (I(I WD))) (bit-value -0) (label (m2i * d2d)))
+ (transition (from (I(M D))) (to (I(M M))) (bit-value -0) (label (r2r * m2m * d2m)))
+ (transition (from (I(M D))) (to (I(D M))) (bit-value -0) (label (r2r * m2d * d2m)))
+ (transition (from (I(M D))) (to (I(DR M))) (bit-value -0) (label (r2r * m2e * d2m)))
+ (transition (from (I(M D))) (to (I(M D))) (bit-value -0) (label (r2r * m2m * d2d)))
+ (transition (from (I(M D))) (to (I(D D))) (bit-value -0) (label (r2r * m2d * d2d)))
+ (transition (from (I(M D))) (to (I(DR D))) (bit-value -0) (label (r2r * m2e * d2d)))
+
+ (transition (from (I(M DL))) (to (I(I WL))) (bit-value -0) (label (m2i)))
+ (transition (from (I(M DL))) (to (I(I WM))) (bit-value -0) (label (m2i)))
+ (transition (from (I(M DL))) (to (I(M M))) (bit-value -0) (label (r2r * m2m)))
+ (transition (from (I(M DL))) (to (I(D M))) (bit-value -0) (label (r2r * m2d)))
+ (transition (from (I(M DL))) (to (I(DR M))) (bit-value -0) (label (r2r * m2e)))
+ (transition (from (I(M DL))) (to (I(M DL))) (bit-value -0) (label (r2r * m2m)))
+ (transition (from (I(M DL))) (to (I(D DL))) (bit-value -0) (label (r2r * m2d)))
+ (transition (from (I(M DL))) (to (I(DR DL))) (bit-value -0) (label (r2r * m2e)))
+
+ (transition (from (I(M DR))) (to (W(WR WR))) (bit-value -0) (label (r2e * m2e)))
+ (transition (from (I(M DR))) (to (I(I WR))) (bit-value -0) (label (m2i)))
+ (transition (from (I(M DR))) (to (I(M DR))) (bit-value -0) (label (r2r * m2m)))
+ (transition (from (I(M DR))) (to (I(D DR))) (bit-value -0) (label (r2r * m2d)))
+ (transition (from (I(M DR))) (to (I(DR DR))) (bit-value -0) (label (r2r * m2e)))
+
+ (transition (from (I(D D))) (to (I(M M))) (bit-value -0) (label (r2r * d2m * d2m)))
+ (transition (from (I(D D))) (to (I(D M))) (bit-value -0) (label (r2r * d2d * d2m)))
+ (transition (from (I(D D))) (to (I(M D))) (bit-value -0) (label (r2r * d2m * d2d)))
+ (transition (from (I(D D))) (to (I(D D))) (bit-value -0) (label (r2r * d2d * d2d)))
+
+ (transition (from (I(DL D))) (to (I(M M))) (bit-value -0) (label (r2r * d2m)))
+ (transition (from (I(DL D))) (to (I(DL M))) (bit-value -0) (label (r2r * d2m)))
+ (transition (from (I(DL D))) (to (I(M D))) (bit-value -0) (label (r2r * d2d)))
+ (transition (from (I(DL D))) (to (I(DL D))) (bit-value -0) (label (r2r * d2d)))
+
+ (transition (from (I(DR D))) (to (I(DR M))) (bit-value -0) (label (r2r * d2m)))
+ (transition (from (I(DR D))) (to (I(DR D))) (bit-value -0) (label (r2r * d2d)))
+
+ (transition (from (I(D DL))) (to (I(M M))) (bit-value -0) (label (r2r * d2m)))
+ (transition (from (I(D DL))) (to (I(D M))) (bit-value -0) (label (r2r * d2d)))
+ (transition (from (I(D DL))) (to (I(M DL))) (bit-value -0) (label (r2r * d2m)))
+ (transition (from (I(D DL))) (to (I(D DL))) (bit-value -0) (label (r2r * d2d)))
+
+ (transition (from (I(DL DL))) (to (I(M M))) (bit-value -0) (label (r2r)))
+ (transition (from (I(DL DL))) (to (I(DL M))) (bit-value -0) (label (r2r)))
+ (transition (from (I(DL DL))) (to (I(M DL))) (bit-value -0) (label (r2r)))
+ (transition (from (I(DL DL))) (to (I(DL DL))) (bit-value -0) (label (r2r)))
+
+ (transition (from (I(DR DL))) (to (I(DR M))) (bit-value -0) (label (r2r)))
+ (transition (from (I(DR DL))) (to (I(DR DL))) (bit-value -0) (label (r2r)))
+
+ (transition (from (I(D DR))) (to (I(M DR))) (bit-value -0) (label (r2r * d2m)))
+ (transition (from (I(D DR))) (to (I(D DR))) (bit-value -0) (label (r2r * d2d)))
+
+ (transition (from (I(DL DR))) (to (I(M DR))) (bit-value -0) (label (r2r)))
+ (transition (from (I(DL DR))) (to (I(DL DR))) (bit-value -0) (label (r2r)))
+
+ (transition (from (I(DR DR))) (to (W(WR WR))) (bit-value -0) (label (r2e)))
+ (transition (from (I(DR DR))) (to (I(DR DR))) (bit-value -0) (label (r2r)))
+
+ (transition (from (I(M I))) (to (I(I WM))) (bit-value -0) (label (m2i * i2m)))
+ (transition (from (I(M I))) (to (I(M M))) (bit-value -0) (label (r2r * m2m * i2m)))
+ (transition (from (I(M I))) (to (I(D M))) (bit-value -0) (label (r2r * m2d * i2m)))
+ (transition (from (I(M I))) (to (I(DR M))) (bit-value -0) (label (r2r * m2e * i2m)))
+ (transition (from (I(M I))) (to (I(M I))) (bit-value -0) (label (i2i)))
+
+ (transition (from (I(D I))) (to (I(M M))) (bit-value -0) (label (r2r * d2m * i2m)))
+ (transition (from (I(D I))) (to (I(D M))) (bit-value -0) (label (r2r * d2d * i2m)))
+ (transition (from (I(D I))) (to (I(D I))) (bit-value -0) (label (i2i)))
+
+ (transition (from (I(DL I))) (to (I(M M))) (bit-value -0) (label (r2r * i2m)))
+ (transition (from (I(DL I))) (to (I(DL M))) (bit-value -0) (label (r2r * i2m)))
+ (transition (from (I(DL I))) (to (I(DL I))) (bit-value -0) (label (i2i)))
+
+ (transition (from (I(DR I))) (to (I(DR M))) (bit-value -0) (label (r2r * i2m)))
+ (transition (from (I(DR I))) (to (I(DR I))) (bit-value -0) (label (i2i)))
+
+)
