@@ -198,13 +198,11 @@ void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, d
 	insert[j].qualCount[k] = otherCount / FastSeq::qualScoreRange;
   for (int i = 0; i < dnaAlphabetSize; ++i)
     for (int j = 0; j < dnaAlphabetSize; ++j)
-      for (int k = 0; k < FastSeq::qualScoreRange; ++k) {
-	const double count = i == j ? matchIdentCount : otherCount;
-      if (nullModel)
-	match[i][j].qualCount[k] = count * nullModel->null[j].symProb * dnaAlphabetSize * gsl_ran_negative_binomial_pdf (k, nullModel->null[j].qualTrialSuccessProb, nullModel->null[j].qualNumSuccessfulTrials);
-      else
-	match[i][j].qualCount[k] = count / FastSeq::qualScoreRange;
-      }
+      for (int k = 0; k < FastSeq::qualScoreRange; ++k)
+	if (nullModel)
+	  match[i][j].qualCount[k] = (i == j ? matchIdentCount : (otherCount * nullModel->null[j].symProb * dnaAlphabetSize / (1 - nullModel->null[i].symProb))) * gsl_ran_negative_binomial_pdf (k, nullModel->null[j].qualTrialSuccessProb, nullModel->null[j].qualNumSuccessfulTrials);
+	else
+	  match[i][j].qualCount[k] = (i == j ? matchIdentCount : otherCount) / FastSeq::qualScoreRange;
   beginInsertNo = noBeginCount;
   beginInsertYes = otherCount;
   extendInsertNo = otherCount;
