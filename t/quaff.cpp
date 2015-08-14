@@ -198,6 +198,7 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "   -params <file>  Optional initial parameters\n"
     + "   -maxiter <n>    Max number of EM iterations\n"
     + "   -mininc <f>     EM convergence threshold (relative log-likelihood increase)\n"
+    + "   -force          Force each read to match a refseq, i.e. disallow null model\n"
     + "\n"
     + " " + prog + " align -params params.yaml -ref refs.fasta -read reads.fastq\n"
     + "  (to align FASTQ reads to FASTA reference sequences, using Viterbi)\n"

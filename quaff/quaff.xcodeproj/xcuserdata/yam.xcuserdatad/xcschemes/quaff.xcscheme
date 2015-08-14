@@ -62,6 +62,14 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "align -params /Users/yam/quaff/params.yaml -ref /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -read /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -v5 -nothreshold -printall"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "align -params params.yaml -ref /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -read /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -v5 -nothreshold -printall -fwdstrand"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "train -ref /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -read /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -v -fwdstrand -global -params /Users/yam/latex/nanopair/nanopair-data/p.yaml -v -force -mininc 0"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

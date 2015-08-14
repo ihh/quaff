@@ -5,8 +5,11 @@
 
 using namespace std;
 
-#define NEG_BINOM_ZERO_VARIANCE GSL_EZERODIV  /* error code for momentFitNegativeBinomial */
+/* error codes for momentFitNegativeBinomial */
+#define NEG_BINOM_ZERO_VARIANCE GSL_EZERODIV
+#define NEG_BINOM_LOW_VARIANCE  GSL_ERANGE
 
+/* sgn function */
 template <typename T> int sgn(T val) {
     return (T(0) < val) - (val < T(0));
 }

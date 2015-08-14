@@ -150,6 +150,8 @@ struct QuaffDPMatrix {
   inline double insertEmitScore (SeqIdx j) const {
     return qs.insert[yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
+  double cellScore (SeqIdx i, SeqIdx j, State state) const;
+  static const char* stateToString (State state);
   void write (ostream& out) const;
 };
 
@@ -195,7 +197,8 @@ public:
 struct QuaffTrainer {
   int maxIterations;
   double minFractionalLoglikeIncrement;
-
+  bool allowNullModel;
+  
   QuaffTrainer();
   bool parseTrainingArgs (int& argc, char**& argv);
   QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config);

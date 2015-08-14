@@ -109,7 +109,7 @@ int fitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, double& 
     pSuccess = nSuccess = nan("");
     return GSL_EZERODIV;
   }
-  if (variance > 0) {
+  if (variance > 0 && variance > mean) {
     status = momentFitNegativeBinomial (mean, variance, pSuccess, nSuccess);
     if (status == GSL_SUCCESS)
       status = bracketFitNegativeBinomial (kFreq, pSuccess, nSuccess, max(1.,nSuccess/2), min(kFreq.size()-1.,nSuccess*2));
@@ -131,14 +131,20 @@ int momentFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, do
 }
 
 int momentFitNegativeBinomial (double mean, double variance, double& pSuccess, double& nSuccess) {
-  if (variance <= 0) {
-    /* guess sensible values */
-    pSuccess = 1 / (1 + mean);
-    nSuccess = 1;
+  /* guess sensible values by default */
+  pSuccess = 1 / (1 + mean);
+  nSuccess = 1;
 
+  if (variance <= 0) {
     if (LogThisAt(5))
       cerr << "Method-of-moments fit failed: zero variance" << endl;
     GSL_ERROR ("Zero variance in method-of-moments fit", NEG_BINOM_ZERO_VARIANCE);
+  }
+
+  if (variance < mean) {
+    if (LogThisAt(5))
+      cerr << "Method-of-moments fit failed: variance less than mean" << endl;
+    GSL_ERROR ("Variance greater than mean in method-of-moments fit", NEG_BINOM_LOW_VARIANCE);
   }
 
   pSuccess = mean / variance;

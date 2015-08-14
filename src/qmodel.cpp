@@ -350,6 +350,45 @@ void QuaffDPMatrix::write (ostream& out) const {
   out << "result " << result << endl;
 }
 
+double QuaffDPMatrix::cellScore (SeqIdx i, SeqIdx j, State state) const {
+  double cs = numeric_limits<double>::quiet_NaN();
+  switch (state) {
+  case Match:
+    cs = mat(i,j);
+    break;
+  case Insert:
+    cs = ins(i,j);
+    break;
+  case Delete:
+    cs = del(i,j);
+    break;
+  default:
+    break;
+  }
+  return cs;
+}
+
+const char* QuaffDPMatrix::stateToString (State state) {
+  const char* s = "Unknown";
+  switch (state) {
+  case Start:
+    s = "Start";
+    break;
+  case Match:
+    s = "Match";
+    break;
+  case Insert:
+    s = "Insert";
+    break;
+  case Delete:
+    s = "Delete";
+    break;
+  default:
+    break;
+  }
+  return s;
+}
+
 QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config)
   : QuaffDPMatrix (env, qp, config)
 {
@@ -583,6 +622,8 @@ Alignment QuaffViterbiMatrix::alignment() const {
   list<char> xRow, yRow;
   State state = Match;
   while (state != Start) {
+    if (LogThisAt(7))
+      cerr << "Traceback: i=" << i << " j=" << j << " state=" << stateToString(state) << " score=" << cellScore(i,j,state) << endl;
     double srcSc = -numeric_limits<double>::infinity();
     double emitSc = 0;
     switch (state) {
@@ -641,7 +682,8 @@ Alignment QuaffViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nul
 
 QuaffTrainer::QuaffTrainer()
   : maxIterations (100),
-    minFractionalLoglikeIncrement (.01)
+    minFractionalLoglikeIncrement (.01),
+    allowNullModel (true)
 { }
 
 bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
@@ -661,6 +703,12 @@ bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
       minFractionalLoglikeIncrement = atof (val);
       argv += 2;
       argc -= 2;
+      return true;
+    
+    } else if (strcmp (arg, "-force") == 0) {
+      allowNullModel = false;
+      argv += 1;
+      argc -= 1;
       return true;
     }
   }
@@ -827,8 +875,15 @@ double QuaffNullParams::logLikelihood (const vguard<FastSeq>& seqs) const {
 double QuaffNullParams::logLikelihood (const FastSeq& s) const {
   double ll = s.length() * log(nullEmit) + log(1. - nullEmit);
   const vguard<unsigned int> tok = s.tokens (dnaAlphabet);
-  for (SeqIdx i = 0; i < s.length(); ++i)
-    ll += log (null[tok[i]].symProb) + null[tok[i]].logQualProb (s.getQualScoreAt(i));
+    for (SeqIdx i = 0; i < s.length(); ++i) {
+      ll += log (null[tok[i]].symProb) + null[tok[i]].logQualProb (s.getQualScoreAt(i));
+#if defined(NAN_DEBUG)
+      if (isnan(ll)) {
+	cerr << "NaN error in QuaffNullParams::logLikelihood" << endl;
+	throw;
+      }
+#endif
+    }
   return ll;
 }
 
@@ -848,7 +903,7 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     QuaffParamCounts counts;
     double logLike = 0;
     for (const auto& yfs : y) {
-      const double yNullLogLike = qnp.logLikelihood (yfs);
+      const double yNullLogLike = allowNullModel ? qnp.logLikelihood(yfs) : -numeric_limits<double>::infinity();
       double yLogLike = yNullLogLike;  // this initial value allows null model to "win"
       vguard<double> xyLogLike;
       vguard<QuaffParamCounts> xyCounts;
