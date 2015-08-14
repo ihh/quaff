@@ -182,8 +182,11 @@ void QuaffParamsIn::requireParams() {
 }
 
 void QuaffParamsIn::requireParamsOrUsePrior (const QuaffParamCounts& prior) {
-  if (!initialized)
+  if (!initialized) {
+    if (LogThisAt(1))
+      cerr << "Auto-initializing model parameters from prior" << endl;
     (QuaffParams&) *this = prior.fit();
+  }
 }
 
 bool QuaffNullParamsIn::parseNullModelFilename() {
@@ -211,8 +214,11 @@ bool QuaffNullParamsIn::parseNullModelFilename() {
 }
 
 void QuaffNullParamsIn::requireNullModelOrFit (const SeqList& seqList) {
-  if (!initialized)
+  if (!initialized) {
+    if (LogThisAt(1))
+      cerr << "Auto-optimizing null model for read sequences" << endl;
     (QuaffNullParams&) *this = QuaffNullParams (seqList.seqs);
+  }
   if (saveFilename.size()) {
     ofstream out (saveFilename);
     write (out);
@@ -244,8 +250,11 @@ bool QuaffPriorIn::parsePriorFilename() {
 }
 
 void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffNullParams& nullModel) {
-  if (!initialized)
+  if (!initialized) {
+    if (LogThisAt(1))
+      cerr << "Auto-setting prior from null model" << endl;
     initCounts (9, 9, 5, 1, &nullModel);
+  }
   if (saveFilename.size()) {
     ofstream out (saveFilename);
     write (out);
