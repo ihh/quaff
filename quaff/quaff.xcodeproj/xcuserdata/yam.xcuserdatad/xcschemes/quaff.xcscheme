@@ -61,7 +61,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "learn -ref data/tiny.fastq -read data/tiny.fastq -v2"
+            argument = "align -params /Users/yam/quaff/params.yaml -ref /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -read /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -v5 -nothreshold -printall"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

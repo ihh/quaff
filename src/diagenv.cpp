@@ -78,11 +78,11 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize) 
 
   set<int> diags;
   int nPastThreshold = 0;
-  for (auto& diagKmerCountElt : diagKmerCount)
+  for (const auto& diagKmerCountElt : diagKmerCount)
     if (diagKmerCountElt.second >= threshold) {
       ++nPastThreshold;
-      for (int d = diagKmerCountElt.first - bandSize / 2;
-	   d <= diagKmerCountElt.first + bandSize / 2;
+      for (int d = diagKmerCountElt.first - (int) bandSize / 2;
+	   d <= diagKmerCountElt.first + (int) bandSize / 2;
 	   ++d)
 	diags.insert (d);
     }
@@ -91,4 +91,24 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize) 
     cerr << nPastThreshold << " diagonals above threshold; " << diags.size() << " in envelope" << endl;
 
   diagonals = vector<int> (diags.begin(), diags.end());
+}
+
+vector<SeqIdx> DiagonalEnvelope::forward_i (SeqIdx j) const {
+  vector<SeqIdx> i_vec;
+  if (j == 1 || j == yLen) {
+    i_vec.reserve (xLen);
+    for (SeqIdx i = 1; i <= xLen; ++i)
+      i_vec.push_back (i);
+  } else {
+    i_vec.reserve (diagonals.size());
+    for (auto d : diagonals)
+      if (intersects (j, d))
+	i_vec.push_back (get_i (j, d));
+  }
+  return i_vec;
+}
+
+vector<SeqIdx> DiagonalEnvelope::reverse_i (SeqIdx j) const {
+  const vector<SeqIdx> f = forward_i (j);
+  return vector<SeqIdx> (f.rbegin(), f.rend());
 }

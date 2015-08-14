@@ -186,6 +186,7 @@ private:
   static void updateMax (double& currentMax, State& currentMaxIdx, double candidateMax, State candidateMaxIdx);
 public:
   QuaffViterbiMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
+  bool resultIsFinite() const { return result > -numeric_limits<double>::infinity(); }
   Alignment alignment() const;
   Alignment scoreAdjustedAlignment (const QuaffNullParams& nullModel) const;
 };

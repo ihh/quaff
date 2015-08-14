@@ -22,6 +22,8 @@ struct DiagonalEnvelope {
   }
   static inline SeqIdx get_i (SeqIdx j, int diag) { return (SeqIdx) (diag + j); }
   static inline int get_diag (SeqIdx i, SeqIdx j) { return (int) i - (int) j; }
+  vector<SeqIdx> forward_i (SeqIdx j) const;
+  vector<SeqIdx> reverse_i (SeqIdx j) const;
 };
 
 
