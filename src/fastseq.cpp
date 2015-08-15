@@ -7,11 +7,20 @@ KSEQ_INIT(gzFile, gzread)
 
 const string dnaAlphabet ("ACGT");
 
-int tokenize (char c, const string& alphabet) {
-  int tok;
+UnvalidatedAlphTok tokenize (char c, const string& alphabet) {
+  UnvalidatedAlphTok tok;
   const char* alphStr = alphabet.c_str(); 
-  tok = (int) (strchr (alphStr, toupper(c)) - alphStr);
+  tok = (UnvalidatedAlphTok) (strchr (alphStr, toupper(c)) - alphStr);
   return tok >= (int) strlen(alphStr) ? -1 : tok;
+}
+
+AlphTok dnaComplement (AlphTok token) {
+  return dnaAlphabetSize - 1 - token;
+}
+
+char dnaComplementChar (char c) {
+  const int tok = tokenize (c, dnaAlphabet);
+  return tok < 0 ? 'N' : dnaAlphabet[dnaComplement(tok)];
 }
 
 unsigned long makeKmer (SeqIdx k, vector<unsigned int>::const_iterator tok, unsigned int alphabetSize) {
@@ -26,13 +35,13 @@ unsigned long makeKmer (SeqIdx k, vector<unsigned int>::const_iterator tok, unsi
 
 string kmerToString (unsigned long kmer, SeqIdx k, const string& alphabet) {
   string rev;
-  for (int j = 0; j < k; ++j, kmer = kmer / alphabet.size())
+  for (SeqIdx j = 0; j < k; ++j, kmer = kmer / alphabet.size())
     rev += alphabet[kmer % alphabet.size()];
   return string (rev.rbegin(), rev.rend());
 }
 
-vguard<unsigned int> FastSeq::tokens (const string& alphabet) const {
-  vguard<unsigned int> tok;
+vguard<AlphTok> FastSeq::tokens (const string& alphabet) const {
+  vguard<AlphTok> tok;
   tok.reserve (length());
   for (const auto& c : seq) {
     const int t = tokenize (c, alphabet);
@@ -45,8 +54,8 @@ vguard<unsigned int> FastSeq::tokens (const string& alphabet) const {
   return tok;
 }
 
-vguard<unsigned int> FastSeq::qualScores() const {
-  vguard<unsigned int> q;
+vguard<QualScore> FastSeq::qualScores() const {
+  vguard<QualScore> q;
   if (hasQual()) {
     q.reserve (length());
     for (const auto& c : qual)
@@ -109,10 +118,8 @@ vguard<FastSeq> readFastSeqs (const char* filename) {
 string revcomp (const string& dnaSeq) {
   string rev = dnaSeq;
   const size_t len = dnaSeq.size();
-  for (size_t i = 0; i < len; ++i) {
-    const int tok = tokenize (dnaSeq[i], dnaAlphabet);
-    rev[len - 1 - i] = tok < 0 ? 'N' : dnaAlphabet[3 - tok];
-  }
+  for (size_t i = 0; i < len; ++i)
+    rev[len - 1 - i] = dnaComplementChar (dnaSeq[i]);
   return rev;
 }
 

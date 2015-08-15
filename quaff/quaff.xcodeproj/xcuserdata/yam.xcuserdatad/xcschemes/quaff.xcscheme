@@ -74,6 +74,10 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "train -ref /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -read /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -v -fwdstrand -global -v -mininc 0 -prior prior -saveprior prior2 -null null -savenull null2"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "overlap -params params.yaml -reads /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -nothreshold"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

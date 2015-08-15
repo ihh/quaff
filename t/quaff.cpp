@@ -1,6 +1,8 @@
 #include <iostream>
 #include <fstream>
+#include <regex>
 #include "../src/qmodel.h"
+#include "../src/qoverlap.h"
 #include "../src/logger.h"
 
 struct QuaffUsage {
@@ -15,18 +17,22 @@ struct QuaffUsage {
 struct SeqList {
   vguard<string> filenames;
   string type, tag;
+  regex tagRegex;
   int& argc;
   char**& argv;
   bool wantFastq, wantRevcomps;
   vguard<FastSeq> seqs;
-
-  SeqList (int& argc, char**& argv, const char* type, const char* tag)
+  size_t nOriginals;  // number of seqs that are NOT revcomps
+  
+  SeqList (int& argc, char**& argv, const char* type, const char* tag, const char* tagRegex)
     : argc(argc),
       argv(argv),
       type(type),
       tag(tag),
+      tagRegex(tagRegex),
       wantFastq(false),
-      wantRevcomps(false)
+      wantRevcomps(false),
+      nOriginals(0)
   { }
 
   bool parseSeqFilename();
@@ -93,10 +99,10 @@ int main (int argc, char** argv) {
 
   QuaffParamsIn params (argc, argv);
 
-  SeqList refs (argc, argv, "reference", "-ref");
+  SeqList refs (argc, argv, "reference", "-ref", "^-(ref|refs|fasta)$");
   refs.wantRevcomps = true;
-  
-  SeqList reads (argc, argv, "read", "-read");
+
+  SeqList reads (argc, argv, "read", "-read", "^-(read|reads|fastq)$");
   reads.wantFastq = true;
 
   QuaffDPConfig config;
@@ -147,6 +153,26 @@ int main (int argc, char** argv) {
 
     QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, nullModel, prior, config);
     newParams.write (cout);
+
+  } else if (command == "overlap") {
+    QuaffOverlapAligner aligner;
+    QuaffNullParamsIn nullModel (argc, argv);
+    reads.wantRevcomps = true;
+    while (logger.parseLogArgs (argc, argv)
+	   || aligner.parseAlignmentArgs (argc, argv)
+	   || config.parseOverlapConfigArgs (argc, argv)
+	   || params.parseParamFilename()
+	   || nullModel.parseNullModelFilename()
+	   || reads.parseSeqFilename()
+	   || reads.parseFwdStrand()
+	   || usage.parseUnknown())
+      { }
+
+    reads.loadSequences();
+    params.requireParams();
+    nullModel.requireNullModelOrFit (reads);
+
+    aligner.align (cout, reads.seqs, reads.nOriginals, params, nullModel, config);
 
   } else if (command == "help" || command == "-help" || command == "--help" || command == "-h") {
     cout << usage.text;
@@ -264,7 +290,7 @@ void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffNullParams& nullModel)
 bool SeqList::parseSeqFilename() {
   if (argc > 0) {
     const string arg = argv[0];
-    if (arg == tag) {
+    if (regex_match (arg, tagRegex)) {
       Assert (argc > 1, "%s needs an argument", arg.c_str());
       filenames.push_back (string (argv[1]));
       argc -= 2;
@@ -299,6 +325,7 @@ void SeqList::loadSequences() {
     seqs.insert (seqs.end(), fsvec.begin(), fsvec.end());
   }
 
+  nOriginals = seqs.size();
   if (wantRevcomps)
     addRevcomps (seqs);
 }
@@ -309,7 +336,7 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     argv(argv),
     prog (argv[0])
 {
-  briefText = "Usage: " + prog + " {help,train,align} [options]\n";
+  briefText = "Usage: " + prog + " {help,train,align,overlap} [options]\n";
   
   text = briefText
     + "\n"
@@ -328,21 +355,29 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "   -countswithprior <file>\n"
     + "                   Like -counts, but adds in prior pseudocounts as well\n"
     + "\n"
+    + "\n"
     + " " + prog + " align -params params.yaml -ref refs.fasta -read reads.fastq\n"
     + "  (to align FASTQ reads to FASTA reference sequences, using Viterbi)\n"
     + "\n"
+    + "   -printall       Print all pairwise alignments, not just best for each read\n"
+    + "\n"
+    + "\n"
+    + " " + prog + " overlap -params params.yaml -read reads.fastq\n"
+    + "  (to find overlaps between FASTQ reads, using Viterbi)\n"
+    + "\n"
+    + "\n"
+    + "Alignment options (align/overlap commands):\n"
     + "   -format {fasta,stockholm,refseq}\n"
     + "                   Alignment output format\n"
     + "   -threshold <f>\n"
-    + "   -nothreshold    Score threshold for alignment reporting\n"
-    + "   -printall       Print all pairwise alignments, not just best for each read\n"
+    + "   -nothreshold    Log-odds ratio score threshold for alignment reporting\n"
     + "\n"
-    + "General options for all commands:\n"
+    + "General options (all commands, except where indicated):\n"
     + "   -verbose, -vv, -vvv, -v4, etc.\n"
     + "   -log <function_name>\n"
     + "                   Various levels of logging\n"
-    + "   -fwdstrand      Do not include reverse-complemented refseqs\n"
-    + "   -global         Force all of refseq to be aligned\n"
+    + "   -fwdstrand      Do not include reverse-complemented sequences\n"
+    + "   -global         Force all of refseq to be aligned (align/train only)\n"
     + "   -kmer           Length of kmer matches, for high-scoring diagonals heuristic\n"
     + "   -band           Size of band around high-scoring diagonals\n"
     + "   -dense          Do full DP, not just high-scoring diagonals (memory hog!)\n"

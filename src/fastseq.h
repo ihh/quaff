@@ -10,28 +10,34 @@ using namespace std;
 
 #define dnaAlphabetSize 4
 extern const string dnaAlphabet;
+unsigned int dnaComplement (unsigned int token);
+char dnaComplementChar (char c);
 
 typedef unsigned int SeqIdx;
+typedef unsigned int AlphTok;
+typedef int UnvalidatedAlphTok;
+typedef unsigned int QualScore;
 
-int tokenize (char c, const string& alphabet);
-unsigned long makeKmer (SeqIdx k, vector<unsigned int>::const_iterator tok, unsigned int alphabetSize);
+UnvalidatedAlphTok tokenize (char c, const string& alphabet);
+unsigned long makeKmer (SeqIdx k, vector<AlphTok>::const_iterator tok, AlphTok alphabetSize);
 string kmerToString (unsigned long kmer, SeqIdx k, const string& alphabet);
+
 
 struct FastSeq {
   string name, comment, seq, qual;
   static const char minQualityChar = '!', maxQualityChar = '~';
-  static const unsigned int qualScoreRange = 94;
+  static const QualScore qualScoreRange = 94;
   SeqIdx length() const { return (SeqIdx) seq.size(); }
   bool hasQual() const { return qual.size() == length(); }
-  static inline unsigned int qualScoreForChar (char c) {
+  static inline QualScore qualScoreForChar (char c) {
     return max (0, min ((int) qualScoreRange - 1, (int) (c - minQualityChar)));
   }
-  static char charForQualScore (int q) {
+  static char charForQualScore (QualScore q) {
     return max (minQualityChar, min (maxQualityChar, (char) (q + minQualityChar)));
   }
-  inline unsigned int getQualScoreAt (SeqIdx pos) const { return qualScoreForChar (qual[pos]); }
-  vguard<unsigned int> tokens (const string& alphabet) const;
-  vguard<unsigned int> qualScores() const;
+  inline QualScore getQualScoreAt (SeqIdx pos) const { return qualScoreForChar (qual[pos]); }
+  vguard<AlphTok> tokens (const string& alphabet) const;
+  vguard<AlphTok> qualScores() const;
   void writeFasta (ostream& out) const;
   void writeFastq (ostream& out) const;
   FastSeq revcomp() const;

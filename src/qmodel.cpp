@@ -59,7 +59,7 @@ void SymQualDist::read (map<string,string>& paramVal, const string& prefix) {
   qualNumSuccessfulTrials = atof (paramVal[qr].c_str());
 }
 
-double SymQualDist::logQualProb (int k) const {
+double SymQualDist::logQualProb (QualScore k) const {
   return logNegativeBinomial (k, qualTrialSuccessProb, qualNumSuccessfulTrials);
 }
 
@@ -71,7 +71,7 @@ SymQualScores::SymQualScores (const SymQualDist& sqd)
   : logSymQualProb (FastSeq::qualScoreRange)
 {
   const double symLogProb = log (sqd.symProb);
-  for (int k = 0; k < FastSeq::qualScoreRange; ++k)
+  for (QualScore k = 0; k < FastSeq::qualScoreRange; ++k)
     logSymQualProb[k] = symLogProb + sqd.logQualProb(k);
 }
 
@@ -83,7 +83,7 @@ void SymQualCounts::write (ostream& out, const string& prefix) const {
   if (qualCount.size()) {
     out << prefix << ": {";
     int n = 0;
-    for (size_t i = 0; i < qualCount.size(); ++i)
+    for (QualScore i = 0; i < qualCount.size(); ++i)
       if (qualCount[i] > 0)
 	out << (n++ ? ", " : "") << i << ": " << qualCount[i];
     out << '}' << endl;
@@ -102,7 +102,9 @@ void SymQualCounts::read (const string& counts) {
 }
 
 QuaffParams::QuaffParams()
-  : beginInsert(.5),
+  : refSeqEmit(.5),
+    refBase(dnaAlphabetSize,.25),
+    beginInsert(.5),
     extendInsert(.5),
     beginDelete(.5),
     extendDelete(.5),
@@ -112,14 +114,17 @@ QuaffParams::QuaffParams()
 
 #define QuaffParamWrite(X) out << #X ": " << X << endl
 void QuaffParams::write (ostream& out) const {
+  QuaffParamWrite(refSeqEmit);
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    out << "refBase" << dnaAlphabet[i] << ": " << refBase[i] << endl;
   QuaffParamWrite(beginInsert);
   QuaffParamWrite(extendInsert);
   QuaffParamWrite(beginDelete);
   QuaffParamWrite(extendDelete);
-  for (int i = 0; i < dnaAlphabetSize; ++i)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     insert[i].write (out, string("insert") + dnaAlphabet[i]);
-  for (int i = 0; i < dnaAlphabetSize; ++i)
-    for (int j = 0; j < dnaAlphabetSize; ++j)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
       match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
 }
 
@@ -132,11 +137,24 @@ void QuaffParams::read (istream& in) {
   QuaffParamRead(beginDelete);
   QuaffParamRead(extendDelete);
 
-  for (int i = 0; i < dnaAlphabetSize; ++i)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     insert[i].read (val, string("insert") + dnaAlphabet[i]);
-  for (int i = 0; i < dnaAlphabetSize; ++i)
-    for (int j = 0; j < dnaAlphabetSize; ++j)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
       match[i][j].read (val, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
+}
+
+void QuaffParams::fitRefSeqs (const vguard<FastSeq>& refs) {
+  int totalLen;
+  vguard<int> baseCount (dnaAlphabetSize, 0.);
+  for (const auto& fs : refs) {
+    totalLen += fs.length();
+    for (auto i : fs.tokens(dnaAlphabet))
+      ++baseCount[i];
+  }
+  refSeqEmit = 1 / (1 + refs.size() / (double) totalLen);
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    refBase[i] = baseCount[i] / (double) totalLen;
 }
 
 QuaffScores::QuaffScores (const QuaffParams& qp)
@@ -144,9 +162,9 @@ QuaffScores::QuaffScores (const QuaffParams& qp)
     insert (dnaAlphabetSize),
     match (dnaAlphabetSize, vguard<SymQualScores> (dnaAlphabetSize))
 {
-  for (int i = 0; i < dnaAlphabetSize; ++i) {
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     insert[i] = SymQualScores (qp.insert[i]);
-    for (int j = 0; j < dnaAlphabetSize; ++j)
+    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
       match[i][j] = SymQualScores (qp.match[i][j]);
   }
 
@@ -184,10 +202,10 @@ void QuaffCounts::write (ostream& out) const {
   QuaffParamWrite(d2m);
   QuaffParamWrite(i2i);
   QuaffParamWrite(i2m);
-  for (int i = 0; i < dnaAlphabetSize; ++i)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     insert[i].write (out, string("insert") + dnaAlphabet[i]);
-  for (int i = 0; i < dnaAlphabetSize; ++i)
-    for (int j = 0; j < dnaAlphabetSize; ++j)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
       match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
 }
 
@@ -216,15 +234,15 @@ void QuaffParamCounts::zeroCounts() {
 }
 
 void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount, const QuaffNullParams* nullModel) {
-  for (int j = 0; j < dnaAlphabetSize; ++j)
-    for (int k = 0; k < FastSeq::qualScoreRange; ++k)
+  for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
+    for (QualScore k = 0; k < FastSeq::qualScoreRange; ++k)
       if (nullModel)
 	insert[j].qualCount[k] = otherCount * nullModel->null[j].symProb * dnaAlphabetSize * gsl_ran_negative_binomial_pdf (k, nullModel->null[j].qualTrialSuccessProb, nullModel->null[j].qualNumSuccessfulTrials);
       else
 	insert[j].qualCount[k] = otherCount / FastSeq::qualScoreRange;
-  for (int i = 0; i < dnaAlphabetSize; ++i)
-    for (int j = 0; j < dnaAlphabetSize; ++j)
-      for (int k = 0; k < FastSeq::qualScoreRange; ++k)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
+      for (QualScore k = 0; k < FastSeq::qualScoreRange; ++k)
 	if (nullModel)
 	  match[i][j].qualCount[k] = (i == j ? matchIdentCount : (otherCount * nullModel->null[j].symProb * dnaAlphabetSize / (1 - nullModel->null[i].symProb))) * gsl_ran_negative_binomial_pdf (k, nullModel->null[j].qualTrialSuccessProb, nullModel->null[j].qualNumSuccessfulTrials);
 	else
@@ -248,10 +266,10 @@ void QuaffParamCounts::write (ostream& out) const {
   QuaffParamWrite(beginDeleteYes);
   QuaffParamWrite(extendDeleteNo);
   QuaffParamWrite(extendDeleteYes);
-  for (int i = 0; i < dnaAlphabetSize; ++i)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     insert[i].write (out, string("insert") + dnaAlphabet[i]);
-  for (int i = 0; i < dnaAlphabetSize; ++i)
-    for (int j = 0; j < dnaAlphabetSize; ++j)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
       match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
 }
 
@@ -268,12 +286,14 @@ void QuaffParamCounts::read (istream& in) {
   QuaffParamRead(beginDeleteNo);
   QuaffParamRead(extendDeleteNo);
 
-  for (int i = 0; i < dnaAlphabetSize; ++i)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     insert[i].read (val[string("insert") + dnaAlphabet[i]]);
-  for (int i = 0; i < dnaAlphabetSize; ++i)
-    for (int j = 0; j < dnaAlphabetSize; ++j)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
       match[i][j].read (val[string("match") + dnaAlphabet[i] + dnaAlphabet[j]]);
 }
+
+const char Alignment::gapChar = '-';
 
 Alignment& Alignment::addScoreComment() {
   if (rows())
@@ -301,14 +321,14 @@ void Alignment::writeStockholm (ostream& out) const {
   out << "//" << endl;
 }
 
-FastSeq Alignment::getUngapped (int row) const {
+FastSeq Alignment::getUngapped (size_t row) const {
   const FastSeq& g = gappedSeq[row];
   FastSeq s = gappedSeq[row];
   s.seq.clear();
   s.qual.clear();
-  for (int i = 0; i < g.length(); ++i) {
+  for (SeqIdx i = 0; i < g.length(); ++i) {
     char c = g.seq[i];
-    if (c != '-' && c != '.') {
+    if (!isGapChar(c)) {
       s.seq.push_back (c);
       if (g.hasQual())
 	s.qual.push_back (g.qual[i]);
@@ -325,8 +345,16 @@ bool QuaffDPConfig::parseConfigArgs (int& argc, char**& argv) {
       argv += 1;
       argc -= 1;
       return true;
+    }
+  }
 
-    } else if (strcmp (arg, "-band") == 0) {
+  return parseOverlapConfigArgs (argc, argv);
+}
+
+bool QuaffDPConfig::parseOverlapConfigArgs (int& argc, char**& argv) {
+  if (argc > 0) {
+    const char* arg = argv[0];
+    if (strcmp (arg, "-band") == 0) {
       Assert (argc > 1, "%s must have an argument", arg);
       const char* val = argv[1];
       bandSize = atoi (val);
@@ -369,40 +397,21 @@ QuaffDPCell::QuaffDPCell()
     del (-numeric_limits<double>::infinity())
 { }
 
-QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config)
+QuaffDPMatrixContainer::QuaffDPMatrixContainer (const DiagonalEnvelope& env)
   : penv (&env),
     px (env.px),
     py (env.py),
-    pconfig (&config),
-    qs (qp),
-    xTok (px->tokens(dnaAlphabet)),
-    yTok (py->tokens(dnaAlphabet)),
-    yQual (py->qualScores()),
     xLen (px->length()),
     yLen (py->length()),
     cell (py->length() + 1),
-    cachedInsertEmitScore (py->length() + 1, -numeric_limits<double>::infinity()),
     start (-numeric_limits<double>::infinity()),
     end (-numeric_limits<double>::infinity()),
     result (-numeric_limits<double>::infinity())
-{
-  Assert (py->hasQual(), "Read sequences must have quality scores (FASTQ, not FASTA)");
-  for (int j = 1; j <= py->length(); ++j)
-    cachedInsertEmitScore[j] = insertEmitScore(j);
-}
+{ }
 
-QuaffDPCell QuaffDPMatrix::dummy;
+QuaffDPCell QuaffDPMatrixContainer::dummy;
 
-void QuaffDPMatrix::write (ostream& out) const {
-  for (int j = 1; j <= yLen; ++j) {
-    for (SeqIdx i : penv->forward_i(j))
-      out << "i=" << i << ":" << px->seq[i-1] << " j=" << j << ":" << py->seq[j-1] << py->qual[j-1] << "\tmat " << mat(i,j) << "\tins " << ins(i,j) << "\tdel " << del(i,j) << endl;
-    out << endl;
-  }
-  out << "result " << result << endl;
-}
-
-double QuaffDPMatrix::cellScore (SeqIdx i, SeqIdx j, State state) const {
+double QuaffDPMatrixContainer::cellScore (SeqIdx i, SeqIdx j, State state) const {
   double cs = numeric_limits<double>::quiet_NaN();
   switch (state) {
   case Match:
@@ -420,7 +429,7 @@ double QuaffDPMatrix::cellScore (SeqIdx i, SeqIdx j, State state) const {
   return cs;
 }
 
-const char* QuaffDPMatrix::stateToString (State state) {
+const char* QuaffDPMatrixContainer::stateToString (State state) {
   const char* s = "Unknown";
   switch (state) {
   case Start:
@@ -439,6 +448,36 @@ const char* QuaffDPMatrix::stateToString (State state) {
     break;
   }
   return s;
+}
+
+void QuaffDPMatrixContainer::updateMax (double& currentMax, State& currentMaxIdx, double candidateMax, State candidateMaxIdx) {
+  if (candidateMax > currentMax) {
+    currentMax = candidateMax;
+    currentMaxIdx = candidateMaxIdx;
+  }
+}
+
+QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config)
+  : QuaffDPMatrixContainer (env),
+    pconfig (&config),
+    qs (qp),
+    xTok (px->tokens(dnaAlphabet)),
+    yTok (py->tokens(dnaAlphabet)),
+    yQual (py->qualScores()),
+    cachedInsertEmitScore (py->length() + 1, -numeric_limits<double>::infinity())
+{
+  Assert (py->hasQual(), "Read sequences must have quality scores (FASTQ, not FASTA)");
+  for (SeqIdx j = 1; j <= py->length(); ++j)
+    cachedInsertEmitScore[j] = insertEmitScore(j);
+}
+
+void QuaffDPMatrix::write (ostream& out) const {
+  for (SeqIdx j = 1; j <= yLen; ++j) {
+    for (SeqIdx i : penv->forward_i(j))
+      out << "i=" << i << ":" << px->seq[i-1] << " j=" << j << ":" << py->seq[j-1] << py->qual[j-1] << "\tmat " << mat(i,j) << "\tins " << ins(i,j) << "\tdel " << del(i,j) << endl;
+    out << endl;
+  }
+  out << "result " << result << endl;
 }
 
 QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config)
@@ -650,18 +689,12 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
     write (cerr);
 }
 
-void QuaffViterbiMatrix::updateMax (double& currentMax, State& currentMaxIdx, double candidateMax, State candidateMaxIdx) {
-  if (candidateMax > currentMax) {
-    currentMax = candidateMax;
-    currentMaxIdx = candidateMaxIdx;
-  }
-}
-
 Alignment QuaffViterbiMatrix::alignment() const {
   Assert (resultIsFinite(), "Can't do Viterbi traceback if final score is -infinity");
   SeqIdx xEnd = xLen;
   if (pconfig->local) {
-    double bestEndSc = -numeric_limits<double>::infinity(), sc;
+    double bestEndSc = -numeric_limits<double>::infinity();
+    double sc;
     for (SeqIdx iEnd = xLen; iEnd > 0; --iEnd) {
       sc = mat(iEnd,yLen) + qs.m2e;
       if (iEnd == xLen || sc > bestEndSc) {
@@ -693,7 +726,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
 
     case Insert:
       emitSc = cachedInsertEmitScore[j];
-      xRow.push_front (gapChar);
+      xRow.push_front (Alignment::gapChar);
       yRow.push_front (py->seq[--j]);
       updateMax (srcSc, state, mat(i,j) + qs.m2i + emitSc, Match);
       updateMax (srcSc, state, ins(i,j) + qs.i2i + emitSc, Insert);
@@ -702,7 +735,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
 
     case Delete:
       xRow.push_front (px->seq[--i]);
-      yRow.push_front (gapChar);
+      yRow.push_front (Alignment::gapChar);
       updateMax (srcSc, state, mat(i,j) + qs.m2d, Match);
       updateMax (srcSc, state, del(i,j) + qs.d2d, Delete);
       Assert (srcSc == del(i+1,j), "Traceback error");
@@ -733,10 +766,10 @@ Alignment QuaffViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nul
 }
 
 void QuaffParamCounts::addWeighted (const QuaffParamCounts& counts, double weight) {
-  for (int q = 0; q < FastSeq::qualScoreRange; ++q)
-    for (int i = 0; i < dnaAlphabetSize; ++i) {
+  for (QualScore q = 0; q < FastSeq::qualScoreRange; ++q)
+    for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
       insert[i].qualCount[q] += weight * counts.insert[i].qualCount[q];
-      for (int j = 0; j < dnaAlphabetSize; ++j)
+      for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
 	match[i][j].qualCount[q] += weight * counts.match[i][j].qualCount[q];
     }
   beginInsertNo += weight * counts.beginInsertNo;
@@ -756,14 +789,14 @@ double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
   lp += logBetaPdf (qp.beginDelete, beginDeleteYes, beginDeleteNo);
   lp += logBetaPdf (qp.extendDelete, extendDeleteYes, extendDeleteNo);
   double *alpha = new double[dnaAlphabetSize], *theta = new double[dnaAlphabetSize];
-  for (int i = 0; i < dnaAlphabetSize; ++i) {
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     lp += qp.insert[i].logQualProb (insert[i].qualCount);  // not normalized...
     theta[i] = qp.insert[i].symProb;
     alpha[i] = accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 1.);
   }
   lp += log (gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta));
-  for (int i = 0; i < dnaAlphabetSize; ++i) {
-    for (int j = 0; j < dnaAlphabetSize; ++j) {
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
+    for (AlphTok j = 0; j < dnaAlphabetSize; ++j) {
       lp += qp.match[i][j].logQualProb (match[i][j].qualCount);  // not normalized...
       theta[j] = qp.match[i][j].symProb;
       alpha[j] = accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 1.);
@@ -781,12 +814,12 @@ double QuaffParamCounts::expectedLogLike (const QuaffParams& qp) const {
   ll += log (qp.extendInsert) * extendInsertYes + log (1 - qp.extendInsert) * extendInsertNo;
   ll += log (qp.beginDelete) * beginDeleteYes + log (1 - qp.beginDelete) * beginDeleteNo;
   ll += log (qp.extendDelete) * extendDeleteYes + log (1 - qp.extendDelete) * extendDeleteNo;
-  for (int i = 0; i < dnaAlphabetSize; ++i) {
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     ll += qp.insert[i].logQualProb (insert[i].qualCount);
     ll += log (qp.insert[i].symProb) * accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 0.);
   }
-  for (int i = 0; i < dnaAlphabetSize; ++i) {
-    for (int j = 0; j < dnaAlphabetSize; ++j) {
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
+    for (AlphTok j = 0; j < dnaAlphabetSize; ++j) {
       ll += qp.match[i][j].logQualProb (match[i][j].qualCount);  // not normalized...
       ll += log (qp.match[i][j].symProb) * accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.);
     }
@@ -802,20 +835,20 @@ QuaffParams QuaffParamCounts::fit() const {
   qp.extendInsert = 1. / (1. + extendInsertNo / extendInsertYes);
 
   vguard<double> insFreq;
-  for (int i = 0; i < dnaAlphabetSize; ++i)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     insFreq.push_back (accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 0.));
   const double insNorm = accumulate (insFreq.begin(), insFreq.end(), 0.);
-  for (int i = 0; i < dnaAlphabetSize; ++i) {
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     qp.insert[i].symProb = insFreq[i] / insNorm;
     fitNegativeBinomial (insert[i].qualCount, qp.insert[i].qualTrialSuccessProb, qp.insert[i].qualNumSuccessfulTrials);
   }
 
-  for (int i = 0; i < dnaAlphabetSize; ++i) {
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     vguard<double> iMatFreq (dnaAlphabetSize);
-    for (int j = 0; j < dnaAlphabetSize; ++j)
+    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
       iMatFreq[j] = accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.);
     const double iMatNorm = accumulate (iMatFreq.begin(), iMatFreq.end(), 0.);
-    for (int j = 0; j < dnaAlphabetSize; ++j) {
+    for (AlphTok j = 0; j < dnaAlphabetSize; ++j) {
       qp.match[i][j].symProb = iMatFreq[j] / iMatNorm;
       fitNegativeBinomial (match[i][j].qualCount, qp.match[i][j].qualTrialSuccessProb, qp.match[i][j].qualNumSuccessfulTrials);
     }
@@ -832,20 +865,20 @@ QuaffForwardBackwardMatrix::QuaffForwardBackwardMatrix (const DiagonalEnvelope& 
     write (cerr);
 }
 
-double QuaffForwardBackwardMatrix::postMatch (int i, int j) const {
+double QuaffForwardBackwardMatrix::postMatch (SeqIdx i, SeqIdx j) const {
   return exp (fwd.mat(i,j) + back.mat(i,j) - fwd.result);
 }
 
-double QuaffForwardBackwardMatrix::postDelete (int i, int j) const {
+double QuaffForwardBackwardMatrix::postDelete (SeqIdx i, SeqIdx j) const {
   return exp (fwd.del(i,j) + back.del(i,j) - fwd.result);
 }
 
-double QuaffForwardBackwardMatrix::postInsert (int i, int j) const {
+double QuaffForwardBackwardMatrix::postInsert (SeqIdx i, SeqIdx j) const {
   return exp (fwd.ins(i,j) + back.ins(i,j) - fwd.result);
 }
 
 void QuaffForwardBackwardMatrix::write (ostream& out) const {
-  for (int j = 1; j <= fwd.yLen; ++j) {
+  for (SeqIdx j = 1; j <= fwd.yLen; ++j) {
     for (SeqIdx i : fwd.penv->forward_i(j))
       out << "i=" << i << ":" << fwd.px->seq[i-1] << " j=" << j << ":" << fwd.py->seq[j-1] << fwd.py->qual[j-1] << "\tmat " << postMatch(i,j) << "\tins " << postInsert(i,j) << "\tdel " << postDelete(i,j) << endl;
     out << endl;
@@ -870,7 +903,7 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
   for (const auto& s : seqs) {
     ++nullEmitNo;
     nullEmitYes += s.length();
-    const vguard<unsigned int> tok = s.tokens (dnaAlphabet);
+    const vguard<AlphTok> tok = s.tokens (dnaAlphabet);
     for (SeqIdx i = 0; i < s.length(); ++i) {
       ++symCount[tok[i]];
       ++nullCount[tok[i]].qualCount[s.getQualScoreAt(i)];
@@ -879,7 +912,7 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
 
   nullEmit = 1 / (1 + nullEmitNo / nullEmitYes);
   const double symCountNorm = accumulate (symCount.begin(), symCount.end(), 0.);
-  for (size_t n = 0; n < dnaAlphabetSize; ++n) {
+  for (AlphTok n = 0; n < dnaAlphabetSize; ++n) {
     null[n].symProb = symCount[n] / symCountNorm;
     fitNegativeBinomial (nullCount[n].qualCount, null[n].qualTrialSuccessProb, null[n].qualNumSuccessfulTrials);
   }
@@ -892,7 +925,7 @@ void QuaffNullParams::read (istream& in) {
   map<string,string> val = readParamFile (in);
 
   QuaffParamRead(nullEmit);
-  for (int i = 0; i < dnaAlphabetSize; ++i)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     null[i].read (val, string("null") + dnaAlphabet[i]);
 }
 
@@ -905,7 +938,7 @@ double QuaffNullParams::logLikelihood (const vguard<FastSeq>& seqs) const {
 
 double QuaffNullParams::logLikelihood (const FastSeq& s) const {
   double ll = s.length() * log(nullEmit) + log(1. - nullEmit);
-  const vguard<unsigned int> tok = s.tokens (dnaAlphabet);
+  const vguard<AlphTok> tok = s.tokens (dnaAlphabet);
     for (SeqIdx i = 0; i < s.length(); ++i) {
       ll += log (null[tok[i]].symProb) + null[tok[i]].logQualProb (s.getQualScoreAt(i));
 #if defined(NAN_DEBUG)
@@ -920,7 +953,7 @@ double QuaffNullParams::logLikelihood (const FastSeq& s) const {
 
 void QuaffNullParams::write (ostream& out) const {
   QuaffParamWrite(nullEmit);
-  for (int i = 0; i < dnaAlphabetSize; ++i)
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     null[i].write (out, string("null") + dnaAlphabet[i]);
 }
 
@@ -978,9 +1011,9 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
   QuaffParams qp = seed;
   QuaffParamCounts counts, countsWithPrior;
   double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
-  vector<size_t> initialSortOrder (x.size());
+  vguard<size_t> initialSortOrder (x.size());
   iota (initialSortOrder.begin(), initialSortOrder.end(), (size_t) 0);
-  vector<vector<size_t> > sortOrder (y.size(), initialSortOrder);
+  vguard<vguard<size_t> > sortOrder (y.size(), initialSortOrder);
   for (int iter = 0; iter < maxIterations; ++iter) {
     counts.zeroCounts();
     double logLike = 0;
@@ -1013,8 +1046,8 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
       if (LogThisAt(2))
 	cerr << "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl;
       logLike += yLogLike;
-      const vector<size_t> ascendingOrder = orderedIndices (xyLogLike);
-      sortOrder[ny] = vector<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
+      const vguard<size_t> ascendingOrder = orderedIndices (xyLogLike);
+      sortOrder[ny] = vguard<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
     }
     const double logPrior = pseudocounts.logPrior (qp);
     const double logLikeWithPrior = logLike + logPrior;
@@ -1043,16 +1076,16 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     ofstream out (countsWithPriorFilename);
     countsWithPrior.write (out);
   }
+  qp.fitRefSeqs(x);
   return qp;
 }
 
-QuaffAligner::QuaffAligner()
+QuaffAlignmentPrinter::QuaffAlignmentPrinter()
   : format (StockholmAlignment),
-    logOddsThreshold (0),
-    printAllAlignments (false)
+    logOddsThreshold (0)
 { }
 
-bool QuaffAligner::parseAlignmentArgs (int& argc, char**& argv) {
+bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (int& argc, char**& argv) {
   if (argc > 0) {
     const char* arg = argv[0];
     if (strcmp (arg, "-format") == 0) {
@@ -1084,41 +1117,13 @@ bool QuaffAligner::parseAlignmentArgs (int& argc, char**& argv) {
       argc -= 1;
       return true;
 
-    } else if (strcmp (arg, "-printall") == 0) {
-      printAllAlignments = true;
-      argv += 1;
-      argc -= 1;
-      return true;
-
     }
   }
 
   return false;
 }
 
-void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
-  for (const auto& yfs : y) {
-    size_t nBestAlign = 0;
-    vguard<Alignment> xyAlign;
-    for (const auto& xfs : x) {
-      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
-      const QuaffViterbiMatrix viterbi (env, params, config);
-      if (viterbi.resultIsFinite()) {
-	const Alignment align = viterbi.scoreAdjustedAlignment(nullModel).addScoreComment();
-	if (xyAlign.empty() || align.score > xyAlign[nBestAlign].score)
-	  nBestAlign = xyAlign.size();
-	xyAlign.push_back (align);
-      }
-    }
-    if (printAllAlignments)
-      for (const auto& a : xyAlign)
-	writeAlignment (out, a);
-    else if (xyAlign.size())
-      writeAlignment (out, xyAlign[nBestAlign]);
-  }
-}
-
-void QuaffAligner::writeAlignment (ostream& out, const Alignment& align) const {
+void QuaffAlignmentPrinter::writeAlignment (ostream& out, const Alignment& align) const {
   if (align.score >= logOddsThreshold) {
     FastSeq ref;
     switch (format) {
@@ -1145,3 +1150,43 @@ void QuaffAligner::writeAlignment (ostream& out, const Alignment& align) const {
   }
 }
 
+QuaffAligner::QuaffAligner()
+  : QuaffAlignmentPrinter(),
+    printAllAlignments (false)
+{ }
+
+bool QuaffAligner::parseAlignmentArgs (int& argc, char**& argv) {
+  if (argc > 0) {
+    const char* arg = argv[0];
+    if (strcmp (arg, "-printall") == 0) {
+      printAllAlignments = true;
+      argv += 1;
+      argc -= 1;
+      return true;
+    }
+  }
+
+  return parseAlignmentPrinterArgs (argc, argv);
+}
+
+void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
+  for (const auto& yfs : y) {
+    size_t nBestAlign = 0;
+    vguard<Alignment> xyAlign;
+    for (const auto& xfs : x) {
+      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
+      const QuaffViterbiMatrix viterbi (env, params, config);
+      if (viterbi.resultIsFinite()) {
+	const Alignment align = viterbi.scoreAdjustedAlignment(nullModel).addScoreComment();
+	if (xyAlign.empty() || align.score > xyAlign[nBestAlign].score)
+	  nBestAlign = xyAlign.size();
+	xyAlign.push_back (align);
+      }
+    }
+    if (printAllAlignments)
+      for (const auto& a : xyAlign)
+	writeAlignment (out, a);
+    else if (xyAlign.size())
+      writeAlignment (out, xyAlign[nBestAlign]);
+  }
+}

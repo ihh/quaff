@@ -17,6 +17,7 @@
 		28586EDB1B7C1FF400F39A98 /* util.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586ED41B7C1FF400F39A98 /* util.cpp */; };
 		28586EE01B7C201D00F39A98 /* libz.1.2.5.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 28586EDF1B7C201D00F39A98 /* libz.1.2.5.dylib */; };
 		28586EE21B7C20B500F39A98 /* libgsl.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 28586EE11B7C20B500F39A98 /* libgsl.0.dylib */; };
+		28586EE61B7FDE7400F39A98 /* qoverlap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586EE41B7FDE7400F39A98 /* qoverlap.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -52,6 +53,8 @@
 		28586EDF1B7C201D00F39A98 /* libz.1.2.5.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.1.2.5.dylib; path = usr/lib/libz.1.2.5.dylib; sourceTree = SDKROOT; };
 		28586EE11B7C20B500F39A98 /* libgsl.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libgsl.0.dylib; path = ../../../../usr/local/Cellar/gsl/1.16/lib/libgsl.0.dylib; sourceTree = "<group>"; };
 		28586EE31B7C3A0500F39A98 /* vguard.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = vguard.h; path = /Users/yam/quaff/src/vguard.h; sourceTree = "<absolute>"; };
+		28586EE41B7FDE7400F39A98 /* qoverlap.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = qoverlap.cpp; path = /Users/yam/quaff/src/qoverlap.cpp; sourceTree = "<absolute>"; };
+		28586EE51B7FDE7400F39A98 /* qoverlap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = qoverlap.h; path = /Users/yam/quaff/src/qoverlap.h; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -89,6 +92,8 @@
 			isa = PBXGroup;
 			children = (
 				283CC92F1B7D3189003ADD62 /* quaff.cpp */,
+				28586EE41B7FDE7400F39A98 /* qoverlap.cpp */,
+				28586EE51B7FDE7400F39A98 /* qoverlap.h */,
 				283CC92C1B7D3005003ADD62 /* diagenv.cpp */,
 				283CC92D1B7D3005003ADD62 /* diagenv.h */,
 				28586EDC1B7C1FFF00F39A98 /* kseq */,
@@ -170,6 +175,7 @@
 				28586ED61B7C1FF400F39A98 /* fastseq.cpp in Sources */,
 				28586ED81B7C1FF400F39A98 /* logsumexp.cpp in Sources */,
 				28586EDA1B7C1FF400F39A98 /* qmodel.cpp in Sources */,
+				28586EE61B7FDE7400F39A98 /* qoverlap.cpp in Sources */,
 				283CC9301B7D3189003ADD62 /* quaff.cpp in Sources */,
 				28586ED71B7C1FF400F39A98 /* logger.cpp in Sources */,
 				28586EDB1B7C1FF400F39A98 /* util.cpp in Sources */,

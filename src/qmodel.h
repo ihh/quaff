@@ -12,7 +12,7 @@ struct SymQualDist {
   double symProb; // probability of symbol
   double qualTrialSuccessProb, qualNumSuccessfulTrials;  // parameters of neg.binom. distribution
   SymQualDist();
-  double logQualProb (int k) const;
+  double logQualProb (QualScore k) const;
   double logQualProb (const vguard<double>& kFreq) const;
   void write (ostream& out, const string& prefix) const;
   void read (map<string,string>& paramVal, const string& prefix);
@@ -36,12 +36,15 @@ struct SymQualCounts {
 
 // Parameters of a quaff model
 struct QuaffParams {
+  double refSeqEmit;
+  vguard<double> refBase;
   double beginInsert, extendInsert, beginDelete, extendDelete;
   vguard<SymQualDist> insert;  // emissions from insert state
   vguard<vguard<SymQualDist> > match;  // substitutions from match state (conditional on input)
   QuaffParams();
   void write (ostream& out) const;
   void read (istream& in);
+  void fitRefSeqs (const vguard<FastSeq>& refs);
 };
 
 struct QuaffNullParams {
@@ -96,16 +99,18 @@ struct QuaffParamCounts {
 
 // Alignment
 struct Alignment {
+  static const char gapChar;
   vguard<FastSeq> gappedSeq;
   double score;
-  Alignment (int numRows = 0)
+  Alignment (size_t numRows = 0)
     : gappedSeq(numRows), score(0)
   { }
   const size_t rows() const { return gappedSeq.size(); }
   Alignment& addScoreComment();  // adds score to comment field of first row
   void writeGappedFasta (ostream& out) const;
   void writeStockholm (ostream& out) const;
-  FastSeq getUngapped (int row) const;
+  FastSeq getUngapped (size_t row) const;
+  static bool isGapChar(char c) { return c == '-' || c == '.'; }
 };
 
 // DP config
@@ -114,6 +119,7 @@ struct QuaffDPConfig {
   int kmerLen, bandSize;
   QuaffDPConfig() : local(true), sparse(true), kmerLen(7), bandSize(20) { }
   bool parseConfigArgs (int& argc, char**& argv);
+  bool parseOverlapConfigArgs (int& argc, char**& argv);
   DiagonalEnvelope makeEnvelope (const FastSeq& x, const FastSeq& y) const;
 };
 
@@ -125,19 +131,16 @@ struct QuaffDPCell {
 
 typedef map<SeqIdx,QuaffDPCell> QuaffDPColumn;
 
-struct QuaffDPMatrix {
+class QuaffDPMatrixContainer {
+public:
   enum State { Start, Match, Insert, Delete };
-  const QuaffDPConfig* pconfig;
   const DiagonalEnvelope* penv;
   const FastSeq *px, *py;
-  QuaffScores qs;
-  vguard<unsigned int> xTok, yTok, yQual;
   SeqIdx xLen, yLen;
   vguard<QuaffDPColumn> cell;
   double start, end, result;
   static QuaffDPCell dummy;
-  vguard<double> cachedInsertEmitScore;
-  QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
+  QuaffDPMatrixContainer (const DiagonalEnvelope& env);
   inline const QuaffDPCell& getCell (SeqIdx i, SeqIdx j) const {
     const QuaffDPColumn& col = cell[j];
     auto c = col.find (i);
@@ -149,14 +152,25 @@ struct QuaffDPMatrix {
   inline const double& mat (SeqIdx i, SeqIdx j) const { return getCell(i,j).mat; }
   inline const double& ins (SeqIdx i, SeqIdx j) const { return getCell(i,j).ins; }
   inline const double& del (SeqIdx i, SeqIdx j) const { return getCell(i,j).del; }
+  double cellScore (SeqIdx i, SeqIdx j, State state) const;
+  static const char* stateToString (State state);
+protected:
+  static void updateMax (double& currentMax, State& currentMaxIdx, double candidateMax, State candidateMaxIdx);
+};
+
+struct QuaffDPMatrix : QuaffDPMatrixContainer {
+  const QuaffDPConfig* pconfig;
+  QuaffScores qs;
+  vguard<AlphTok> xTok, yTok;
+  vguard<QualScore> yQual;
+  vguard<double> cachedInsertEmitScore;
+  QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
   inline double matchEmitScore (SeqIdx i, SeqIdx j) const {
     return qs.match[xTok[i-1]][yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
   inline double insertEmitScore (SeqIdx j) const {
     return qs.insert[yTok[j-1]].logSymQualProb[yQual[j-1]];
   }
-  double cellScore (SeqIdx i, SeqIdx j, State state) const;
-  static const char* stateToString (State state);
   void write (ostream& out) const;
 };
 
@@ -181,17 +195,13 @@ struct QuaffForwardBackwardMatrix {
   QuaffForwardMatrix fwd;
   QuaffBackwardMatrix back;
   QuaffForwardBackwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
-  double postMatch (int i, int j) const;
-  double postDelete (int i, int j) const;
-  double postInsert (int i, int j) const;
+  double postMatch (SeqIdx i, SeqIdx j) const;
+  double postDelete (SeqIdx i, SeqIdx j) const;
+  double postInsert (SeqIdx i, SeqIdx j) const;
   void write (ostream& out) const;
 };
   
-class QuaffViterbiMatrix : public QuaffDPMatrix {
-private:
-  const char gapChar = '-';
-  static void updateMax (double& currentMax, State& currentMaxIdx, double candidateMax, State candidateMaxIdx);
-public:
+struct QuaffViterbiMatrix : QuaffDPMatrix {
   QuaffViterbiMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
   bool resultIsFinite() const { return result > -numeric_limits<double>::infinity(); }
   Alignment alignment() const;
@@ -210,16 +220,22 @@ struct QuaffTrainer {
   QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config);
 };
 
-// config/wrapper struct for Viterbi alignment
-struct QuaffAligner {
+// config/wrapper structs for Viterbi alignment
+struct QuaffAlignmentPrinter {
   enum OutputFormat { GappedFastaAlignment, StockholmAlignment, UngappedFastaRef } format;
   double logOddsThreshold;
+
+  QuaffAlignmentPrinter();
+  bool parseAlignmentPrinterArgs (int& argc, char**& argv);
+  void writeAlignment (ostream& out, const Alignment& align) const;
+};
+
+struct QuaffAligner : QuaffAlignmentPrinter {
   bool printAllAlignments;  // print alignment to every reference sequence that matches
-  
+
   QuaffAligner();
   bool parseAlignmentArgs (int& argc, char**& argv);
   void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
-  void writeAlignment (ostream& out, const Alignment& align) const;
 };
 
 #endif /* QMODEL_INCLUDED */
