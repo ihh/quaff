@@ -23,13 +23,19 @@ QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemente
   m2m = log(qp.refSeqEmit) + 2*log(1-gapOpenProb);
   m2i = m2d = log(gapOpenProb);
   i2i = d2d = log(gapExtendProb);
-  i2d = d2i = log(1-gapExtendProb) * log(gapAdjacentProb);
+  i2d = d2i = log(1-gapExtendProb) + log(gapAdjacentProb);
   i2m = d2m = log(qp.refSeqEmit) + log(1-gapExtendProb) * log(1-gapAdjacentProb);
 
   const QuaffScores qsc (qp);
-  xInsert = qsc.insert;
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    yInsert[i] = qsc.insert[yComplemented ? dnaComplement(i) : i];
+    for (QualScore k = 0; k < FastSeq::qualScoreRange; ++k) {
+      double ll = log(pGapIsInsert) + qsc.insert[i].logSymQualProb[k];
+      for (AlphTok r = 0; r < dnaAlphabetSize; ++r)
+	ll = log_sum_exp (ll, log(1-pGapIsInsert) + log(qp.refBase[r]) + qsc.match[r][i].logSymQualProb[k]);
+      xInsert[i].logSymQualProb[k] = ll;
+    }
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    yInsert[i] = xInsert[yComplemented ? dnaComplement(i) : i];
 
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     for (AlphTok j = 0; j < dnaAlphabetSize; ++j) {
@@ -40,8 +46,8 @@ QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemente
 	  for (AlphTok r = 0; r < dnaAlphabetSize; ++r) {
 	    const AlphTok yStrand_r = yComplemented ? dnaComplement(r) : r;
 	    mij = log_sum_exp (mij, log(qp.refBase[r]) + qsc.match[r][i].logSymQualProb[ik] + qsc.match[yStrand_r][yStrand_j].logSymQualProb[jk]);
-	    matchMinusInsert[i][j].logSymQualPairProb[ik][jk] = mij - xInsert[i].logSymQualProb[ik] - yInsert[j].logSymQualProb[jk];
 	  }
+	  matchMinusInsert[i][j].logSymQualPairProb[ik][jk] = mij - xInsert[i].logSymQualProb[ik] - yInsert[j].logSymQualProb[jk];
 	}
       }
     }
@@ -53,12 +59,13 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
     xTok (px->tokens(dnaAlphabet)),
     yTok (py->tokens(dnaAlphabet)),
     xQual (px->qualScores()),
-    yQual (py->qualScores())
+    yQual (py->qualScores()),
+    xInsertScore (0),
+    yInsertScore (0)
 {
   const FastSeq& x (*px);
   const FastSeq& y (*py);
 
-  xInsertScore = 0;
   for (SeqIdx i = 0; i < xLen; ++i)
     xInsertScore += qos.xInsert[xTok[i]].logSymQualProb[xQual[i]];
 

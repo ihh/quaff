@@ -45,8 +45,12 @@ SymQualDist::SymQualDist()
 
 void SymQualDist::write (ostream& out, const string& prefix) const {
   out << prefix << ": " << symProb << endl;
-  out << prefix << "qp: " << qualTrialSuccessProb << endl;
-  out << prefix << "qr: " << qualNumSuccessfulTrials << endl;
+  out << prefix << "qp: " << qualTrialSuccessProb
+      << "\t# mean " << negativeBinomialMean(qualTrialSuccessProb,qualNumSuccessfulTrials)
+      << endl;
+  out << prefix << "qr: " << qualNumSuccessfulTrials
+      << "\t# stdev " << sqrt(negativeBinomialVariance(qualTrialSuccessProb,qualNumSuccessfulTrials))
+      << endl;
 }
 
 void SymQualDist::read (map<string,string>& paramVal, const string& prefix) {

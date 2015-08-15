@@ -101,6 +101,14 @@ void calcIntDistribMoments (const vguard<double>& kFreq, double& count, double& 
     mean = variance = nan("");
 }
 
+double negativeBinomialMean (double pSuccess, double nSuccess) {
+  return nSuccess * (1 - pSuccess) / pSuccess;
+}
+
+double negativeBinomialVariance (double pSuccess, double nSuccess) {
+  return nSuccess * (1 - pSuccess) / (pSuccess * pSuccess);
+}
+
 int fitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, double& nSuccess) {
   int status;
   double count, mean, variance;

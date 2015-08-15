@@ -14,6 +14,10 @@ using namespace std;
 double logNegativeBinomial (int k, double pSuccess, double nSuccess);
 double logNegativeBinomial (const vguard<double>& kFreq, double pSuccess, double nSuccess);
 
+/* calculate moments of negative binomial distribution */
+double negativeBinomialMean (double pSuccess, double nSuccess);
+double negativeBinomialVariance (double pSuccess, double nSuccess);
+
 /* calculate moments of an integer frequency distribution */
 void calcIntDistribMoments (const vguard<double>& kFreq, double& count, double& mean, double& variance);
 

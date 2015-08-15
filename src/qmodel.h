@@ -21,7 +21,7 @@ struct SymQualDist {
 // Memo-ized log scores for a SymQualDist
 struct SymQualScores {
   vguard<double> logSymQualProb;  // logSymQualProb[q] = P(this symbol wih quality score q)
-  SymQualScores() { }
+  SymQualScores() : logSymQualProb(FastSeq::qualScoreRange) { }
   SymQualScores (const SymQualDist& sqd);
 };
 
