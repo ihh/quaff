@@ -11,27 +11,28 @@ QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemente
     yInsert (dnaAlphabetSize),
     matchMinusInsert (dnaAlphabetSize, vguard<SymQualPairScores> (dnaAlphabetSize))
 {
-  // coarse approximation to various paths through the composite transducer...
+  // coarse approximation to various paths through the intersection of two Quaff transducers...
   const double readInsertProb = qp.beginInsert;
   const double readDeleteProb = (1 - qp.beginInsert) * qp.beginDelete;
+  const double readMatchProb = (1 - qp.beginInsert) * (1 - qp.beginDelete);
   gapOpenProb = readInsertProb + readDeleteProb;
   const double pGapIsInsert = readInsertProb / gapOpenProb;
-  const double meanGapLength = pGapIsInsert / qp.extendInsert + (1 - pGapIsInsert) / (qp.refSeqEmit * qp.extendDelete * (1 - gapOpenProb));
+  const double meanGapLength = pGapIsInsert / qp.extendInsert + (1 - pGapIsInsert) / (qp.refEmit * qp.extendDelete * (1 - gapOpenProb));
   gapExtendProb = 1 / meanGapLength;
   gapAdjacentProb = pGapIsInsert * readInsertProb + (1 - pGapIsInsert) * gapOpenProb / (1 - qp.extendDelete * (1 - gapOpenProb));
   
-  m2m = log(qp.refSeqEmit) + 2*log(1-gapOpenProb);
+  m2m = log(qp.refEmit) + 2*log(1-gapOpenProb);
   m2i = m2d = log(gapOpenProb);
   i2i = d2d = log(gapExtendProb);
   i2d = d2i = log(1-gapExtendProb) + log(gapAdjacentProb);
-  i2m = d2m = log(qp.refSeqEmit) + log(1-gapExtendProb) + log(1-gapAdjacentProb);
+  i2m = d2m = log(qp.refEmit) + log(1-gapExtendProb) + log(1-gapAdjacentProb);
 
   const QuaffScores qsc (qp);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     for (QualScore k = 0; k < FastSeq::qualScoreRange; ++k) {
-      double ll = log(pGapIsInsert) + qsc.insert[i].logSymQualProb[k];
+      double ll = log(pGapIsInsert) + log(qp.extendInsert) + qsc.insert[i].logSymQualProb[k];
       for (AlphTok r = 0; r < dnaAlphabetSize; ++r)
-	ll = log_sum_exp (ll, log(1-pGapIsInsert) + log(qp.refBase[r]) + qsc.match[r][i].logSymQualProb[k]);
+	ll = log_sum_exp (ll, log(1-pGapIsInsert) + log(qp.refEmit) + log(qp.refBase[r]) + log(readMatchProb) + qsc.match[r][i].logSymQualProb[k]);
       xInsert[i].logSymQualProb[k] = ll;
     }
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)

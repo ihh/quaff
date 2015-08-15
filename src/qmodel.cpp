@@ -106,7 +106,7 @@ void SymQualCounts::read (const string& counts) {
 }
 
 QuaffParams::QuaffParams()
-  : refSeqEmit(.5),
+  : refEmit(.5),
     refBase(dnaAlphabetSize,.25),
     beginInsert(.5),
     extendInsert(.5),
@@ -118,7 +118,7 @@ QuaffParams::QuaffParams()
 
 #define QuaffParamWrite(X) out << #X ": " << X << endl
 void QuaffParams::write (ostream& out) const {
-  QuaffParamWrite(refSeqEmit);
+  QuaffParamWrite(refEmit);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     out << "refBase" << dnaAlphabet[i] << ": " << refBase[i] << endl;
   QuaffParamWrite(beginInsert);
@@ -156,7 +156,7 @@ void QuaffParams::fitRefSeqs (const vguard<FastSeq>& refs) {
     for (auto i : fs.tokens(dnaAlphabet))
       ++baseCount[i];
   }
-  refSeqEmit = 1 / (1 + refs.size() / (double) totalLen);
+  refEmit = 1 / (1 + refs.size() / (double) totalLen);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     refBase[i] = baseCount[i] / (double) totalLen;
 }
@@ -343,8 +343,8 @@ FastSeq Alignment::getUngapped (size_t row) const {
 
 bool QuaffDPConfig::parseConfigArgs (int& argc, char**& argv) {
   if (argc > 0) {
-    const char* arg = argv[0];
-    if (strcmp (arg, "-global") == 0) {
+    const string arg = argv[0];
+    if (arg == "-global") {
       local = false;
       argv += 1;
       argc -= 1;
@@ -357,24 +357,41 @@ bool QuaffDPConfig::parseConfigArgs (int& argc, char**& argv) {
 
 bool QuaffDPConfig::parseOverlapConfigArgs (int& argc, char**& argv) {
   if (argc > 0) {
-    const char* arg = argv[0];
-    if (strcmp (arg, "-band") == 0) {
-      Assert (argc > 1, "%s must have an argument", arg);
+    const string arg = argv[0];
+    if (arg == "-band") {
+      Assert (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       bandSize = atoi (val);
       argv += 2;
       argc -= 2;
       return true;
 
-    } else if (strcmp (arg, "-kmer") == 0) {
-      Assert (argc > 1, "%s must have an argument", arg);
+    } else if (arg == "-kmer") {
+      Assert (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       kmerLen = atoi (val);
       argv += 2;
       argc -= 2;
       return true;
 
-    } else if (strcmp (arg, "-dense") == 0) {
+    } else if (arg == "-kmatch") {
+      Assert (argc > 1, "%s must have an argument", arg.c_str());
+      const char* val = argv[1];
+      kmerThreshold = atoi (val);
+      argv += 2;
+      argc -= 2;
+      return true;
+
+    } else if (arg == "-kmatchsd") {
+      Assert (argc > 1, "%s must have an argument", arg.c_str());
+      const char* val = argv[1];
+      kmerStDevThreshold = atof (val);
+      kmerThreshold = -1;
+      argv += 2;
+      argc -= 2;
+      return true;
+
+    } else if (arg == "-dense") {
       sparse = false;
       argv += 1;
       argc -= 1;
@@ -389,7 +406,7 @@ bool QuaffDPConfig::parseOverlapConfigArgs (int& argc, char**& argv) {
 DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const FastSeq& y) const {
   DiagonalEnvelope env (x, y);
   if (sparse)
-    env.initSparse (kmerLen, bandSize);
+    env.initSparse (kmerLen, bandSize, kmerThreshold);
   else
     env.initFull();
   return env;
@@ -969,38 +986,38 @@ QuaffTrainer::QuaffTrainer()
 
 bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
   if (argc > 0) {
-    const char* arg = argv[0];
-    if (strcmp (arg, "-maxiter") == 0) {
-      Assert (argc > 1, "%s must have an argument", arg);
+    const string arg = argv[0];
+    if (arg == "-maxiter") {
+      Assert (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       maxIterations = atoi (val);
       argv += 2;
       argc -= 2;
       return true;
 
-    } else if (strcmp (arg, "-mininc") == 0) {
-      Assert (argc > 1, "%s must have an argument", arg);
+    } else if (arg == "-mininc") {
+      Assert (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       minFractionalLoglikeIncrement = atof (val);
       argv += 2;
       argc -= 2;
       return true;
     
-    } else if (strcmp (arg, "-force") == 0) {
+    } else if (arg == "-force") {
       allowNullModel = false;
       argv += 1;
       argc -= 1;
       return true;
 
-    } else if (strcmp (arg, "-counts") == 0) {
-      Assert (argc > 1, "%s must have an argument", arg);
+    } else if (arg == "-counts") {
+      Assert (argc > 1, "%s must have an argument", arg.c_str());
       rawCountsFilename = argv[1];
       argv += 2;
       argc -= 2;
       return true;
 
-    } else if (strcmp (arg, "-countswithprior") == 0) {
-      Assert (argc > 1, "%s must have an argument", arg);
+    } else if (arg == "-countswithprior") {
+      Assert (argc > 1, "%s must have an argument", arg.c_str());
       countsWithPriorFilename = argv[1];
       argv += 2;
       argc -= 2;
@@ -1091,9 +1108,9 @@ QuaffAlignmentPrinter::QuaffAlignmentPrinter()
 
 bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (int& argc, char**& argv) {
   if (argc > 0) {
-    const char* arg = argv[0];
-    if (strcmp (arg, "-format") == 0) {
-      Assert (argc > 1, "%s must have an argument", arg);
+    const string arg = argv[0];
+    if (arg == "-format") {
+      Assert (argc > 1, "%s must have an argument", arg.c_str());
       const string fmt = argv[1];
       if (fmt == "fasta")
 	format = GappedFastaAlignment;
@@ -1107,15 +1124,15 @@ bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (int& argc, char**& argv) 
       argc -= 2;
       return true;
 
-    } else if (strcmp (arg, "-threshold") == 0) {
-      Assert (argc > 1, "%s must have an argument", arg);
+    } else if (arg == "-threshold") {
+      Assert (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       logOddsThreshold = atof (val);
       argv += 2;
       argc -= 2;
       return true;
 
-    } else if (strcmp (arg, "-nothreshold") == 0) {
+    } else if (arg == "-nothreshold") {
       logOddsThreshold = -numeric_limits<double>::infinity();
       argv += 1;
       argc -= 1;
@@ -1161,8 +1178,8 @@ QuaffAligner::QuaffAligner()
 
 bool QuaffAligner::parseAlignmentArgs (int& argc, char**& argv) {
   if (argc > 0) {
-    const char* arg = argv[0];
-    if (strcmp (arg, "-printall") == 0) {
+    const string arg = argv[0];
+    if (arg == "-printall") {
       printAllAlignments = true;
       argv += 1;
       argc -= 1;

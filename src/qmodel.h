@@ -36,7 +36,7 @@ struct SymQualCounts {
 
 // Parameters of a quaff model
 struct QuaffParams {
-  double refSeqEmit;
+  double refEmit;
   vguard<double> refBase;
   double beginInsert, extendInsert, beginDelete, extendDelete;
   vguard<SymQualDist> insert;  // emissions from insert state
@@ -116,8 +116,16 @@ struct Alignment {
 // DP config
 struct QuaffDPConfig {
   bool local, sparse;
-  int kmerLen, bandSize;
-  QuaffDPConfig() : local(true), sparse(true), kmerLen(7), bandSize(20) { }
+  int kmerLen, kmerThreshold, bandSize;
+  double kmerStDevThreshold;
+  QuaffDPConfig()
+    : local(true),
+      sparse(true),
+      kmerLen(DEFAULT_KMER_LENGTH),
+      kmerThreshold(-1),
+      kmerStDevThreshold(DEFAULT_KMER_STDEV_THRESHOLD),
+      bandSize(DEFAULT_BAND_SIZE)
+  { }
   bool parseConfigArgs (int& argc, char**& argv);
   bool parseOverlapConfigArgs (int& argc, char**& argv);
   DiagonalEnvelope makeEnvelope (const FastSeq& x, const FastSeq& y) const;

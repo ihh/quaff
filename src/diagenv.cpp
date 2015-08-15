@@ -5,11 +5,6 @@
 #include "diagenv.h"
 #include "logger.h"
 
-// A somewhat arbitrary number:
-// The number of standard deviations of the # of kmer matches per diagonal,
-// above which the diagonal is selected to be the center of a band for DP.
-#define THRESHOLD_KMER_STDEVS 10
-
 void DiagonalEnvelope::initFull() {
   diagonals.clear();
   diagonals.reserve (xLen + yLen - 1);
@@ -17,7 +12,7 @@ void DiagonalEnvelope::initFull() {
     diagonals.push_back (d);
 }
 
-void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize) {
+void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, int kmerThreshold, double kmerStDevThreshold) {
   // require at least 2^kmerLen bases on each axis, or fall back to full envelope
   const double minLen = pow (2, kmerLen);
   if (px->length() < minLen || py->length() < minLen) {
@@ -71,7 +66,10 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize) 
     variance = sqsum / n - mean*mean,
     stdev = sqrt(variance);
 
-  const unsigned int threshold = (unsigned int) (mean + THRESHOLD_KMER_STDEVS * stdev);  // 10 standard deviations is arbitrary city!
+  const unsigned int threshold =
+    kmerThreshold >= 0
+    ? (unsigned int) kmerThreshold
+    : (unsigned int) (mean + kmerStDevThreshold * stdev);
 
   if (LogThisAt(3))
     cerr << "Per-diagonal " << kmerLen << "-mer matches: mean " << mean << ", sd " << stdev << ". Threshold for inclusion: " << threshold << endl;
