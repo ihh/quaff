@@ -181,8 +181,10 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
   const SeqIdx xStart = i + 1;
   const SeqIdx yStart = j + 1;
   Alignment align(2);
-  align.gappedSeq[0].name = "substr(" + px->name + "," + to_string(xStart) + ".." + to_string(xEnd) + ")";
-  align.gappedSeq[1].name = "substr(" + py->name + "," + to_string(yStart) + ".." + to_string(yEnd) + ")";
+  align.gappedSeq[0].name = "read_x";
+  align.gappedSeq[0].comment = "substr(" + px->name + "," + to_string(xStart) + ".." + to_string(xEnd) + ")";
+  align.gappedSeq[1].name = "read_y";
+  align.gappedSeq[1].comment = "substr(" + py->name + "," + to_string(yStart) + ".." + to_string(yEnd) + ")";
   align.gappedSeq[0].seq = string (xRow.begin(), xRow.end());
   align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
   align.score = result;
@@ -191,8 +193,15 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
 
 Alignment QuaffOverlapViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nullModel) const {
   Alignment a = alignment();
-  a.score -= nullModel.logLikelihood (*px);
-  a.score -= nullModel.logLikelihood (qos.yComplemented ? py->revcomp() : *py);
+  const double xNullLogLike = nullModel.logLikelihood (*px);
+  const double yNullLogLike = nullModel.logLikelihood (qos.yComplemented ? py->revcomp() : *py);
+  if (LogThisAt(2))
+    cerr << "Null model score: " << (xNullLogLike + yNullLogLike) << endl;
+  if (LogThisAt(3))
+    cerr << "Null model score for " << px->name << ": " << xNullLogLike << endl
+	 << "Null model score for " << py->name << ": " << yNullLogLike << endl;
+  a.score -= xNullLogLike;
+  a.score -= yNullLogLike;
   return a;
 }
 
@@ -212,7 +221,7 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
       DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
       const QuaffOverlapViterbiMatrix viterbi (env, params, ny >= nOriginals);
       if (viterbi.resultIsFinite()) {
-	const Alignment align = viterbi.scoreAdjustedAlignment(nullModel).addScoreComment();
+	const Alignment align = viterbi.scoreAdjustedAlignment(nullModel);
 	writeAlignment (out, align);
       }
     }

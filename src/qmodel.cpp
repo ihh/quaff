@@ -298,12 +298,7 @@ void QuaffParamCounts::read (istream& in) {
 }
 
 const char Alignment::gapChar = '-';
-
-Alignment& Alignment::addScoreComment() {
-  if (rows())
-    ((FastSeq&)gappedSeq[0]).comment = string("score(") + to_string(score) + ") " + gappedSeq[0].comment;
-  return *this;
-}
+const char Alignment::mismatchChar = ':';
 
 void Alignment::writeGappedFasta (ostream& out) const {
   for (const auto& s : gappedSeq)
@@ -311,16 +306,45 @@ void Alignment::writeGappedFasta (ostream& out) const {
 }
 
 void Alignment::writeStockholm (ostream& out) const {
-  out << "# STOCKHOLM 1.0" << endl;
-  out << "#=GF SC " << score << endl;
-  size_t nameWidth = 0;
-  for (const auto& s : gappedSeq)
-    nameWidth = max (s.name.size(), nameWidth);
+  vector<string> rowName, rowData;
   for (const auto& s : gappedSeq) {
-    const streamsize w = out.width (nameWidth);
-    out << s.name;
-    out.width (w);
-    out << ' ' << s.seq << endl;
+    rowName.push_back (s.name);
+    rowData.push_back (s.seq);
+  }
+
+  if (rows() == 2) {
+    string cons;
+    for (SeqIdx pos = 0; pos < columns(); ++pos) {
+      const char c0 = toupper(gappedSeq[0].seq[pos]),
+	c1 = toupper(gappedSeq[1].seq[pos]);
+      cons.push_back ((isGapChar(c0) || isGapChar(c1))
+		      ? gapChar
+		      : (c0 == c1 ? c0 : mismatchChar));
+    }
+    rowName.insert (rowName.begin() + 1, string ("#=GC id"));
+    rowData.insert (rowData.begin() + 1, cons);
+  }
+
+  size_t nameWidth = 0;
+  for (const auto& s : rowName)
+    nameWidth = max (s.size(), nameWidth);
+
+  const size_t dataWidth = max (nameWidth, 79 - nameWidth);  // nice 80-column width
+  
+  out << "# STOCKHOLM 1.0" << endl;
+  out << "#=GF Score " << score << endl;
+  for (const auto& s : gappedSeq)
+    if (s.comment.size())
+      out << "#=GS CC " << s.name << ' ' << s.comment << endl;
+  for (size_t col = 0; col < columns(); col += dataWidth) {
+    if (col > 0)
+      out << endl;
+    for (size_t row = 0; row < rowName.size(); ++row) {
+      const streamsize w = out.width (nameWidth);
+      out << std::left << rowName[row];
+      out.width (w);
+      out << ' ' << rowData[row].substr(col,dataWidth) << endl;
+    }
   }
   out << "//" << endl;
 }
@@ -769,11 +793,13 @@ Alignment QuaffViterbiMatrix::alignment() const {
   }
   const SeqIdx xStart = i + 1;
   Alignment align(2);
+  align.gappedSeq[0].name = "Ref";
   if (pconfig->local)
-    align.gappedSeq[0].name = "substr(" + px->name + "," + to_string(xStart) + ".." + to_string(xEnd) + ")";
+    align.gappedSeq[0].comment = "substr(" + px->name + "," + to_string(xStart) + ".." + to_string(xEnd) + ")";
   else
-    align.gappedSeq[0].name = px->name;
-  align.gappedSeq[1].name = py->name;
+    align.gappedSeq[0].comment = px->name;
+  align.gappedSeq[1].name = "Read";
+  align.gappedSeq[1].comment = py->name;
   align.gappedSeq[0].seq = string (xRow.begin(), xRow.end());
   align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
   align.score = result;
@@ -782,7 +808,10 @@ Alignment QuaffViterbiMatrix::alignment() const {
 
 Alignment QuaffViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nullModel) const {
   Alignment a = alignment();
-  a.score -= nullModel.logLikelihood (*py);
+  const double nullLogLike = nullModel.logLikelihood (*py);
+  if (LogThisAt(2))
+    cerr << "Null model score: " << nullLogLike << endl;
+  a.score -= nullLogLike;
   return a;
 }
 
@@ -1042,6 +1071,8 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
       const auto& yfs = y[ny];
       const double yNullLogLike = allowNullModel ? nullModel.logLikelihood(yfs) : -numeric_limits<double>::infinity();
       double yLogLike = yNullLogLike;  // this initial value allows null model to "win"
+      if (LogThisAt(2))
+	cerr << "Null model score for " << yfs.name << " is " << yNullLogLike << endl;
       vguard<double> xyLogLike;
       vguard<QuaffParamCounts> xyCounts;
       for (auto nx : sortOrder[ny]) {
@@ -1198,7 +1229,7 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
       DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
       const QuaffViterbiMatrix viterbi (env, params, config);
       if (viterbi.resultIsFinite()) {
-	const Alignment align = viterbi.scoreAdjustedAlignment(nullModel).addScoreComment();
+	const Alignment align = viterbi.scoreAdjustedAlignment(nullModel);
 	if (xyAlign.empty() || align.score > xyAlign[nBestAlign].score)
 	  nBestAlign = xyAlign.size();
 	xyAlign.push_back (align);

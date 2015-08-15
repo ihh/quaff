@@ -88,7 +88,7 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
   diags.insert(0);  // always add the zeroth diagonal to ensure at least one path exists
   
   if (LogThisAt(3))
-    cerr << nPastThreshold << " diagonals above threshold; " << diags.size() << " in envelope" << endl;
+    cerr << nPastThreshold << " diagonals above threshold; " << diags.size() << " in envelope (band size " << bandSize << ")" << endl;
 
   diagonals = vector<int> (diags.begin(), diags.end());
 }

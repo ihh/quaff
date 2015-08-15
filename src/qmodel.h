@@ -99,14 +99,14 @@ struct QuaffParamCounts {
 
 // Alignment
 struct Alignment {
-  static const char gapChar;
+  static const char gapChar, mismatchChar;
   vguard<FastSeq> gappedSeq;
   double score;
   Alignment (size_t numRows = 0)
     : gappedSeq(numRows), score(0)
   { }
   const size_t rows() const { return gappedSeq.size(); }
-  Alignment& addScoreComment();  // adds score to comment field of first row
+  const size_t columns() const { return rows() ? gappedSeq[0].length() : 0; }
   void writeGappedFasta (ostream& out) const;
   void writeStockholm (ostream& out) const;
   FastSeq getUngapped (size_t row) const;
@@ -122,7 +122,7 @@ struct QuaffDPConfig {
     : local(true),
       sparse(true),
       kmerLen(DEFAULT_KMER_LENGTH),
-      kmerThreshold(-1),
+      kmerThreshold(DEFAULT_KMER_THRESHOLD),
       kmerStDevThreshold(DEFAULT_KMER_STDEV_THRESHOLD),
       bandSize(DEFAULT_BAND_SIZE)
   { }
