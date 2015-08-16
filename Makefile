@@ -8,7 +8,7 @@ LIBFLAGS = -lstdc++ -lz -lgsl
 
 CPPFILES = $(wildcard src/*.cpp)
 
-all: test
+all: quaff test
 
 clean:
 	rm -rf bin/*
