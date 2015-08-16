@@ -137,7 +137,11 @@ string QuaffKmerContext::insertParamName (AlphTok i) const {
 }
 
 string QuaffKmerContext::matchParamName (AlphTok i, Kmer j) const {
-  return string("match") + dnaAlphabet[i] + (kmerLen > 1 ? "_" : "") + kmerString(j);
+  const string ks = kmerString(j);
+  string name = "match";
+  if (kmerLen > 1)
+    name += ks.substr(0,kmerLen-1) + "_";
+  return name + dnaAlphabet[i] + ks.back();
 }
 
 QuaffParams::QuaffParams (unsigned int kmerLen)
@@ -171,7 +175,7 @@ void QuaffParams::write (ostream& out) const {
     insert[i].write (out, insertParamName(i));
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     for (Kmer j = 0; j < numKmers; ++j)
-      match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
+      match[i][j].write (out, matchParamName(i,j));
 }
 
 #define QuaffParamRead(X) Assert(val.find(#X) != val.end(),"Missing parameter: " #X), X = atof(val[#X].c_str())
