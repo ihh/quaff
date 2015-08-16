@@ -19,10 +19,10 @@ with the following features:
 
 
 <pre><code>
-
 Usage: quaff {help,train,align,overlap} [options]
 
-Commands: 
+Commands:
+
  quaff train -ref refs.fasta -read reads.fastq  &gt;params.yaml
   (to fit a model to unaligned sequences, using EM)
 
@@ -65,4 +65,5 @@ General options (all commands, except where indicated):
    -dense          Do full DP, not just kmer-matching diagonals (memory hog!)
    -null &lt;file&gt;, -savenull &lt;file&gt;
                    Respectively: load/save null model from/to file
+
 </code></pre>
