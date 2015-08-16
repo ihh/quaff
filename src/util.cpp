@@ -6,6 +6,7 @@
 #include <math.h>
 #include <time.h>
 #include "util.h"
+#include "stacktrace.h"
 
 void Warn(const char* warning, ...) {
   va_list argptr;
@@ -15,6 +16,30 @@ void Warn(const char* warning, ...) {
   va_end (argptr);
 }
 
+void TraceAbort(const char* error, ...) {
+  va_list argptr;
+  va_start (argptr, error);
+  fprintf(stderr,"Abort: ");
+  vfprintf(stderr,error,argptr);
+  fprintf(stderr,"\n");
+  va_end (argptr);
+  printStackTrace();
+  throw;
+}
+
+void TraceAssert(int assertion, const char* error, ...) {
+  va_list argptr;
+  if(!assertion) {
+    va_start (argptr, error);
+    fprintf(stderr,"Assertion Failed: ");
+    vfprintf(stderr,error,argptr);
+    fprintf(stderr,"\n");
+    va_end (argptr);
+    printStackTrace();
+    throw;
+  }
+}
+
 void Abort(const char* error, ...) {
   va_list argptr;
   va_start (argptr, error);
@@ -22,7 +47,7 @@ void Abort(const char* error, ...) {
   vfprintf(stderr,error,argptr);
   fprintf(stderr,"\n");
   va_end (argptr);
-  throw;
+  exit (EXIT_FAILURE);
 }
 
 void Assert(int assertion, const char* error, ...) {
@@ -33,7 +58,7 @@ void Assert(int assertion, const char* error, ...) {
     vfprintf(stderr,error,argptr);
     fprintf(stderr,"\n");
     va_end (argptr);
-    throw;
+    exit (EXIT_FAILURE);
   }
 }
 

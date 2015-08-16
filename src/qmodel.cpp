@@ -836,7 +836,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
       updateMax (srcSc, state, del(i,j) + qs.d2m + emitSc, Delete);
       if (j == 0 && (i == 0 || pconfig->local))
 	updateMax (srcSc, state, emitSc, Start);
-      Assert (srcSc == mat(i+1,j+1), "Traceback error");
+      TraceAssert (srcSc == mat(i+1,j+1), "Traceback error");
       break;
 
     case Insert:
@@ -845,7 +845,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
       yRow.push_front (py->seq[--j]);
       updateMax (srcSc, state, mat(i,j) + qs.m2i + emitSc, Match);
       updateMax (srcSc, state, ins(i,j) + qs.i2i + emitSc, Insert);
-      Assert (srcSc == ins(i,j+1), "Traceback error");
+      TraceAssert (srcSc == ins(i,j+1), "Traceback error");
       break;
 
     case Delete:
@@ -853,11 +853,11 @@ Alignment QuaffViterbiMatrix::alignment() const {
       yRow.push_front (Alignment::gapChar);
       updateMax (srcSc, state, mat(i,j) + qs.m2d, Match);
       updateMax (srcSc, state, del(i,j) + qs.d2d, Delete);
-      Assert (srcSc == del(i+1,j), "Traceback error");
+      TraceAssert (srcSc == del(i+1,j), "Traceback error");
       break;
 
     default:
-      Abort ("Traceback error");
+      TraceAbort ("Traceback error");
       break;
     }
   }
@@ -886,7 +886,7 @@ Alignment QuaffViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nul
 }
 
 void QuaffParamCounts::addWeighted (const QuaffParamCounts& counts, double weight) {
-  Assert (counts.kmerLen == kmerLen, "Cannot add two QuaffParamCounts with different kmer lengths");
+  TraceAssert (counts.kmerLen == kmerLen, "Cannot add two QuaffParamCounts with different kmer lengths");
   for (QualScore q = 0; q < FastSeq::qualScoreRange; ++q)
     for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
       insert[i].qualCount[q] += weight * counts.insert[i].qualCount[q];
@@ -1141,7 +1141,7 @@ bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
 
 QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config) {
   const unsigned int kmerLen = seed.kmerLen;
-  Assert (pseudocounts.kmerLen == kmerLen, "Prior must have same kmer-length as parameters");
+  TraceAssert (pseudocounts.kmerLen == kmerLen, "Prior must have same kmer-length as parameters");
   QuaffParams qp = seed;
   QuaffParamCounts counts(kmerLen), countsWithPrior(kmerLen);
   double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
@@ -1273,7 +1273,7 @@ void QuaffAlignmentPrinter::writeAlignment (ostream& out, const Alignment& align
       break;
 
     case UngappedFastaRef:
-      Assert (align.rows() == 2, "Not a pairwise alignment");
+      TraceAssert (align.rows() == 2, "Not a pairwise alignment");
       ref = align.getUngapped(0);
       ref.comment = string("matches(") + align.gappedSeq[1].name + ") " + ref.comment;
       ref.writeFasta (out);

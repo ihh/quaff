@@ -370,7 +370,6 @@ void SeqList::loadSequences() {
     addRevcomps (seqs);
 }
 
-
 QuaffUsage::QuaffUsage (int& argc, char**& argv)
   : argc(argc),
     argv(argv),
@@ -445,7 +444,8 @@ string QuaffUsage::getCommand() {
 bool QuaffUsage::parseUnknown() {
   if (argc > 0) {
     cerr << text << "Unknown option: " << argv[0] << endl;
-    Abort ("Error parsing command-line options");
+    cerr << "Error parsing command-line options\n";
+    exit (EXIT_FAILURE);
   }
   return false;
 }

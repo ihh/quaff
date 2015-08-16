@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <iostream>
+#include "stacktrace.h"
 
 /* vector with accessor guards */
 template<typename T>
@@ -27,6 +28,7 @@ public:
 #ifdef USE_VECTOR_GUARDS
     if (__n < 0 || __n >= this->size()) {
       std::cerr << "vector overflow: element " << __n << ", size is " << this->size() << std::endl;
+      printStackTrace();
       throw;
     }
 #endif  /* USE_VECTOR_GUARDS */
@@ -37,6 +39,7 @@ public:
 #ifdef USE_VECTOR_GUARDS
     if (__n < 0 || __n >= this->size()) {
       std::cerr << "const vector overflow: element " << __n << ", size is " << this->size() << std::endl;
+      printStackTrace();
       throw;
     }
 #endif  /* USE_VECTOR_GUARDS */

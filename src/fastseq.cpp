@@ -70,7 +70,7 @@ vguard<Kmer> FastSeq::kmers (const string& alphabet, unsigned int k) const {
   tok.insert (tok.begin(), k - 1, mostFrequentToken);
   vector<Kmer> result;
   result.reserve (length());
-  for (SeqIdx pos = 0; pos <= length(); ++pos)
+  for (SeqIdx pos = 0; pos < length(); ++pos)
     result.push_back (makeKmer (k, tok.begin() + pos, (AlphTok) alphabet.size()));
   return result;
 }

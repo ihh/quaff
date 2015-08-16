@@ -7,10 +7,15 @@
 /* uncomment to enable NaN checks */
 #define NAN_DEBUG
 
-/* errors, warnings, assertions */
+/* Errors, warnings, assertions.
+   "Trace" versions of Abort/Assert throw an exception and print a stack trace;
+   other versions just call exit().
+*/
 void Abort(const char* error, ...);
 void Assert(int assertion, const char* error, ...);
 void Warn(const char* warning, ...);
+void TraceAbort(const char* error, ...);
+void TraceAssert(int assertion, const char* error, ...);
 
 /* progress logging */
 void initProgress (const char* desc, ...);

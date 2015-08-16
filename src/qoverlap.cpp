@@ -32,22 +32,27 @@ QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemente
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     yInsert[i] = xInsert[yComplemented ? dnaComplement(i) : i];
 
-  for (Kmer i = 0; i < numKmers; ++i)
-    for (Kmer j = 0; j < numKmers; ++j) {
-      for (QualScore ik = 0; ik < FastSeq::qualScoreRange; ++ik) {
-	for (QualScore jk = 0; jk < FastSeq::qualScoreRange; ++jk) {
-	  double mij = -numeric_limits<double>::infinity();
-	  for (AlphTok r = 0; r < dnaAlphabetSize; ++r) {
-	    const AlphTok yStrand_r = yComplemented ? dnaComplement(r) : r;
-	    mij = log_sum_exp (mij, log(qp.refBase[r]) + qsc.match[r][i].logSymQualProb[ik] + qsc.match[yStrand_r][j].logSymQualProb[jk]);
+  for (Kmer iPrefix = 0; iPrefix < numKmers; iPrefix += dnaAlphabetSize)
+    for (AlphTok iSuffix = 0; iSuffix < dnaAlphabetSize; ++iSuffix) {
+      const Kmer i = iPrefix + iSuffix;
+      for (Kmer jPrefix = 0; jPrefix < numKmers; jPrefix += dnaAlphabetSize)
+	for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix) {
+	  const Kmer j = jPrefix + jSuffix;
+	  for (QualScore ik = 0; ik < FastSeq::qualScoreRange; ++ik) {
+	    for (QualScore jk = 0; jk < FastSeq::qualScoreRange; ++jk) {
+	      double mij = -numeric_limits<double>::infinity();
+	      for (AlphTok r = 0; r < dnaAlphabetSize; ++r) {
+		const AlphTok yStrand_r = yComplemented ? dnaComplement(r) : r;
+		mij = log_sum_exp (mij, log(qp.refBase[r]) + qsc.match[r][i].logSymQualProb[ik] + qsc.match[yStrand_r][j].logSymQualProb[jk]);
+	      }
+	      SymQualPairScores& sqps = matchMinusInsert[i][j];
+	      sqps.logSymQualPairProb[ik][jk] = mij - xInsert[iSuffix].logSymQualProb[ik] - yInsert[jSuffix].logSymQualProb[jk];
+	      sqps.logSymPairXQualProb[ik] = log_sum_exp (sqps.logSymPairXQualProb[ik], mij - xInsert[iSuffix].logSymQualProb[ik] - yInsert[jSuffix].logSymProb);
+	      sqps.logSymPairYQualProb[jk] = log_sum_exp (sqps.logSymPairYQualProb[jk], mij - xInsert[iSuffix].logSymProb - yInsert[jSuffix].logSymQualProb[jk]);
+	      sqps.logSymPairProb = log_sum_exp (sqps.logSymPairProb, mij - xInsert[iSuffix].logSymProb - yInsert[jSuffix].logSymProb);
+	    }
 	  }
-	  SymQualPairScores& sqps = matchMinusInsert[i][j];
-	  sqps.logSymQualPairProb[ik][jk] = mij - xInsert[i].logSymQualProb[ik] - yInsert[j].logSymQualProb[jk];
-	  sqps.logSymPairXQualProb[ik] = log_sum_exp (sqps.logSymPairXQualProb[ik], mij - xInsert[i].logSymQualProb[ik] - yInsert[j].logSymProb);
-	  sqps.logSymPairYQualProb[jk] = log_sum_exp (sqps.logSymPairYQualProb[jk], mij - xInsert[i].logSymProb - yInsert[j].logSymQualProb[jk]);
-	  sqps.logSymPairProb = log_sum_exp (sqps.logSymPairProb, mij - xInsert[i].logSymProb - yInsert[j].logSymProb);
 	}
-      }
     }
 }
 
@@ -74,7 +79,13 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
     yTok = y.tokens(dnaAlphabet);
     yKmer = y.kmers(dnaAlphabet,qp.kmerLen);
   }
-  
+
+  for (SeqIdx i = 0; i < xLen; ++i)
+    Assert (xKmer[i] < qos.numKmers, "oops. xKmer %u/%u is %llu", i, xLen, xKmer[i]);
+
+  for (SeqIdx j = 0; j < yLen; ++j)
+    Assert (yKmer[j] < qos.numKmers, "oops. yKmer %u/%u is %llu", j, yLen, yKmer[j]);
+
   for (SeqIdx i = 0; i < xLen; ++i) {
     const SymQualScores& sqs = qos.xInsert[xTok[i]];
     xInsertScore += xQual.size() ? sqs.logSymQualProb[xQual[i]] : sqs.logSymProb;
