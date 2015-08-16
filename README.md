@@ -18,7 +18,8 @@ with the following features:
   informative for nanopore reads
 
 
-<pre>
+<pre><code>
+
 Usage: quaff {help,train,align,overlap} [options]
 
 Commands:
@@ -65,4 +66,4 @@ General options (all commands, except where indicated):
    -dense          Do full DP, not just kmer-matching diagonals (memory hog!)
    -null <file>, -savenull <file>
                    Respectively: load/save null model from/to file
-</pre>
+</code></pre>
