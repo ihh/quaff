@@ -116,7 +116,7 @@ void QuaffKmerContext::initKmerContext (unsigned int newKmerLen) {
 }
 
 void QuaffKmerContext::readKmerLen (map<string,string>& paramVal) {
-  const string tag ("kmerlen");
+  const string tag ("order");
   if (paramVal.find(tag) == paramVal.end())
     initKmerContext (1);
   else
@@ -125,7 +125,7 @@ void QuaffKmerContext::readKmerLen (map<string,string>& paramVal) {
 
 void QuaffKmerContext::writeKmerLen (ostream& out) const {
   if (kmerLen > 1)
-    out << "kmerlen: " << kmerLen << endl;
+    out << "order: " << kmerLen << endl;
 }
 
 string QuaffKmerContext::kmerString (Kmer kmer) const {
@@ -300,12 +300,15 @@ void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, d
       else
 	insert[j].qualCount[k] = otherCount / FastSeq::qualScoreRange;
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer j = 0; j < numKmers; ++j)
-      for (QualScore k = 0; k < FastSeq::qualScoreRange; ++k)
-	if (nullModel)
-	  match[i][j].qualCount[k] = (i == j ? matchIdentCount : (otherCount * nullModel->null[j].symProb * dnaAlphabetSize / (1 - nullModel->null[i].symProb))) * gsl_ran_negative_binomial_pdf (k, nullModel->null[j].qualTrialSuccessProb, nullModel->null[j].qualNumSuccessfulTrials);
-	else
-	  match[i][j].qualCount[k] = (i == j ? matchIdentCount : otherCount) / FastSeq::qualScoreRange;
+    for (Kmer jPrefix = 0; jPrefix < numKmers; jPrefix += dnaAlphabetSize)
+      for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix) {
+	const Kmer j = jPrefix + jSuffix;
+	for (QualScore k = 0; k < FastSeq::qualScoreRange; ++k)
+	  if (nullModel)
+	    match[i][j].qualCount[k] = (i == j ? matchIdentCount : (otherCount * nullModel->null[jSuffix].symProb * dnaAlphabetSize / (1 - nullModel->null[jSuffix].symProb))) * gsl_ran_negative_binomial_pdf (k, nullModel->null[jSuffix].qualTrialSuccessProb, nullModel->null[jSuffix].qualNumSuccessfulTrials);
+	  else
+	    match[i][j].qualCount[k] = (i == j ? matchIdentCount : otherCount) / FastSeq::qualScoreRange;
+      }
   beginInsertNo = noBeginCount;
   beginInsertYes = otherCount;
   extendInsertNo = otherCount;
@@ -945,7 +948,7 @@ double QuaffParamCounts::expectedLogLike (const QuaffParams& qp) const {
 }
 
 QuaffParams QuaffParamCounts::fit() const {
-  QuaffParams qp;
+  QuaffParams qp (kmerLen);
   qp.beginDelete = 1. / (1. + beginDeleteNo / beginDeleteYes);
   qp.extendDelete = 1. / (1. + extendDeleteNo / extendDeleteYes);
   qp.beginInsert = 1. / (1. + beginInsertNo / beginInsertYes);

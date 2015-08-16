@@ -86,6 +86,10 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "overlap -params params.yaml -reads /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -reads /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -vv -noquals"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "train -ref /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -reads /Users/yam/latex/nanopair/nanopair-data/ch8_file30_strand.fastq -vvv -order 2"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

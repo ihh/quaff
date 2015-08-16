@@ -40,7 +40,7 @@ struct SymQualCounts {
 
 // Base class for various parameter structs that know about kmers
 class QuaffKmerContext {
-private:
+protected:
   QuaffKmerContext();  // prohibit default constructor
   void initKmerContext (unsigned int newKmerLen);
 public:

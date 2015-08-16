@@ -78,19 +78,20 @@ struct QuaffNullParamsIn : QuaffNullParams {
 struct QuaffPriorIn : QuaffParamCounts {
   int& argc;
   char**& argv;
-  bool initialized;
+  bool initialized, kmerLenSpecified;
   string saveFilename;
 
   QuaffPriorIn (int& argc, char**& argv)
-    : QuaffParamCounts(1),  // fix kmerLen at 1, for now
+    : QuaffParamCounts(1),  // fix initial kmerLen at 1
       argc(argc),
       argv(argv),
-      initialized(false)
+      initialized(false),
+      kmerLenSpecified(false)
   { }
 
-  bool parsePriorFilename();
+  bool parsePriorArgs();
   void requirePrior();
-  void requirePriorOrUseNullModel (const QuaffNullParams& nullModel);
+  void requirePriorOrUseNullModel (const QuaffNullParams& nullModel, const QuaffParamsIn& params);
 };
 
 int main (int argc, char** argv) {
@@ -139,7 +140,7 @@ int main (int argc, char** argv) {
 	   || config.parseConfigArgs (argc, argv)
 	   || params.parseParamFilename()
 	   || nullModel.parseNullModelFilename()
-	   || prior.parsePriorFilename()
+	   || prior.parsePriorArgs()
 	   || refs.parseSeqFilename()
 	   || refs.parseRevcompArgs()
 	   || reads.parseSeqFilename()
@@ -150,7 +151,7 @@ int main (int argc, char** argv) {
     refs.loadSequences();
 
     nullModel.requireNullModelOrFit (reads);
-    prior.requirePriorOrUseNullModel (nullModel);
+    prior.requirePriorOrUseNullModel (nullModel, params);
     params.requireParamsOrUsePrior (prior);
 
     QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, nullModel, prior, config);
@@ -254,7 +255,7 @@ void QuaffNullParamsIn::requireNullModelOrFit (const SeqList& seqList) {
   }
 }
 
-bool QuaffPriorIn::parsePriorFilename() {
+bool QuaffPriorIn::parsePriorArgs() {
   if (argc > 0) {
     const string arg = argv[0];
     if (arg == "-prior") {
@@ -267,21 +268,42 @@ bool QuaffPriorIn::parsePriorFilename() {
       argv += 2;
       return true;
 
+    } else if (arg == "-order") {
+      Assert (argc > 1, "%s needs an argument", arg.c_str());
+      initKmerContext (atoi (argv[1]));
+      resize();
+      kmerLenSpecified = true;
+      argc -= 2;
+      argv += 2;
+      return true;
+
     } else if (arg == "-saveprior") {
       Assert (argc > 1, "%s needs an argument", arg.c_str());
       saveFilename = argv[1];
       argc -= 2;
       argv += 2;
       return true;
+
     }
   }
   return false;
 }
 
-void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffNullParams& nullModel) {
-  if (!initialized) {
+void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffNullParams& nullModel, const QuaffParamsIn& params) {
+  if (initialized) {
+    if (params.initialized)
+      Assert (kmerLen == params.kmerLen, "Model order in prior file (%d) does not match model order in parameter file (%d)", kmerLen, params.kmerLen);
+  } else {
     if (LogThisAt(1))
       cerr << "Auto-setting prior from null model" << endl;
+    if (params.initialized) {
+      if (kmerLenSpecified)
+	Assert (kmerLen == params.kmerLen, "Model order specified on command-line (%d) does not match model order in parameter file (%d)", kmerLen, params.kmerLen);
+      else {
+	initKmerContext (params.kmerLen);
+	resize();
+      }
+    }
     initCounts (9, 9, 5, 1, &nullModel);
   }
   if (saveFilename.size()) {
