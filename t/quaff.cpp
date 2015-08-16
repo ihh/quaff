@@ -443,9 +443,17 @@ string QuaffUsage::getCommand() {
 
 bool QuaffUsage::parseUnknown() {
   if (argc > 0) {
-    cerr << text << "Unknown option: " << argv[0] << endl;
-    cerr << "Error parsing command-line options\n";
-    exit (EXIT_FAILURE);
+    string arg (argv[0]);
+    if (arg == "-abort") {
+      // test stack trace
+      Abort ("abort triggered");
+
+    } else {
+      cerr << text << "Unknown option: " << arg << endl;
+      cerr << "Error parsing command-line options\n";
+      exit (EXIT_FAILURE);
+
+    }
   }
   return false;
 }

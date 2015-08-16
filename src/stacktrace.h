@@ -6,7 +6,7 @@
 
 // http://oroboro.com/stack-trace-on-crash/
 static inline void printStackTrace( FILE *out = stderr, unsigned int max_frames = 63 ) {
-  fprintf(out, "stack trace:\n");
+  fprintf(out, "Stack trace:\n");
  
   // storage array for stack trace address data
   void* addrlist[max_frames+1];
@@ -24,7 +24,7 @@ static inline void printStackTrace( FILE *out = stderr, unsigned int max_frames 
  
   // print the stack trace.
   auto i = addrlen;
-  for ( i = 4; i < addrlen; i++ )
+  for ( i = 1; i < addrlen; i++ )
     fprintf( out, "%s\n", symbollist[i] );
  
   free(symbollist);
