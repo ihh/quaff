@@ -41,6 +41,6 @@ testnegbinom: bin/testnegbinom
 quaff: bin/quaff
 
 # For updating README.md
-README.md: quaff
+README.md: bin/quaff
 	PATH=bin:$(PATH); quaff help | perl -pe 's/</&lt;/g;s/>/&gt;/g;' | perl -e 'open FILE,"<README.md";while(<FILE>){last if/<pre>/;print}close FILE;print"<pre><code>\n";while(<>){print};print"</code></pre>\n"' >temp.md
 	mv temp.md $@

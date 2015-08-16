@@ -388,6 +388,7 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "   -maxiter <n>    Max number of EM iterations\n"
     + "   -mininc <n>     EM convergence threshold (relative log-likelihood increase)\n"
     + "   -force          Force each read to match a refseq, i.e. disallow null model\n"
+    + "   -order <k>      Allow substitutions to depend on k-mer contexts\n"
     + "   -prior <file>, -saveprior <file>\n"
     + "                   Respectively: load/save prior pseudocounts from/to file\n"
     + "   -counts <file>  Save E-step counts to file, which can then be used as a prior\n"

@@ -29,6 +29,7 @@ Commands:
    -maxiter &lt;n&gt;    Max number of EM iterations
    -mininc &lt;n&gt;     EM convergence threshold (relative log-likelihood increase)
    -force          Force each read to match a refseq, i.e. disallow null model
+   -order &lt;k&gt;      Allow substitutions to depend on k-mer contexts
    -prior &lt;file&gt;, -saveprior &lt;file&gt;
                    Respectively: load/save prior pseudocounts from/to file
    -counts &lt;file&gt;  Save E-step counts to file, which can then be used as a prior
