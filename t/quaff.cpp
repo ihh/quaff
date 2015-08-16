@@ -357,12 +357,14 @@ void SeqList::loadSequences() {
 
   for (const auto& s : filenames) {
     vguard<FastSeq> fsvec = readFastSeqs (s.c_str());
-    for (auto& fs: fsvec)
+    for (auto& fs: fsvec) {
       if (wantQualScores)
 	Require (fs.hasQual(), "Sequence %s in file %s does not have quality scores", fs.name.c_str(), s.c_str());
       else
 	fs.qual.clear();
-    seqs.insert (seqs.end(), fsvec.begin(), fsvec.end());
+      if (fs.length())  // skip zero-length sequences
+	seqs.push_back (fs);
+    }
   }
 
   nOriginals = seqs.size();
