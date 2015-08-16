@@ -382,7 +382,7 @@ bool QuaffDPConfig::parseConfigArgs (int& argc, char**& argv) {
 bool QuaffDPConfig::parseOverlapConfigArgs (int& argc, char**& argv) {
   if (argc > 0) {
     const string arg = argv[0];
-    if (arg == "-band") {
+    if (arg == "-kmatchband") {
       Assert (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       bandSize = atoi (val);

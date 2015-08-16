@@ -365,7 +365,7 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "\n"
     + "   -params <file>  Optional initial parameters\n"
     + "   -maxiter <n>    Max number of EM iterations\n"
-    + "   -mininc <f>     EM convergence threshold (relative log-likelihood increase)\n"
+    + "   -mininc <n>     EM convergence threshold (relative log-likelihood increase)\n"
     + "   -force          Force each read to match a refseq, i.e. disallow null model\n"
     + "   -prior <file>, -saveprior <file>\n"
     + "                   Respectively: load/save prior pseudocounts from/to file\n"
@@ -387,7 +387,7 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "Alignment options (align/overlap commands):\n"
     + "   -format {fasta,stockholm,refseq}\n"
     + "                   Alignment output format\n"
-    + "   -threshold <f>\n"
+    + "   -threshold <n>\n"
     + "   -nothreshold    Log-odds ratio score threshold for alignment reporting\n"
     + "   -noquals        Ignore read quality scores during alignment\n"
     + "\n"
@@ -402,8 +402,8 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "   -kmatchn <n>    Threshold# of kmer matches to include a diagonal (default " + to_string(DEFAULT_KMER_THRESHOLD) + ")\n"
     // uncomment to document this uncertain, experimental option:
     //    + "   -kmatchsd <n>   Set kmer threshold to n standard deviations above background\n"
-    + "   -band           Size of DP band around kmer-matching diagonals (default " + to_string(DEFAULT_BAND_SIZE) + ")\n"
-    + "   -dense          Do full DP, not just best-looking diagonals (memory hog!)\n"
+    + "   -kmatchband <n> Size of DP band around kmer-matching diagonals (default " + to_string(DEFAULT_BAND_SIZE) + ")\n"
+    + "   -dense          Do full DP, not just kmer-matching diagonals (memory hog!)\n"
     + "   -null <file>, -savenull <file>\n"
     + "                   Respectively: load/save null model from/to file\n"
     + "\n";
