@@ -59,7 +59,7 @@ General options (all commands, except where indicated):
                    Various levels of logging
    -fwdstrand      Do not include reverse-complemented sequences
    -global         Force all of refseq to be aligned (align/train only)
-   -kmatch         Length of kmers for pre-filtering heuristic (default 6)
+   -kmatch &lt;k&gt;     Length of kmers for pre-filtering heuristic (default 6)
    -kmatchn &lt;n&gt;    Threshold# of kmer matches to include a diagonal (default 14)
    -kmatchband &lt;n&gt; Size of DP band around kmer-matching diagonals (default 64)
    -dense          Do full DP, not just kmer-matching diagonals (memory hog!)
