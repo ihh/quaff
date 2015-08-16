@@ -55,9 +55,9 @@ void SymQualDist::write (ostream& out, const string& prefix) const {
 
 void SymQualDist::read (map<string,string>& paramVal, const string& prefix) {
   const string qp = prefix + "qp", qr = prefix + "qr";
-  Assert (paramVal.find(prefix) != paramVal.end(), "Missing parameter: %s", prefix.c_str());
-  Assert (paramVal.find(qp) != paramVal.end(), "Missing parameter: %s", qp.c_str());
-  Assert (paramVal.find(qr) != paramVal.end(), "Missing parameter: %s", qr.c_str());
+  Require (paramVal.find(prefix) != paramVal.end(), "Missing parameter: %s", prefix.c_str());
+  Require (paramVal.find(qp) != paramVal.end(), "Missing parameter: %s", qp.c_str());
+  Require (paramVal.find(qr) != paramVal.end(), "Missing parameter: %s", qr.c_str());
   symProb = atof (paramVal[prefix].c_str());
   qualTrialSuccessProb = atof (paramVal[qp].c_str());
   qualNumSuccessfulTrials = atof (paramVal[qr].c_str());
@@ -178,7 +178,7 @@ void QuaffParams::write (ostream& out) const {
       match[i][j].write (out, matchParamName(i,j));
 }
 
-#define QuaffParamRead(X) Assert(val.find(#X) != val.end(),"Missing parameter: " #X), X = atof(val[#X].c_str())
+#define QuaffParamRead(X) Require(val.find(#X) != val.end(),"Missing parameter: " #X), X = atof(val[#X].c_str())
 void QuaffParams::read (istream& in) {
   map<string,string> val = readParamFile (in);
 
@@ -449,7 +449,7 @@ bool QuaffDPConfig::parseOverlapConfigArgs (int& argc, char**& argv) {
   if (argc > 0) {
     const string arg = argv[0];
     if (arg == "-kmatchband") {
-      Assert (argc > 1, "%s must have an argument", arg.c_str());
+      Require (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       bandSize = atoi (val);
       argv += 2;
@@ -457,16 +457,16 @@ bool QuaffDPConfig::parseOverlapConfigArgs (int& argc, char**& argv) {
       return true;
 
     } else if (arg == "-kmatch") {
-      Assert (argc > 1, "%s must have an argument", arg.c_str());
+      Require (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       kmerLen = atoi (val);
-      Assert (kmerLen >= 5 && kmerLen <= 16, "%s out of range (%d). Try 5 to 16", arg.c_str(), kmerLen);
+      Require (kmerLen >= 5 && kmerLen <= 16, "%s out of range (%d). Try 5 to 16", arg.c_str(), kmerLen);
       argv += 2;
       argc -= 2;
       return true;
 
     } else if (arg == "-kmatchn") {
-      Assert (argc > 1, "%s must have an argument", arg.c_str());
+      Require (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       kmerThreshold = atoi (val);
       argv += 2;
@@ -474,7 +474,7 @@ bool QuaffDPConfig::parseOverlapConfigArgs (int& argc, char**& argv) {
       return true;
 
     } else if (arg == "-kmatchsd") {
-      Assert (argc > 1, "%s must have an argument", arg.c_str());
+      Require (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       kmerStDevThreshold = atof (val);
       kmerThreshold = -1;
@@ -579,7 +579,7 @@ QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp
     yQual (py->qualScores()),
     cachedInsertEmitScore (py->length() + 1, -numeric_limits<double>::infinity())
 {
-  Assert (py->hasQual(), "Read sequences must have quality scores (FASTQ, not FASTA)");
+  Require (py->hasQual(), "Read sequences must have quality scores (FASTQ, not FASTA)");
   for (SeqIdx j = 1; j <= py->length(); ++j)
     cachedInsertEmitScore[j] = insertEmitScore(j);
 }
@@ -645,7 +645,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
     pfwd (&fwd),
     qc(fwd.qs.kmerLen)
 {
-  Assert (py->hasQual(), "Forward-Backward algorithm requires quality scores to fit model, but sequence %s lacks quality scores", py->name.c_str());
+  Require (py->hasQual(), "Forward-Backward algorithm requires quality scores to fit model, but sequence %s lacks quality scores", py->name.c_str());
 
   if (LogThisAt(2))
     initProgress ("Backward algorithm (%s vs %s)", px->name.c_str(), py->name.c_str());
@@ -805,7 +805,7 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
 }
 
 Alignment QuaffViterbiMatrix::alignment() const {
-  Assert (resultIsFinite(), "Can't do Viterbi traceback if final score is -infinity");
+  Require (resultIsFinite(), "Can't do Viterbi traceback if final score is -infinity");
   SeqIdx xEnd = xLen;
   if (pconfig->local) {
     double bestEndSc = -numeric_limits<double>::infinity();
@@ -836,7 +836,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
       updateMax (srcSc, state, del(i,j) + qs.d2m + emitSc, Delete);
       if (j == 0 && (i == 0 || pconfig->local))
 	updateMax (srcSc, state, emitSc, Start);
-      TraceAssert (srcSc == mat(i+1,j+1), "Traceback error");
+      Assert (srcSc == mat(i+1,j+1), "Traceback error");
       break;
 
     case Insert:
@@ -845,7 +845,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
       yRow.push_front (py->seq[--j]);
       updateMax (srcSc, state, mat(i,j) + qs.m2i + emitSc, Match);
       updateMax (srcSc, state, ins(i,j) + qs.i2i + emitSc, Insert);
-      TraceAssert (srcSc == ins(i,j+1), "Traceback error");
+      Assert (srcSc == ins(i,j+1), "Traceback error");
       break;
 
     case Delete:
@@ -853,11 +853,11 @@ Alignment QuaffViterbiMatrix::alignment() const {
       yRow.push_front (Alignment::gapChar);
       updateMax (srcSc, state, mat(i,j) + qs.m2d, Match);
       updateMax (srcSc, state, del(i,j) + qs.d2d, Delete);
-      TraceAssert (srcSc == del(i+1,j), "Traceback error");
+      Assert (srcSc == del(i+1,j), "Traceback error");
       break;
 
     default:
-      TraceAbort ("Traceback error");
+      Abort ("Traceback error");
       break;
     }
   }
@@ -886,7 +886,7 @@ Alignment QuaffViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nul
 }
 
 void QuaffParamCounts::addWeighted (const QuaffParamCounts& counts, double weight) {
-  TraceAssert (counts.kmerLen == kmerLen, "Cannot add two QuaffParamCounts with different kmer lengths");
+  Assert (counts.kmerLen == kmerLen, "Cannot add two QuaffParamCounts with different kmer lengths");
   for (QualScore q = 0; q < FastSeq::qualScoreRange; ++q)
     for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
       insert[i].qualCount[q] += weight * counts.insert[i].qualCount[q];
@@ -1099,7 +1099,7 @@ bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
   if (argc > 0) {
     const string arg = argv[0];
     if (arg == "-maxiter") {
-      Assert (argc > 1, "%s must have an argument", arg.c_str());
+      Require (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       maxIterations = atoi (val);
       argv += 2;
@@ -1107,7 +1107,7 @@ bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
       return true;
 
     } else if (arg == "-mininc") {
-      Assert (argc > 1, "%s must have an argument", arg.c_str());
+      Require (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       minFractionalLoglikeIncrement = atof (val);
       argv += 2;
@@ -1121,14 +1121,14 @@ bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
       return true;
 
     } else if (arg == "-counts") {
-      Assert (argc > 1, "%s must have an argument", arg.c_str());
+      Require (argc > 1, "%s must have an argument", arg.c_str());
       rawCountsFilename = argv[1];
       argv += 2;
       argc -= 2;
       return true;
 
     } else if (arg == "-countswithprior") {
-      Assert (argc > 1, "%s must have an argument", arg.c_str());
+      Require (argc > 1, "%s must have an argument", arg.c_str());
       countsWithPriorFilename = argv[1];
       argv += 2;
       argc -= 2;
@@ -1141,7 +1141,7 @@ bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
 
 QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config) {
   const unsigned int kmerLen = seed.kmerLen;
-  TraceAssert (pseudocounts.kmerLen == kmerLen, "Prior must have same kmer-length as parameters");
+  Assert (pseudocounts.kmerLen == kmerLen, "Prior must have same kmer-length as parameters");
   QuaffParams qp = seed;
   QuaffParamCounts counts(kmerLen), countsWithPrior(kmerLen);
   double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
@@ -1225,7 +1225,7 @@ bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (int& argc, char**& argv) 
   if (argc > 0) {
     const string arg = argv[0];
     if (arg == "-format") {
-      Assert (argc > 1, "%s must have an argument", arg.c_str());
+      Require (argc > 1, "%s must have an argument", arg.c_str());
       const string fmt = argv[1];
       if (fmt == "fasta")
 	format = GappedFastaAlignment;
@@ -1234,13 +1234,13 @@ bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (int& argc, char**& argv) 
       else if (fmt == "refseq")
 	format = UngappedFastaRef;
       else
-	Abort ("Unknown format: %s", fmt.c_str());
+	Fail ("Unknown format: %s", fmt.c_str());
       argv += 2;
       argc -= 2;
       return true;
 
     } else if (arg == "-threshold") {
-      Assert (argc > 1, "%s must have an argument", arg.c_str());
+      Require (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       logOddsThreshold = atof (val);
       argv += 2;
@@ -1273,7 +1273,7 @@ void QuaffAlignmentPrinter::writeAlignment (ostream& out, const Alignment& align
       break;
 
     case UngappedFastaRef:
-      TraceAssert (align.rows() == 2, "Not a pairwise alignment");
+      Assert (align.rows() == 2, "Not a pairwise alignment");
       ref = align.getUngapped(0);
       ref.comment = string("matches(") + align.gappedSeq[1].name + ") " + ref.comment;
       ref.writeFasta (out);

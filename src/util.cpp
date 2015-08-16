@@ -16,7 +16,7 @@ void Warn(const char* warning, ...) {
   va_end (argptr);
 }
 
-void TraceAbort(const char* error, ...) {
+void Abort(const char* error, ...) {
   va_list argptr;
   va_start (argptr, error);
   fprintf(stderr,"Abort: ");
@@ -27,7 +27,7 @@ void TraceAbort(const char* error, ...) {
   throw;
 }
 
-void TraceAssert(int assertion, const char* error, ...) {
+void Assert(int assertion, const char* error, ...) {
   va_list argptr;
   if(!assertion) {
     va_start (argptr, error);
@@ -40,7 +40,7 @@ void TraceAssert(int assertion, const char* error, ...) {
   }
 }
 
-void Abort(const char* error, ...) {
+void Fail(const char* error, ...) {
   va_list argptr;
   va_start (argptr, error);
   fprintf(stderr,"Abort: ");
@@ -50,7 +50,7 @@ void Abort(const char* error, ...) {
   exit (EXIT_FAILURE);
 }
 
-void Assert(int assertion, const char* error, ...) {
+void Require(int assertion, const char* error, ...) {
   va_list argptr;
   if(!assertion) {
     va_start (argptr, error);

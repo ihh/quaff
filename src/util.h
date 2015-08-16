@@ -8,14 +8,15 @@
 #define NAN_DEBUG
 
 /* Errors, warnings, assertions.
-   "Trace" versions of Abort/Assert throw an exception and print a stack trace;
-   other versions just call exit().
+   "Fail" and "Require" are quieter versions of "Abort" and "Assert",
+   that do not print a stack trace or throw an exception,
+   but merely call exit().
 */
 void Abort(const char* error, ...);
 void Assert(int assertion, const char* error, ...);
 void Warn(const char* warning, ...);
-void TraceAbort(const char* error, ...);
-void TraceAssert(int assertion, const char* error, ...);
+void Fail(const char* error, ...);
+void Require(int assertion, const char* error, ...);
 
 /* progress logging */
 void initProgress (const char* desc, ...);

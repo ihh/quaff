@@ -194,9 +194,9 @@ bool QuaffParamsIn::parseParamFilename() {
   if (argc > 0) {
     const string arg = argv[0];
     if (arg == "-params") {
-      Assert (argc > 1, "%s needs an argument", arg.c_str());
+      Require (argc > 1, "%s needs an argument", arg.c_str());
       ifstream inFile (argv[1]);
-      Assert (!inFile.fail(), "Couldn't open %s", argv[1]);
+      Require (!inFile.fail(), "Couldn't open %s", argv[1]);
       read (inFile);
       initialized = true;
       argc -= 2;
@@ -208,7 +208,7 @@ bool QuaffParamsIn::parseParamFilename() {
 }
 
 void QuaffParamsIn::requireParams() {
-  Assert (initialized, "Please specify a parameter file using -params");
+  Require (initialized, "Please specify a parameter file using -params");
 }
 
 void QuaffParamsIn::requireParamsOrUsePrior (const QuaffParamCounts& prior) {
@@ -223,9 +223,9 @@ bool QuaffNullParamsIn::parseNullModelFilename() {
   if (argc > 0) {
     const string arg = argv[0];
     if (arg == "-null") {
-      Assert (argc > 1, "%s needs an argument", arg.c_str());
+      Require (argc > 1, "%s needs an argument", arg.c_str());
       ifstream inFile (argv[1]);
-      Assert (!inFile.fail(), "Couldn't open %s", argv[1]);
+      Require (!inFile.fail(), "Couldn't open %s", argv[1]);
       read (inFile);
       initialized = true;
       argc -= 2;
@@ -233,7 +233,7 @@ bool QuaffNullParamsIn::parseNullModelFilename() {
       return true;
 
     } else if (arg == "-savenull") {
-      Assert (argc > 1, "%s needs an argument", arg.c_str());
+      Require (argc > 1, "%s needs an argument", arg.c_str());
       saveFilename = argv[1];
       argc -= 2;
       argv += 2;
@@ -259,9 +259,9 @@ bool QuaffPriorIn::parsePriorArgs() {
   if (argc > 0) {
     const string arg = argv[0];
     if (arg == "-prior") {
-      Assert (argc > 1, "%s needs an argument", arg.c_str());
+      Require (argc > 1, "%s needs an argument", arg.c_str());
       ifstream inFile (argv[1]);
-      Assert (!inFile.fail(), "Couldn't open %s", argv[1]);
+      Require (!inFile.fail(), "Couldn't open %s", argv[1]);
       read (inFile);
       initialized = true;
       argc -= 2;
@@ -269,7 +269,7 @@ bool QuaffPriorIn::parsePriorArgs() {
       return true;
 
     } else if (arg == "-order") {
-      Assert (argc > 1, "%s needs an argument", arg.c_str());
+      Require (argc > 1, "%s needs an argument", arg.c_str());
       initKmerContext (atoi (argv[1]));
       resize();
       kmerLenSpecified = true;
@@ -278,7 +278,7 @@ bool QuaffPriorIn::parsePriorArgs() {
       return true;
 
     } else if (arg == "-saveprior") {
-      Assert (argc > 1, "%s needs an argument", arg.c_str());
+      Require (argc > 1, "%s needs an argument", arg.c_str());
       saveFilename = argv[1];
       argc -= 2;
       argv += 2;
@@ -292,13 +292,13 @@ bool QuaffPriorIn::parsePriorArgs() {
 void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffNullParams& nullModel, const QuaffParamsIn& params) {
   if (initialized) {
     if (params.initialized)
-      Assert (kmerLen == params.kmerLen, "Model order in prior file (%d) does not match model order in parameter file (%d)", kmerLen, params.kmerLen);
+      Require (kmerLen == params.kmerLen, "Model order in prior file (%d) does not match model order in parameter file (%d)", kmerLen, params.kmerLen);
   } else {
     if (LogThisAt(1))
       cerr << "Auto-setting prior from null model" << endl;
     if (params.initialized) {
       if (kmerLenSpecified)
-	Assert (kmerLen == params.kmerLen, "Model order specified on command-line (%d) does not match model order in parameter file (%d)", kmerLen, params.kmerLen);
+	Require (kmerLen == params.kmerLen, "Model order specified on command-line (%d) does not match model order in parameter file (%d)", kmerLen, params.kmerLen);
       else {
 	initKmerContext (params.kmerLen);
 	resize();
@@ -316,7 +316,7 @@ bool SeqList::parseSeqFilename() {
   if (argc > 0) {
     const string arg = argv[0];
     if (regex_match (arg, tagRegex)) {
-      Assert (argc > 1, "%s needs an argument", arg.c_str());
+      Require (argc > 1, "%s needs an argument", arg.c_str());
       filenames.push_back (string (argv[1]));
       argc -= 2;
       argv += 2;
@@ -353,13 +353,13 @@ bool SeqList::parseQualScoreArgs() {
 }
 
 void SeqList::loadSequences() {
-  Assert (filenames.size() > 0, "Please specify at least one %s file using %s", type.c_str(), tag.c_str());
+  Require (filenames.size() > 0, "Please specify at least one %s file using %s", type.c_str(), tag.c_str());
 
   for (const auto& s : filenames) {
     vguard<FastSeq> fsvec = readFastSeqs (s.c_str());
     for (auto& fs: fsvec)
       if (wantQualScores)
-	Assert (fs.hasQual(), "Sequence %s in file %s does not have quality scores", fs.name.c_str(), s.c_str());
+	Require (fs.hasQual(), "Sequence %s in file %s does not have quality scores", fs.name.c_str(), s.c_str());
       else
 	fs.qual.clear();
     seqs.insert (seqs.end(), fsvec.begin(), fsvec.end());
