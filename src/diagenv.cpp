@@ -5,6 +5,9 @@
 #include "diagenv.h"
 #include "logger.h"
 
+// require at least this many bases per sequence for sparse envelope
+#define MIN_SEQLEN_FOR_SPARSE_ENVELOPE 1024
+
 void DiagonalEnvelope::initFull() {
   diagonals.clear();
   diagonals.reserve (xLen + yLen - 1);
@@ -13,9 +16,7 @@ void DiagonalEnvelope::initFull() {
 }
 
 void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, int kmerThreshold, double kmerStDevThreshold) {
-  // require at least 2^kmerLen bases on each axis, or fall back to full envelope
-  const double minLen = pow (2, kmerLen);
-  if (px->length() < minLen || py->length() < minLen) {
+  if (px->length() < MIN_SEQLEN_FOR_SPARSE_ENVELOPE || py->length() < MIN_SEQLEN_FOR_SPARSE_ENVELOPE) {
     initFull();
     return;
   }
