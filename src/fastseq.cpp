@@ -66,12 +66,12 @@ vguard<Kmer> FastSeq::kmers (const string& alphabet, unsigned int k) const {
   vguard<int> count (alphabet.size(), 0);
   for (auto t : tok)
     ++count[t];
-  const AlphTok mostFrequentToken = max_element(count.begin(),count.end()) - count.begin();
+  const AlphTok mostFrequentToken = (AlphTok) (max_element(count.begin(),count.end()) - count.begin());
   tok.insert (tok.begin(), k - 1, mostFrequentToken);
   vector<Kmer> result;
   result.reserve (length());
   for (SeqIdx pos = 0; pos <= length(); ++pos)
-    result.push_back (makeKmer (k, tok.begin() + pos, alphabet.size()));
+    result.push_back (makeKmer (k, tok.begin() + pos, (AlphTok) alphabet.size()));
   return result;
 }
 

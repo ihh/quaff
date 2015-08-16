@@ -15,7 +15,6 @@ QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemente
   // coarse approximation to various paths through the intersection of two Quaff transducers...
   const double readInsertProb = qp.beginInsert;
   const double readDeleteProb = (1 - qp.beginInsert) * qp.beginDelete;
-  const double readMatchProb = (1 - qp.beginInsert) * (1 - qp.beginDelete);
   gapOpenProb = readInsertProb + readDeleteProb;
   const double pGapIsInsert = readInsertProb / gapOpenProb;
   const double meanGapLength = pGapIsInsert / qp.extendInsert + (1 - pGapIsInsert) / (qp.refEmit * qp.extendDelete * (1 - gapOpenProb));
