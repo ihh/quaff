@@ -82,7 +82,7 @@ struct QuaffPriorIn : QuaffParamCounts {
   string saveFilename;
 
   QuaffPriorIn (int& argc, char**& argv)
-    : QuaffParamCounts(),
+    : QuaffParamCounts(1),  // fix kmerLen at 1, for now
       argc(argc),
       argv(argv),
       initialized(false)

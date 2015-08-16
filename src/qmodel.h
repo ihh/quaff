@@ -38,14 +38,31 @@ struct SymQualCounts {
   void read (const string& counts);
 };
 
+// Base class for various parameter structs that know about kmers
+class QuaffKmerContext {
+private:
+  QuaffKmerContext();  // prohibit default constructor
+  void initKmerContext (unsigned int newKmerLen);
+public:
+  unsigned int kmerLen;
+  Kmer numKmers;
+  QuaffKmerContext (unsigned int kmerLen);
+  string kmerString (Kmer kmer) const;
+  string insertParamName (AlphTok i) const;
+  string matchParamName (AlphTok i, Kmer j) const;
+  void readKmerLen (map<string,string>& paramVal);
+  void writeKmerLen (ostream& out) const;
+};
+
 // Parameters of a quaff model
-struct QuaffParams {
+struct QuaffParams : QuaffKmerContext {
   double refEmit;
   vguard<double> refBase;
   double beginInsert, extendInsert, beginDelete, extendDelete;
   vguard<SymQualDist> insert;  // emissions from insert state
   vguard<vguard<SymQualDist> > match;  // substitutions from match state (conditional on input)
-  QuaffParams();
+  QuaffParams (unsigned int kmerLen = 1);
+  void resize();  // call after changing kmerLen
   void write (ostream& out) const;
   void read (istream& in);
   void fitRefSeqs (const vguard<FastSeq>& refs);
@@ -63,7 +80,7 @@ struct QuaffNullParams {
 };
 
 // Memo-ized scores for transitions & emissions in quaff HMM
-struct QuaffScores {
+struct QuaffScores : QuaffKmerContext {
   const QuaffParams *pqp;
   vguard<SymQualScores> insert;
   vguard<vguard<SymQualScores> > match;
@@ -74,23 +91,24 @@ struct QuaffScores {
 };
 
 // Summary statistics for a quaff model
-struct QuaffCounts {
+struct QuaffCounts : QuaffKmerContext {
   vguard<SymQualCounts> insert;
   vguard<vguard<SymQualCounts> > match;
   double m2m, m2i, m2d, m2e;
   double d2d, d2m;
   double i2i, i2m;
-  QuaffCounts();
+  QuaffCounts (unsigned int kmerLen);
   void write (ostream& out) const;
 };
 
-struct QuaffParamCounts {
+struct QuaffParamCounts : QuaffKmerContext {
   vguard<SymQualCounts> insert;
   vguard<vguard<SymQualCounts> > match;
   double beginInsertNo, extendInsertNo, beginDeleteNo, extendDeleteNo;
   double beginInsertYes, extendInsertYes, beginDeleteYes, extendDeleteYes;
-  QuaffParamCounts();
+  QuaffParamCounts (unsigned int kmerLen);
   QuaffParamCounts (const QuaffCounts& counts);
+  void resize();  // call after changing kmerLen
   void zeroCounts();
   void initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount, const QuaffNullParams* nullModel = NULL);
   void write (ostream& out) const;
@@ -174,11 +192,12 @@ struct QuaffDPMatrix : QuaffDPMatrixContainer {
   const QuaffDPConfig* pconfig;
   QuaffScores qs;
   vguard<AlphTok> xTok, yTok;
+  vector<Kmer> yKmer;
   vguard<QualScore> yQual;
   vguard<double> cachedInsertEmitScore;
   QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
   inline double matchEmitScore (SeqIdx i, SeqIdx j) const {
-    const SymQualScores& sqs = qs.match[xTok[i-1]][yTok[j-1]];
+    const SymQualScores& sqs = qs.match[xTok[i-1]][yKmer[j-1]];
     return yQual.size() ? sqs.logSymQualProb[yQual[j-1]] : sqs.logSymProb;
   }
   inline double insertEmitScore (SeqIdx j) const {
@@ -198,7 +217,7 @@ struct QuaffBackwardMatrix : QuaffDPMatrix {
   QuaffBackwardMatrix (const QuaffForwardMatrix& fwd);
   double transCount (double& backSrc, double fwdSrc, double trans, double backDest) const;
   inline double& matchCount (SeqIdx i, SeqIdx j) {
-    return qc.match[xTok[i-1]][yTok[j-1]].qualCount[yQual[j-1]];
+    return qc.match[xTok[i-1]][yKmer[j-1]].qualCount[yQual[j-1]];
   }
   inline double& insertCount (SeqIdx j) {
     return qc.insert[yTok[j-1]].qualCount[yQual[j-1]];

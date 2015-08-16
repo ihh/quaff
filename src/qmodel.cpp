@@ -105,19 +105,61 @@ void SymQualCounts::read (const string& counts) {
   }
 }
 
-QuaffParams::QuaffParams()
-  : refEmit(.5),
+QuaffKmerContext::QuaffKmerContext (unsigned int kmerLen)
+{
+  initKmerContext (kmerLen);
+}
+
+void QuaffKmerContext::initKmerContext (unsigned int newKmerLen) {
+  kmerLen = newKmerLen;
+  numKmers = numberOfKmers(newKmerLen,dnaAlphabetSize);
+}
+
+void QuaffKmerContext::readKmerLen (map<string,string>& paramVal) {
+  const string tag ("kmerlen");
+  if (paramVal.find(tag) == paramVal.end())
+    initKmerContext (1);
+  else
+    initKmerContext (atoi (paramVal[tag].c_str()));
+}
+
+void QuaffKmerContext::writeKmerLen (ostream& out) const {
+  if (kmerLen > 1)
+    out << "kmerlen: " << kmerLen << endl;
+}
+
+string QuaffKmerContext::kmerString (Kmer kmer) const {
+  return kmerToString (kmer, kmerLen, dnaAlphabet);
+}
+
+string QuaffKmerContext::insertParamName (AlphTok i) const {
+  return string("insert") + dnaAlphabet[i];
+}
+
+string QuaffKmerContext::matchParamName (AlphTok i, Kmer j) const {
+  return string("match") + dnaAlphabet[i] + (kmerLen > 1 ? "_" : "") + kmerString(j);
+}
+
+QuaffParams::QuaffParams (unsigned int kmerLen)
+  : QuaffKmerContext(kmerLen),
+    refEmit(.5),
     refBase(dnaAlphabetSize,.25),
     beginInsert(.5),
     extendInsert(.5),
     beginDelete(.5),
     extendDelete(.5),
-    insert (dnaAlphabetSize),
-    match (dnaAlphabetSize, vguard<SymQualDist> (dnaAlphabetSize))
-{ }
+    insert (dnaAlphabetSize)
+{
+  resize();
+}
+
+void QuaffParams::resize() {
+  match = vguard<vguard<SymQualDist> > (dnaAlphabetSize, vguard<SymQualDist> (numKmers));
+}
 
 #define QuaffParamWrite(X) out << #X ": " << X << endl
 void QuaffParams::write (ostream& out) const {
+  writeKmerLen (out);
   QuaffParamWrite(refEmit);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     out << "refBase" << dnaAlphabet[i] << ": " << refBase[i] << endl;
@@ -126,26 +168,29 @@ void QuaffParams::write (ostream& out) const {
   QuaffParamWrite(beginDelete);
   QuaffParamWrite(extendDelete);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].write (out, string("insert") + dnaAlphabet[i]);
+    insert[i].write (out, insertParamName(i));
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
+    for (Kmer j = 0; j < numKmers; ++j)
       match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
 }
 
-#define QuaffParamRead(X) Assert(val.find(#X) != val.end(),"Couldn't read " #X), X = atof(val[#X].c_str())
+#define QuaffParamRead(X) Assert(val.find(#X) != val.end(),"Missing parameter: " #X), X = atof(val[#X].c_str())
 void QuaffParams::read (istream& in) {
   map<string,string> val = readParamFile (in);
 
+  readKmerLen(val);
+  resize();
+  
   QuaffParamRead(beginInsert);
   QuaffParamRead(extendInsert);
   QuaffParamRead(beginDelete);
   QuaffParamRead(extendDelete);
 
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].read (val, string("insert") + dnaAlphabet[i]);
+    insert[i].read (val, insertParamName(i));
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
-      match[i][j].read (val, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
+    for (Kmer j = 0; j < numKmers; ++j)
+      match[i][j].read (val, matchParamName(i,j));
 }
 
 void QuaffParams::fitRefSeqs (const vguard<FastSeq>& refs) {
@@ -162,13 +207,14 @@ void QuaffParams::fitRefSeqs (const vguard<FastSeq>& refs) {
 }
 
 QuaffScores::QuaffScores (const QuaffParams& qp)
-  : pqp(&qp),
+  : QuaffKmerContext(qp.kmerLen),
+    pqp(&qp),
     insert (dnaAlphabetSize),
-    match (dnaAlphabetSize, vguard<SymQualScores> (dnaAlphabetSize))
+    match (dnaAlphabetSize, vguard<SymQualScores> (numKmers))
 {
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     insert[i] = SymQualScores (qp.insert[i]);
-    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
+    for (Kmer j = 0; j < numKmers; ++j)
       match[i][j] = SymQualScores (qp.match[i][j]);
   }
 
@@ -183,10 +229,11 @@ QuaffScores::QuaffScores (const QuaffParams& qp)
   i2i = log(qp.extendInsert);
   i2m = log(1-qp.extendInsert);
 }
-    
-QuaffCounts::QuaffCounts()
-  : insert (dnaAlphabetSize),
-    match (dnaAlphabetSize, vguard<SymQualCounts> (dnaAlphabetSize)),
+
+QuaffCounts::QuaffCounts (unsigned int kmerLen)
+  : QuaffKmerContext(kmerLen),
+    insert (dnaAlphabetSize),
+    match (dnaAlphabetSize, vguard<SymQualCounts> (numKmers)),
     m2m(0),
     m2i(0),
     m2d(0),
@@ -198,6 +245,7 @@ QuaffCounts::QuaffCounts()
 { }
 
 void QuaffCounts::write (ostream& out) const {
+  writeKmerLen (out);
   QuaffParamWrite(m2m);
   QuaffParamWrite(m2i);
   QuaffParamWrite(m2d);
@@ -207,21 +255,28 @@ void QuaffCounts::write (ostream& out) const {
   QuaffParamWrite(i2i);
   QuaffParamWrite(i2m);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].write (out, string("insert") + dnaAlphabet[i]);
+    insert[i].write (out, insertParamName(i));
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
-      match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
+    for (Kmer j = 0; j < numKmers; ++j)
+      match[i][j].write (out, matchParamName(i,j));
 }
 
-QuaffParamCounts::QuaffParamCounts()
-  : insert (dnaAlphabetSize),
-    match (dnaAlphabetSize, vguard<SymQualCounts> (dnaAlphabetSize))
+QuaffParamCounts::QuaffParamCounts (unsigned int kmerLen)
+  : QuaffKmerContext(kmerLen),
+    insert (dnaAlphabetSize)
 {
+  resize();
   zeroCounts();
 }
-    
+
+
+void QuaffParamCounts::resize() {
+  match = vguard<vguard<SymQualCounts> > (dnaAlphabetSize, vguard<SymQualCounts> (numKmers));
+}
+
 QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
-  : insert (counts.insert),
+  : QuaffKmerContext(counts.kmerLen),
+    insert (counts.insert),
     match (counts.match),
     beginInsertNo (counts.m2m + counts.m2d),
     beginInsertYes (counts.m2i + counts.m2e),
@@ -245,7 +300,7 @@ void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, d
       else
 	insert[j].qualCount[k] = otherCount / FastSeq::qualScoreRange;
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
+    for (Kmer j = 0; j < numKmers; ++j)
       for (QualScore k = 0; k < FastSeq::qualScoreRange; ++k)
 	if (nullModel)
 	  match[i][j].qualCount[k] = (i == j ? matchIdentCount : (otherCount * nullModel->null[j].symProb * dnaAlphabetSize / (1 - nullModel->null[i].symProb))) * gsl_ran_negative_binomial_pdf (k, nullModel->null[j].qualTrialSuccessProb, nullModel->null[j].qualNumSuccessfulTrials);
@@ -262,6 +317,7 @@ void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, d
 }
 
 void QuaffParamCounts::write (ostream& out) const {
+  writeKmerLen (out);
   QuaffParamWrite(beginInsertNo);
   QuaffParamWrite(beginInsertYes);
   QuaffParamWrite(extendInsertNo);
@@ -271,15 +327,18 @@ void QuaffParamCounts::write (ostream& out) const {
   QuaffParamWrite(extendDeleteNo);
   QuaffParamWrite(extendDeleteYes);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].write (out, string("insert") + dnaAlphabet[i]);
+    insert[i].write (out, insertParamName(i));
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
-      match[i][j].write (out, string("match") + dnaAlphabet[i] + dnaAlphabet[j]);
+    for (Kmer j = 0; j < numKmers; ++j)
+      match[i][j].write (out, matchParamName(i,j));
 }
 
 void QuaffParamCounts::read (istream& in) {
   map<string,string> val = readParamFile (in);
 
+  readKmerLen(val);
+  resize();
+  
   QuaffParamRead(beginInsertYes);
   QuaffParamRead(extendInsertYes);
   QuaffParamRead(beginDeleteYes);
@@ -291,10 +350,10 @@ void QuaffParamCounts::read (istream& in) {
   QuaffParamRead(extendDeleteNo);
 
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].read (val[string("insert") + dnaAlphabet[i]]);
+    insert[i].read (val[insertParamName(i)]);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
-      match[i][j].read (val[string("match") + dnaAlphabet[i] + dnaAlphabet[j]]);
+    for (Kmer j = 0; j < numKmers; ++j)
+      match[i][j].read (val[matchParamName(i,j)]);
 }
 
 const char Alignment::gapChar = '-';
@@ -509,6 +568,7 @@ QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp
     qs (qp),
     xTok (px->tokens(dnaAlphabet)),
     yTok (py->tokens(dnaAlphabet)),
+    yKmer (py->kmers(dnaAlphabet,qp.kmerLen)),
     yQual (py->qualScores()),
     cachedInsertEmitScore (py->length() + 1, -numeric_limits<double>::infinity())
 {
@@ -576,7 +636,7 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
 QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
   : QuaffDPMatrix (*fwd.penv, *fwd.qs.pqp, *fwd.pconfig),
     pfwd (&fwd),
-    qc()
+    qc(fwd.qs.kmerLen)
 {
   Assert (py->hasQual(), "Forward-Backward algorithm requires quality scores to fit model, but sequence %s lacks quality scores", py->name.c_str());
 
@@ -819,10 +879,11 @@ Alignment QuaffViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nul
 }
 
 void QuaffParamCounts::addWeighted (const QuaffParamCounts& counts, double weight) {
+  Assert (counts.kmerLen == kmerLen, "Cannot add two QuaffParamCounts with different kmer lengths");
   for (QualScore q = 0; q < FastSeq::qualScoreRange; ++q)
     for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
       insert[i].qualCount[q] += weight * counts.insert[i].qualCount[q];
-      for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
+      for (Kmer j = 0; j < numKmers; ++j)
 	match[i][j].qualCount[q] += weight * counts.match[i][j].qualCount[q];
     }
   beginInsertNo += weight * counts.beginInsertNo;
@@ -849,12 +910,15 @@ double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
   }
   lp += log (gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta));
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
-    for (AlphTok j = 0; j < dnaAlphabetSize; ++j) {
-      lp += qp.match[i][j].logQualProb (match[i][j].qualCount);  // not normalized...
-      theta[j] = qp.match[i][j].symProb;
-      alpha[j] = accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 1.);
+    for (Kmer jPrefix = 0; jPrefix < numKmers; jPrefix += dnaAlphabetSize) {
+      for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix) {
+	const Kmer j = jPrefix + jSuffix;
+	lp += qp.match[i][j].logQualProb (match[i][j].qualCount);  // not normalized...
+	theta[jSuffix] = qp.match[i][j].symProb;
+	alpha[jSuffix] = accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 1.);
+      }
+      lp += log (gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta));
     }
-    lp += log (gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta));
   }
   delete[] theta;
   delete[] alpha;
@@ -872,7 +936,7 @@ double QuaffParamCounts::expectedLogLike (const QuaffParams& qp) const {
     ll += log (qp.insert[i].symProb) * accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 0.);
   }
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
-    for (AlphTok j = 0; j < dnaAlphabetSize; ++j) {
+    for (Kmer j = 0; j < numKmers; ++j) {
       ll += qp.match[i][j].logQualProb (match[i][j].qualCount);  // not normalized...
       ll += log (qp.match[i][j].symProb) * accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.);
     }
@@ -897,13 +961,18 @@ QuaffParams QuaffParamCounts::fit() const {
   }
 
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
-    vguard<double> iMatFreq (dnaAlphabetSize);
-    for (AlphTok j = 0; j < dnaAlphabetSize; ++j)
-      iMatFreq[j] = accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.);
-    const double iMatNorm = accumulate (iMatFreq.begin(), iMatFreq.end(), 0.);
-    for (AlphTok j = 0; j < dnaAlphabetSize; ++j) {
-      qp.match[i][j].symProb = iMatFreq[j] / iMatNorm;
-      fitNegativeBinomial (match[i][j].qualCount, qp.match[i][j].qualTrialSuccessProb, qp.match[i][j].qualNumSuccessfulTrials);
+    for (Kmer jPrefix = 0; jPrefix < numKmers; jPrefix += dnaAlphabetSize) {
+      vguard<double> iMatFreq (dnaAlphabetSize);
+      for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix) {
+	const Kmer j = jPrefix + jSuffix;
+	iMatFreq[jSuffix] = accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.);
+      }
+      const double iMatNorm = accumulate (iMatFreq.begin(), iMatFreq.end(), 0.);
+      for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix) {
+	const Kmer j = jPrefix + jSuffix;
+	qp.match[i][j].symProb = iMatFreq[jSuffix] / iMatNorm;
+	fitNegativeBinomial (match[i][j].qualCount, qp.match[i][j].qualTrialSuccessProb, qp.match[i][j].qualNumSuccessfulTrials);
+      }
     }
   }
 
@@ -1064,8 +1133,10 @@ bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
 }
 
 QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config) {
+  const unsigned int kmerLen = seed.kmerLen;
+  Assert (pseudocounts.kmerLen == kmerLen, "Prior must have same kmer-length as parameters");
   QuaffParams qp = seed;
-  QuaffParamCounts counts, countsWithPrior;
+  QuaffParamCounts counts(kmerLen), countsWithPrior(kmerLen);
   double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
   vguard<size_t> initialSortOrder (x.size());
   iota (initialSortOrder.begin(), initialSortOrder.end(), (size_t) 0);
@@ -1086,7 +1157,7 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
 	DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
 	const QuaffForwardMatrix fwd (env, qp, config);
 	const double ll = fwd.result;
-	QuaffParamCounts qpc;
+	QuaffParamCounts qpc(kmerLen);
 	if (ll >= yLogLike - MAX_TRAINING_LOG_DELTA) {  // don't waste time computing low-weight counts
 	  const QuaffBackwardMatrix back (fwd);
 	  qpc = back.qc;

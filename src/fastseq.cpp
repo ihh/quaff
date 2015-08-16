@@ -33,6 +33,13 @@ Kmer makeKmer (SeqIdx k, vector<unsigned int>::const_iterator tok, unsigned int 
   return kmer;
 }
 
+Kmer numberOfKmers (SeqIdx k, AlphTok alphabetSize) {
+  Kmer n;
+  for (n = 1; k > 0; --k)
+    n *= alphabetSize;
+  return n;
+}
+
 string kmerToString (Kmer kmer, SeqIdx k, const string& alphabet) {
   string rev;
   for (SeqIdx j = 0; j < k; ++j, kmer = kmer / alphabet.size())
@@ -52,6 +59,20 @@ vguard<AlphTok> FastSeq::tokens (const string& alphabet) const {
     tok.push_back (t);
   }
   return tok;
+}
+
+vguard<Kmer> FastSeq::kmers (const string& alphabet, unsigned int k) const {
+  vguard<AlphTok> tok = tokens(alphabet);
+  vguard<int> count (alphabet.size(), 0);
+  for (auto t : tok)
+    ++count[t];
+  const AlphTok mostFrequentToken = max_element(count.begin(),count.end()) - count.begin();
+  tok.insert (tok.begin(), k - 1, mostFrequentToken);
+  vector<Kmer> result;
+  result.reserve (length());
+  for (SeqIdx pos = 0; pos <= length(); ++pos)
+    result.push_back (makeKmer (k, tok.begin() + pos, alphabet.size()));
+  return result;
 }
 
 vguard<QualScore> FastSeq::qualScores() const {

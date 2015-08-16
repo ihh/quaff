@@ -21,6 +21,7 @@ typedef unsigned int QualScore;
 
 UnvalidatedAlphTok tokenize (char c, const string& alphabet);
 Kmer makeKmer (SeqIdx k, vector<AlphTok>::const_iterator tok, AlphTok alphabetSize);
+Kmer numberOfKmers (SeqIdx k, AlphTok alphabetSize);
 string kmerToString (Kmer kmer, SeqIdx k, const string& alphabet);
 
 struct FastSeq {
@@ -37,7 +38,8 @@ struct FastSeq {
   }
   inline QualScore getQualScoreAt (SeqIdx pos) const { return qualScoreForChar (qual[pos]); }
   vguard<AlphTok> tokens (const string& alphabet) const;
-  vguard<AlphTok> qualScores() const;
+  vguard<Kmer> kmers (const string& alphabet, unsigned int k) const;
+  vguard<QualScore> qualScores() const;
   void writeFasta (ostream& out) const;
   void writeFastq (ostream& out) const;
   FastSeq revcomp() const;

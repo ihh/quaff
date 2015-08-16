@@ -15,7 +15,7 @@ struct SymQualPairScores {
   { }
 };
 
-struct QuaffOverlapScores {
+struct QuaffOverlapScores : QuaffKmerContext {
   const QuaffParams *pqp;
   bool yComplemented;
   vguard<SymQualScores> xInsert, yInsert;
@@ -27,12 +27,14 @@ struct QuaffOverlapScores {
 
 struct QuaffOverlapViterbiMatrix : QuaffDPMatrixContainer {
   QuaffOverlapScores qos;
-  vguard<unsigned int> xTok, yTok, xQual, yQual;
+  vguard<AlphTok> xTok, yTok;
+  vguard<Kmer> xKmer, yKmer;
+  vguard<QualScore> xQual, yQual;
   double xInsertScore, yInsertScore;
   QuaffOverlapViterbiMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, bool yComplemented);
   bool resultIsFinite() const { return result > -numeric_limits<double>::infinity(); }
   inline double matchEmitScore (SeqIdx i, SeqIdx j) const {
-    const SymQualPairScores& sqps = qos.matchMinusInsert[xTok[i-1]][yTok[j-1]];
+    const SymQualPairScores& sqps = qos.matchMinusInsert[xKmer[i-1]][yKmer[j-1]];
     return xQual.size()
       ? (yQual.size()
 	 ? sqps.logSymQualPairProb[xQual[i-1]][yQual[j-1]]
