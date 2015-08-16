@@ -28,9 +28,7 @@ QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemente
   i2m = d2m = log(qp.refEmit) + log(1-gapExtendProb) + log(1-gapAdjacentProb);
 
   const QuaffScores qsc (qp);
-  xInsert = qsc.insert;
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    yInsert[i] = xInsert[yComplemented ? dnaComplement(i) : i];
+  xInsert = yInsert = qsc.insert;
 
   for (Kmer iPrefix = 0; iPrefix < numKmers; iPrefix += dnaAlphabetSize)
     for (AlphTok iSuffix = 0; iSuffix < dnaAlphabetSize; ++iSuffix) {

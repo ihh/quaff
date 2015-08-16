@@ -460,7 +460,7 @@ bool QuaffDPConfig::parseOverlapConfigArgs (int& argc, char**& argv) {
       Require (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       kmerLen = atoi (val);
-      Require (kmerLen >= 5 && kmerLen <= 16, "%s out of range (%d). Try 5 to 16", arg.c_str(), kmerLen);
+      Require (kmerLen >= 5 && kmerLen <= 32, "%s out of range (%d). Try 5 to 32", arg.c_str(), kmerLen);
       argv += 2;
       argc -= 2;
       return true;
