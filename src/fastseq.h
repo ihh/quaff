@@ -16,11 +16,12 @@ char dnaComplementChar (char c);
 typedef unsigned int SeqIdx;
 typedef unsigned int AlphTok;
 typedef int UnvalidatedAlphTok;
+typedef unsigned long Kmer;
 typedef unsigned int QualScore;
 
 UnvalidatedAlphTok tokenize (char c, const string& alphabet);
-unsigned long makeKmer (SeqIdx k, vector<AlphTok>::const_iterator tok, AlphTok alphabetSize);
-string kmerToString (unsigned long kmer, SeqIdx k, const string& alphabet);
+Kmer makeKmer (SeqIdx k, vector<AlphTok>::const_iterator tok, AlphTok alphabetSize);
+string kmerToString (Kmer kmer, SeqIdx k, const string& alphabet);
 
 
 struct FastSeq {

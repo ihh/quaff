@@ -23,8 +23,8 @@ char dnaComplementChar (char c) {
   return tok < 0 ? 'N' : dnaAlphabet[dnaComplement(tok)];
 }
 
-unsigned long makeKmer (SeqIdx k, vector<unsigned int>::const_iterator tok, unsigned int alphabetSize) {
-  unsigned long kmer = 0, mul = 1;
+Kmer makeKmer (SeqIdx k, vector<unsigned int>::const_iterator tok, unsigned int alphabetSize) {
+  Kmer kmer = 0, mul = 1;
   for (SeqIdx j = 0; j < k; ++j) {
     const unsigned int token = tok[k - j - 1];
     kmer += mul * token;
@@ -33,7 +33,7 @@ unsigned long makeKmer (SeqIdx k, vector<unsigned int>::const_iterator tok, unsi
   return kmer;
 }
 
-string kmerToString (unsigned long kmer, SeqIdx k, const string& alphabet) {
+string kmerToString (Kmer kmer, SeqIdx k, const string& alphabet) {
   string rev;
   for (SeqIdx j = 0; j < k; ++j, kmer = kmer / alphabet.size())
     rev += alphabet[kmer % alphabet.size()];

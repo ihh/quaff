@@ -20,8 +20,12 @@ struct SymQualDist {
 
 // Memo-ized log scores for a SymQualDist
 struct SymQualScores {
+  double logSymProb;  // logSymProb = P(this symbol), quality score marginalized
   vguard<double> logSymQualProb;  // logSymQualProb[q] = P(this symbol wih quality score q)
-  SymQualScores() : logSymQualProb(FastSeq::qualScoreRange) { }
+  SymQualScores()
+    : logSymQualProb (FastSeq::qualScoreRange, -numeric_limits<double>::infinity()),
+      logSymProb (-numeric_limits<double>::infinity())
+  { }
   SymQualScores (const SymQualDist& sqd);
 };
 
@@ -174,10 +178,12 @@ struct QuaffDPMatrix : QuaffDPMatrixContainer {
   vguard<double> cachedInsertEmitScore;
   QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
   inline double matchEmitScore (SeqIdx i, SeqIdx j) const {
-    return qs.match[xTok[i-1]][yTok[j-1]].logSymQualProb[yQual[j-1]];
+    const SymQualScores& sqs = qs.match[xTok[i-1]][yTok[j-1]];
+    return yQual.size() ? sqs.logSymQualProb[yQual[j-1]] : sqs.logSymProb;
   }
   inline double insertEmitScore (SeqIdx j) const {
-    return qs.insert[yTok[j-1]].logSymQualProb[yQual[j-1]];
+    const SymQualScores& sqs = qs.insert[yTok[j-1]];
+    return yQual.size() ? sqs.logSymQualProb[yQual[j-1]] : sqs.logSymProb;
   }
   void write (ostream& out) const;
 };

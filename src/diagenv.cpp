@@ -20,10 +20,10 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
     return;
   }
 
-  const vector<unsigned int> xTok = px->tokens (dnaAlphabet);
-  const vector<unsigned int> yTok = py->tokens (dnaAlphabet);
+  const vector<AlphTok> xTok = px->tokens (dnaAlphabet);
+  const vector<AlphTok> yTok = py->tokens (dnaAlphabet);
 
-  map<unsigned long,set<SeqIdx> > yKmerIndex;
+  map<Kmer,set<SeqIdx> > yKmerIndex;
   for (SeqIdx j = 0; j <= yLen - kmerLen; ++j)
     yKmerIndex[makeKmer (kmerLen, yTok.begin() + j, dnaAlphabetSize)].insert (j);
 

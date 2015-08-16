@@ -4,9 +4,14 @@
 #include "qmodel.h"
 
 struct SymQualPairScores {
-  vguard<vguard<double> > logSymQualPairProb;
+  vguard<vguard<double> > logSymQualPairProb;  // if x and y both have quality scores
+  vguard<double> logSymPairXQualProb, logSymPairYQualProb;  // if only x or y has quality scores
+  double logSymPairProb;  // if neither has quality scores
   SymQualPairScores()
-    : logSymQualPairProb (FastSeq::qualScoreRange, vguard<double> (FastSeq::qualScoreRange))
+    : logSymQualPairProb (FastSeq::qualScoreRange, vguard<double> (FastSeq::qualScoreRange)),
+      logSymPairXQualProb (FastSeq::qualScoreRange, -numeric_limits<double>::infinity()),
+      logSymPairYQualProb (FastSeq::qualScoreRange, -numeric_limits<double>::infinity()),
+      logSymPairProb (-numeric_limits<double>::infinity())
   { }
 };
 
@@ -27,7 +32,14 @@ struct QuaffOverlapViterbiMatrix : QuaffDPMatrixContainer {
   QuaffOverlapViterbiMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, bool yComplemented);
   bool resultIsFinite() const { return result > -numeric_limits<double>::infinity(); }
   inline double matchEmitScore (SeqIdx i, SeqIdx j) const {
-    return qos.matchMinusInsert[xTok[i-1]][yTok[j-1]].logSymQualPairProb[xQual[i-1]][yQual[j-1]];
+    const SymQualPairScores& sqps = qos.matchMinusInsert[xTok[i-1]][yTok[j-1]];
+    return xQual.size()
+      ? (yQual.size()
+	 ? sqps.logSymQualPairProb[xQual[i-1]][yQual[j-1]]
+	 : sqps.logSymPairXQualProb[xQual[i-1]])
+      : (yQual.size()
+	 ? sqps.logSymPairYQualProb[yQual[j-1]]
+	 : sqps.logSymPairProb);
   }
   Alignment alignment() const;
   Alignment scoreAdjustedAlignment (const QuaffNullParams& nullModel) const;

@@ -34,6 +34,7 @@ QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemente
       for (AlphTok r = 0; r < dnaAlphabetSize; ++r)
 	ll = log_sum_exp (ll, log(1-pGapIsInsert) + log(qp.refEmit) + log(qp.refBase[r]) + log(readMatchProb) + qsc.match[r][i].logSymQualProb[k]);
       xInsert[i].logSymQualProb[k] = ll;
+      xInsert[i].logSymProb = log_sum_exp (xInsert[i].logSymProb, ll);
     }
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     yInsert[i] = xInsert[yComplemented ? dnaComplement(i) : i];
@@ -48,7 +49,11 @@ QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemente
 	    const AlphTok yStrand_r = yComplemented ? dnaComplement(r) : r;
 	    mij = log_sum_exp (mij, log(qp.refBase[r]) + qsc.match[r][i].logSymQualProb[ik] + qsc.match[yStrand_r][yStrand_j].logSymQualProb[jk]);
 	  }
-	  matchMinusInsert[i][j].logSymQualPairProb[ik][jk] = mij - xInsert[i].logSymQualProb[ik] - yInsert[j].logSymQualProb[jk];
+	  SymQualPairScores& sqps = matchMinusInsert[i][j];
+	  sqps.logSymQualPairProb[ik][jk] = mij - xInsert[i].logSymQualProb[ik] - yInsert[j].logSymQualProb[jk];
+	  sqps.logSymPairXQualProb[ik] = log_sum_exp (sqps.logSymPairXQualProb[ik], mij - xInsert[i].logSymQualProb[ik] - yInsert[j].logSymProb);
+	  sqps.logSymPairYQualProb[jk] = log_sum_exp (sqps.logSymPairYQualProb[jk], mij - xInsert[i].logSymProb - yInsert[j].logSymQualProb[jk]);
+	  sqps.logSymPairProb = log_sum_exp (sqps.logSymPairProb, mij - xInsert[i].logSymProb - yInsert[j].logSymProb);
 	}
       }
     }
@@ -67,11 +72,15 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
   const FastSeq& x (*px);
   const FastSeq& y (*py);
 
-  for (SeqIdx i = 0; i < xLen; ++i)
-    xInsertScore += qos.xInsert[xTok[i]].logSymQualProb[xQual[i]];
+  for (SeqIdx i = 0; i < xLen; ++i) {
+    const SymQualScores& sqs = qos.xInsert[xTok[i]];
+    xInsertScore += xQual.size() ? sqs.logSymQualProb[xQual[i]] : sqs.logSymProb;
+  }
 
-  for (SeqIdx i = 0; i < yLen; ++i)
-    yInsertScore += qos.yInsert[yTok[i]].logSymQualProb[yQual[i]];
+  for (SeqIdx i = 0; i < yLen; ++i) {
+    const SymQualScores& sqs = qos.yInsert[yTok[i]];
+    yInsertScore += yQual.size() ? sqs.logSymQualProb[yQual[i]] : sqs.logSymProb;
+  }
 
   if (LogThisAt(2))
     initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());

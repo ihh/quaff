@@ -74,9 +74,9 @@ double SymQualDist::logQualProb (const vguard<double>& kFreq) const {
 SymQualScores::SymQualScores (const SymQualDist& sqd)
   : logSymQualProb (FastSeq::qualScoreRange)
 {
-  const double symLogProb = log (sqd.symProb);
+  logSymProb = log (sqd.symProb);
   for (QualScore k = 0; k < FastSeq::qualScoreRange; ++k)
-    logSymQualProb[k] = symLogProb + sqd.logQualProb(k);
+    logSymQualProb[k] = logSymProb + sqd.logQualProb(k);
 }
 
 SymQualCounts::SymQualCounts()
@@ -306,7 +306,7 @@ void Alignment::writeGappedFasta (ostream& out) const {
 }
 
 void Alignment::writeStockholm (ostream& out) const {
-  vector<string> rowName, rowData;
+  vguard<string> rowName, rowData;
   for (const auto& s : gappedSeq) {
     rowName.push_back (s.name);
     rowData.push_back (s.seq);
@@ -390,7 +390,7 @@ bool QuaffDPConfig::parseOverlapConfigArgs (int& argc, char**& argv) {
       argc -= 2;
       return true;
 
-    } else if (arg == "-kmer") {
+    } else if (arg == "-kmatch") {
       Assert (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       kmerLen = atoi (val);
@@ -398,7 +398,7 @@ bool QuaffDPConfig::parseOverlapConfigArgs (int& argc, char**& argv) {
       argc -= 2;
       return true;
 
-    } else if (arg == "-kmatch") {
+    } else if (arg == "-kmatchn") {
       Assert (argc > 1, "%s must have an argument", arg.c_str());
       const char* val = argv[1];
       kmerThreshold = atoi (val);
@@ -519,7 +519,7 @@ QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp
 void QuaffDPMatrix::write (ostream& out) const {
   for (SeqIdx j = 1; j <= yLen; ++j) {
     for (SeqIdx i : penv->forward_i(j))
-      out << "i=" << i << ":" << px->seq[i-1] << " j=" << j << ":" << py->seq[j-1] << py->qual[j-1] << "\tmat " << mat(i,j) << "\tins " << ins(i,j) << "\tdel " << del(i,j) << endl;
+      out << "i=" << i << ":" << px->seq[i-1] << " j=" << j << ":" << py->seq[j-1] << (py->hasQual() ? string(1,py->qual[j-1]) : string()) << "\tmat " << mat(i,j) << "\tins " << ins(i,j) << "\tdel " << del(i,j) << endl;
     out << endl;
   }
   out << "result " << result << endl;
@@ -577,6 +577,8 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
     pfwd (&fwd),
     qc()
 {
+  Assert (py->hasQual(), "Forward-Backward algorithm requires quality scores to fit model, but sequence %s lacks quality scores", py->name.c_str());
+
   if (LogThisAt(2))
     initProgress ("Backward algorithm (%s vs %s)", px->name.c_str(), py->name.c_str());
 
@@ -930,7 +932,7 @@ double QuaffForwardBackwardMatrix::postInsert (SeqIdx i, SeqIdx j) const {
 void QuaffForwardBackwardMatrix::write (ostream& out) const {
   for (SeqIdx j = 1; j <= fwd.yLen; ++j) {
     for (SeqIdx i : fwd.penv->forward_i(j))
-      out << "i=" << i << ":" << fwd.px->seq[i-1] << " j=" << j << ":" << fwd.py->seq[j-1] << fwd.py->qual[j-1] << "\tmat " << postMatch(i,j) << "\tins " << postInsert(i,j) << "\tdel " << postDelete(i,j) << endl;
+      out << "i=" << i << ":" << fwd.px->seq[i-1] << " j=" << j << ":" << fwd.py->seq[j-1] << (fwd.py->hasQual() ? string(1,fwd.py->qual[j-1]) : string()) << "\tmat " << postMatch(i,j) << "\tins " << postInsert(i,j) << "\tdel " << postDelete(i,j) << endl;
     out << endl;
   }
 }
@@ -956,7 +958,8 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
     const vguard<AlphTok> tok = s.tokens (dnaAlphabet);
     for (SeqIdx i = 0; i < s.length(); ++i) {
       ++symCount[tok[i]];
-      ++nullCount[tok[i]].qualCount[s.getQualScoreAt(i)];
+      if (s.hasQual())
+	++nullCount[tok[i]].qualCount[s.getQualScoreAt(i)];
     }
   }
 
@@ -990,7 +993,9 @@ double QuaffNullParams::logLikelihood (const FastSeq& s) const {
   double ll = s.length() * log(nullEmit) + log(1. - nullEmit);
   const vguard<AlphTok> tok = s.tokens (dnaAlphabet);
     for (SeqIdx i = 0; i < s.length(); ++i) {
-      ll += log (null[tok[i]].symProb) + null[tok[i]].logQualProb (s.getQualScoreAt(i));
+      ll += log (null[tok[i]].symProb);
+      if (s.hasQual())
+	ll += null[tok[i]].logQualProb (s.getQualScoreAt(i));
 #if defined(NAN_DEBUG)
       if (isnan(ll)) {
 	cerr << "NaN error in QuaffNullParams::logLikelihood" << endl;

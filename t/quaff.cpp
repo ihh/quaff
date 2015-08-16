@@ -20,7 +20,7 @@ struct SeqList {
   regex tagRegex;
   int& argc;
   char**& argv;
-  bool wantFastq, wantRevcomps;
+  bool wantQualScores, wantRevcomps;
   vguard<FastSeq> seqs;
   size_t nOriginals;  // number of seqs that are NOT revcomps
   
@@ -30,13 +30,14 @@ struct SeqList {
       type(type),
       tag(tag),
       tagRegex(tagRegex),
-      wantFastq(false),
+      wantQualScores(false),
       wantRevcomps(false),
       nOriginals(0)
   { }
 
   bool parseSeqFilename();
-  bool parseFwdStrand();
+  bool parseRevcompArgs();
+  bool parseQualScoreArgs();
   void loadSequences();
 };
 
@@ -103,7 +104,7 @@ int main (int argc, char** argv) {
   refs.wantRevcomps = true;
 
   SeqList reads (argc, argv, "read", "-read", "^-(read|reads|fastq)$");
-  reads.wantFastq = true;
+  reads.wantQualScores = true;
 
   QuaffDPConfig config;
 
@@ -116,8 +117,9 @@ int main (int argc, char** argv) {
 	   || params.parseParamFilename()
 	   || nullModel.parseNullModelFilename()
 	   || refs.parseSeqFilename()
+	   || refs.parseRevcompArgs()
 	   || reads.parseSeqFilename()
-	   || refs.parseFwdStrand()
+	   || reads.parseQualScoreArgs()
 	   || usage.parseUnknown())
       { }
 
@@ -139,8 +141,8 @@ int main (int argc, char** argv) {
 	   || nullModel.parseNullModelFilename()
 	   || prior.parsePriorFilename()
 	   || refs.parseSeqFilename()
+	   || refs.parseRevcompArgs()
 	   || reads.parseSeqFilename()
-	   || refs.parseFwdStrand()
 	   || usage.parseUnknown())
       { }
 
@@ -164,7 +166,8 @@ int main (int argc, char** argv) {
 	   || params.parseParamFilename()
 	   || nullModel.parseNullModelFilename()
 	   || reads.parseSeqFilename()
-	   || reads.parseFwdStrand()
+	   || reads.parseRevcompArgs()
+	   || reads.parseQualScoreArgs()
 	   || usage.parseUnknown())
       { }
 
@@ -301,7 +304,7 @@ bool SeqList::parseSeqFilename() {
   return false;
 }
 
-bool SeqList::parseFwdStrand() {
+bool SeqList::parseRevcompArgs() {
   if (argc > 0) {
     const string arg = argv[0];
     if (arg == "-fwdstrand") {
@@ -314,14 +317,29 @@ bool SeqList::parseFwdStrand() {
   return false;
 }
 
+bool SeqList::parseQualScoreArgs() {
+  if (argc > 0) {
+    const string arg = argv[0];
+    if (arg == "-noquals") {
+      wantQualScores = false;
+      argc -= 1;
+      argv += 1;
+      return true;
+    }
+  }
+  return false;
+}
+
 void SeqList::loadSequences() {
   Assert (filenames.size() > 0, "Please specify at least one %s file using %s", type.c_str(), tag.c_str());
 
   for (const auto& s : filenames) {
-    const vguard<FastSeq> fsvec = readFastSeqs (s.c_str());
-    if (wantFastq)
-      for (const auto& fs: fsvec)
+    vguard<FastSeq> fsvec = readFastSeqs (s.c_str());
+    for (auto& fs: fsvec)
+      if (wantQualScores)
 	Assert (fs.hasQual(), "Sequence %s in file %s does not have quality scores", fs.name.c_str(), s.c_str());
+      else
+	fs.qual.clear();
     seqs.insert (seqs.end(), fsvec.begin(), fsvec.end());
   }
 
@@ -371,6 +389,7 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "                   Alignment output format\n"
     + "   -threshold <f>\n"
     + "   -nothreshold    Log-odds ratio score threshold for alignment reporting\n"
+    + "   -noquals        Ignore read quality scores during alignment\n"
     + "\n"
     + "General options (all commands, except where indicated):\n"
     + "   -verbose, -vv, -vvv, -v4, etc.\n"
@@ -378,9 +397,9 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "                   Various levels of logging\n"
     + "   -fwdstrand      Do not include reverse-complemented sequences\n"
     + "   -global         Force all of refseq to be aligned (align/train only)\n"
-    + "   -kmer           Length of kmers, for pre-filtering heuristic (default " + to_string(DEFAULT_KMER_LENGTH) + ")\n"
-    + "   -kmatch <n>     Threshold of kmer matches to include a diagonal (default " + to_string(DEFAULT_KMER_THRESHOLD) + ")\n"
-    + "   -kmatchsd <n>   Set threshold to n standard deviations above background\n"
+    + "   -kmatch         Length of kmers for pre-filtering heuristic (default " + to_string(DEFAULT_KMER_LENGTH) + ")\n"
+    + "   -kmatchn <n>    Threshold# of kmer matches to include a diagonal (default " + to_string(DEFAULT_KMER_THRESHOLD) + ")\n"
+    + "   -kmatchsd <n>   Set kmer threshold to n standard deviations above background\n"
     + "   -band           Size of DP band around kmer-matching diagonals (default " + to_string(DEFAULT_BAND_SIZE) + ")\n"
     + "   -dense          Do full DP, not just best-looking diagonals (memory hog!)\n"
     + "   -null <file>, -savenull <file>\n"
