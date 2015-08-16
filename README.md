@@ -14,8 +14,7 @@ with the following features:
 
 - it attempts to model the FASTQ quality scores (using a negative
   binomial distribution), and also uses k-mer context for modeling
-  substitution probabilities, both of which are theoretically
-  informative for nanopore reads
+  substitution probabilities
 
 
 <pre><code>
