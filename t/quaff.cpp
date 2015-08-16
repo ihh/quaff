@@ -393,13 +393,15 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
     + "\n"
     + "General options (all commands, except where indicated):\n"
     + "   -verbose, -vv, -vvv, -v4, etc.\n"
-    + "   -log <function_name>\n"
+    // uncomment to document debug logging:
+    //    + "   -log <function_name>\n"
     + "                   Various levels of logging\n"
     + "   -fwdstrand      Do not include reverse-complemented sequences\n"
     + "   -global         Force all of refseq to be aligned (align/train only)\n"
     + "   -kmatch         Length of kmers for pre-filtering heuristic (default " + to_string(DEFAULT_KMER_LENGTH) + ")\n"
     + "   -kmatchn <n>    Threshold# of kmer matches to include a diagonal (default " + to_string(DEFAULT_KMER_THRESHOLD) + ")\n"
-    + "   -kmatchsd <n>   Set kmer threshold to n standard deviations above background\n"
+    // uncomment to document this uncertain, experimental option:
+    //    + "   -kmatchsd <n>   Set kmer threshold to n standard deviations above background\n"
     + "   -band           Size of DP band around kmer-matching diagonals (default " + to_string(DEFAULT_BAND_SIZE) + ")\n"
     + "   -dense          Do full DP, not just best-looking diagonals (memory hog!)\n"
     + "   -null <file>, -savenull <file>\n"
