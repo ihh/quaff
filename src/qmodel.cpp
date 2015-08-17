@@ -373,9 +373,15 @@ void Alignment::writeGappedFasta (ostream& out) const {
 
 void Alignment::writeStockholm (ostream& out) const {
   vguard<string> rowName, rowData;
+  vguard<size_t> rowIndex;
   for (const auto& s : gappedSeq) {
+    rowIndex.push_back (rowName.size());
     rowName.push_back (s.name);
     rowData.push_back (s.seq);
+    if (s.hasQual()) {
+      rowName.push_back (string("#=GR ") + s.name + " QS");
+      rowData.push_back (s.qual);
+    }
   }
 
   if (rows() == 2) {
@@ -387,8 +393,13 @@ void Alignment::writeStockholm (ostream& out) const {
 		      ? gapChar
 		      : (c0 == c1 ? c0 : mismatchChar));
     }
-    rowName.insert (rowName.begin() + 1, string ("#=GC id"));
-    rowData.insert (rowData.begin() + 1, cons);
+    rowName.insert (rowName.begin() + rowIndex[1], string ("#=GC id"));
+    rowData.insert (rowData.begin() + rowIndex[1], cons);
+
+    if (gappedSeq[0].hasQual()) {
+      swap (rowName[0], rowName[1]);
+      swap (rowData[0], rowData[1]);
+    }
   }
 
   size_t nameWidth = 0;
@@ -819,7 +830,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
     }
   }
   SeqIdx i = xEnd, j = yLen;
-  list<char> xRow, yRow;
+  list<char> xRow, yRow, yQual;
   State state = Match;
   while (state != Start) {
     if (LogThisAt(7))
@@ -831,6 +842,8 @@ Alignment QuaffViterbiMatrix::alignment() const {
       emitSc = matchEmitScore(i,j);
       xRow.push_front (px->seq[--i]);
       yRow.push_front (py->seq[--j]);
+      if (py->hasQual())
+	yQual.push_front (py->qual[j]);
       updateMax (srcSc, state, mat(i,j) + qs.m2m + emitSc, Match);
       updateMax (srcSc, state, ins(i,j) + qs.i2m + emitSc, Insert);
       updateMax (srcSc, state, del(i,j) + qs.d2m + emitSc, Delete);
@@ -843,6 +856,8 @@ Alignment QuaffViterbiMatrix::alignment() const {
       emitSc = cachedInsertEmitScore[j];
       xRow.push_front (Alignment::gapChar);
       yRow.push_front (py->seq[--j]);
+      if (py->hasQual())
+	yQual.push_front (py->qual[j]);
       updateMax (srcSc, state, mat(i,j) + qs.m2i + emitSc, Match);
       updateMax (srcSc, state, ins(i,j) + qs.i2i + emitSc, Insert);
       Assert (srcSc == ins(i,j+1), "Traceback error");
@@ -851,6 +866,8 @@ Alignment QuaffViterbiMatrix::alignment() const {
     case Delete:
       xRow.push_front (px->seq[--i]);
       yRow.push_front (Alignment::gapChar);
+      if (py->hasQual())
+	yQual.push_front (FastSeq::maxQualityChar);
       updateMax (srcSc, state, mat(i,j) + qs.m2d, Match);
       updateMax (srcSc, state, del(i,j) + qs.d2d, Delete);
       Assert (srcSc == del(i+1,j), "Traceback error");
@@ -872,6 +889,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
   align.gappedSeq[1].comment = py->name;
   align.gappedSeq[0].seq = string (xRow.begin(), xRow.end());
   align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
+  align.gappedSeq[1].qual = string (yQual.begin(), yQual.end());
   align.score = result;
   return align;
 }

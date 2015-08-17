@@ -26,8 +26,8 @@ string kmerToString (Kmer kmer, SeqIdx k, const string& alphabet);
 
 struct FastSeq {
   string name, comment, seq, qual;
-  static const char minQualityChar = '!', maxQualityChar = '~';
-  static const QualScore qualScoreRange = 94;
+  static const char minQualityChar, maxQualityChar;
+  static const QualScore qualScoreRange;
   SeqIdx length() const { return (SeqIdx) seq.size(); }
   bool hasQual() const { return qual.size() == length(); }
   static inline QualScore qualScoreForChar (char c) {

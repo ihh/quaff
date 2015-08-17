@@ -158,7 +158,7 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
   }
 
   SeqIdx i = xEnd, j = yEnd;
-  list<char> xRow, yRow;
+  list<char> xRow, yRow, xQual, yQual;
   State state = Match;
   while (state != Start) {
     if (LogThisAt(7))
@@ -170,6 +170,10 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
       emitSc = matchEmitScore(i,j);
       xRow.push_front (px->seq[--i]);
       yRow.push_front (py->seq[--j]);
+      if (px->hasQual())
+	xQual.push_front (px->qual[i]);
+      if (py->hasQual())
+	yQual.push_front (py->qual[j]);
       updateMax (srcSc, state, mat(i,j) + qos.m2m + emitSc, Match);
       updateMax (srcSc, state, ins(i,j) + qos.i2m + emitSc, Insert);
       updateMax (srcSc, state, del(i,j) + qos.d2m + emitSc, Delete);
@@ -181,6 +185,10 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
     case Insert:
       xRow.push_front (Alignment::gapChar);
       yRow.push_front (py->seq[--j]);
+      if (px->hasQual())
+	xQual.push_front (FastSeq::maxQualityChar);
+      if (py->hasQual())
+	yQual.push_front (py->qual[j]);
       updateMax (srcSc, state, mat(i,j) + qos.m2i, Match);
       updateMax (srcSc, state, ins(i,j) + qos.i2i, Insert);
       updateMax (srcSc, state, del(i,j) + qos.d2i, Delete);
@@ -188,7 +196,11 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
 
     case Delete:
       xRow.push_front (px->seq[--i]);
-      yRow.push_front (Alignment::gapChar);
+      yRow.push_front (FastSeq::maxQualityChar);
+      if (px->hasQual())
+	xQual.push_front (px->qual[i]);
+      if (py->hasQual())
+	yQual.push_front (Alignment::gapChar);
       updateMax (srcSc, state, mat(i,j) + qos.m2d, Match);
       updateMax (srcSc, state, ins(i,j) + qos.i2d, Insert);
       updateMax (srcSc, state, del(i,j) + qos.d2d, Delete);
@@ -208,6 +220,8 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
   align.gappedSeq[1].comment = "substr(" + py->name + "," + to_string(yStart) + ".." + to_string(yEnd) + ")";
   align.gappedSeq[0].seq = string (xRow.begin(), xRow.end());
   align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
+  align.gappedSeq[0].qual = string (xQual.begin(), xQual.end());
+  align.gappedSeq[1].qual = string (yQual.begin(), yQual.end());
   align.score = result;
   return align;
 }

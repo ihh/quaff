@@ -47,6 +47,10 @@ string kmerToString (Kmer kmer, SeqIdx k, const string& alphabet) {
   return string (rev.rbegin(), rev.rend());
 }
 
+const char FastSeq::minQualityChar = '!';
+const char FastSeq::maxQualityChar = '~';
+const QualScore FastSeq::qualScoreRange = 94;
+
 vguard<AlphTok> FastSeq::tokens (const string& alphabet) const {
   vguard<AlphTok> tok;
   tok.reserve (length());
