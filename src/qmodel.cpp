@@ -1103,8 +1103,8 @@ void QuaffNullParams::write (ostream& out) const {
 }
 
 QuaffTrainer::QuaffTrainer()
-  : maxIterations (100),
-    minFractionalLoglikeIncrement (.01),
+  : maxIterations (QuaffMaxEMIterations),
+    minFractionalLoglikeIncrement (QuaffMinEMLogLikeInc),
     allowNullModel (true)
 { }
 

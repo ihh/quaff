@@ -26,6 +26,10 @@ void logProgress (double completedFraction, const char* desc, ...);
 /* singular or plural? */
 std::string plural (long n, const char* singular);
 
+/* stringify */
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
 /* sgn function
    http://stackoverflow.com/questions/1903954/is-there-a-standard-sign-function-signum-sgn-in-c-c
  */

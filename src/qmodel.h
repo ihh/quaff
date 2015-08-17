@@ -7,6 +7,10 @@
 #include "fastseq.h"
 #include "diagenv.h"
 
+// EM convergence parameters
+#define QuaffMaxEMIterations 100
+#define QuaffMinEMLogLikeInc .01
+
 // struct describing the probability of a given FASTA symbol,
 // and a negative binomial distribution over the associated quality score
 struct SymQualDist {
