@@ -17,15 +17,15 @@ QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemente
   const double readDeleteProb = (1 - qp.beginInsert) * qp.beginDelete;
   gapOpenProb = readInsertProb + readDeleteProb;
   const double pGapIsInsert = readInsertProb / gapOpenProb;
-  const double meanGapLength = pGapIsInsert / qp.extendInsert + (1 - pGapIsInsert) / (qp.refEmit * qp.extendDelete * (1 - gapOpenProb));
+  const double meanGapLength = pGapIsInsert / qp.extendInsert + (1 - pGapIsInsert) / (qp.extendDelete * (1 - gapOpenProb));
   gapExtendProb = 1 / meanGapLength;
   gapAdjacentProb = pGapIsInsert * readInsertProb + (1 - pGapIsInsert) * gapOpenProb / (1 - qp.extendDelete * (1 - gapOpenProb));
   
-  m2m = log(qp.refEmit) + 2*log(1-gapOpenProb);
+  m2m = 2*log(1-gapOpenProb);
   m2i = m2d = log(gapOpenProb);
   i2i = d2d = log(gapExtendProb);
   i2d = d2i = log(1-gapExtendProb) + log(gapAdjacentProb);
-  i2m = d2m = log(qp.refEmit) + log(1-gapExtendProb) + log(1-gapAdjacentProb);
+  i2m = d2m = log(1-gapExtendProb) + log(1-gapAdjacentProb);
 
   const QuaffScores qsc (qp);
   xInsert = yInsert = qsc.insert;
@@ -253,6 +253,8 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
     const FastSeq& xfs = seqs[nx];
     for (size_t ny = nx + 1; ny < seqs.size(); ++ny) {
       const FastSeq& yfs = seqs[ny];
+      if (LogThisAt(1))
+	cerr << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
       DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
       const QuaffOverlapViterbiMatrix viterbi (env, params, ny >= nOriginals);
       if (viterbi.resultIsFinite()) {

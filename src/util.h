@@ -3,6 +3,7 @@
 
 #include <numeric>
 #include <vector>
+#include <string>
 
 /* uncomment to enable NaN checks */
 #define NAN_DEBUG
@@ -21,6 +22,9 @@ void Require(int assertion, const char* error, ...);
 /* progress logging */
 void initProgress (const char* desc, ...);
 void logProgress (double completedFraction, const char* desc, ...);
+
+/* singular or plural? */
+std::string plural (long n, const char* singular);
 
 /* sgn function
    http://stackoverflow.com/questions/1903954/is-there-a-standard-sign-function-signum-sgn-in-c-c

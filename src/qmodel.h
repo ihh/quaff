@@ -56,7 +56,6 @@ public:
 
 // Parameters of a quaff model
 struct QuaffParams : QuaffKmerContext {
-  double refEmit;
   vguard<double> refBase;
   double beginInsert, extendInsert, beginDelete, extendDelete;
   vguard<SymQualDist> insert;  // emissions from insert state

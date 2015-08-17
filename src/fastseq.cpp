@@ -2,6 +2,7 @@
 #include <iostream>
 #include "fastseq.h"
 #include "util.h"
+#include "logger.h"
 
 KSEQ_INIT(gzFile, gzread)
 
@@ -137,6 +138,12 @@ vguard<FastSeq> readFastSeqs (const char* filename) {
   kseq_destroy (ks);
   gzclose (fp);
 
+  if (LogThisAt(3))
+    cerr << "Read " << plural(seqs.size(),"sequence") << " from " << filename << endl;
+  
+  if (seqs.empty())
+    Warn ("Couldn't read any sequences from %s", filename);
+  
   return seqs;
 }
 

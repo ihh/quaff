@@ -146,7 +146,6 @@ string QuaffKmerContext::matchParamName (AlphTok i, Kmer j) const {
 
 QuaffParams::QuaffParams (unsigned int kmerLen)
   : QuaffKmerContext(kmerLen),
-    refEmit(.5),
     refBase(dnaAlphabetSize,.25),
     beginInsert(.5),
     extendInsert(.5),
@@ -164,7 +163,6 @@ void QuaffParams::resize() {
 #define QuaffParamWrite(X) out << #X ": " << X << endl
 void QuaffParams::write (ostream& out) const {
   writeKmerLen (out);
-  QuaffParamWrite(refEmit);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     out << "refBase" << dnaAlphabet[i] << ": " << refBase[i] << endl;
   QuaffParamWrite(beginInsert);
@@ -205,7 +203,6 @@ void QuaffParams::fitRefSeqs (const vguard<FastSeq>& refs) {
     for (auto i : fs.tokens(dnaAlphabet))
       ++baseCount[i];
   }
-  refEmit = 1 / (1 + refs.size() / (double) totalLen);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     refBase[i] = baseCount[i] / (double) totalLen;
 }
@@ -1328,6 +1325,8 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
     size_t nBestAlign = 0;
     vguard<Alignment> xyAlign;
     for (const auto& xfs : x) {
+      if (LogThisAt(1))
+	cerr << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
       DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
       const QuaffViterbiMatrix viterbi (env, params, config);
       if (viterbi.resultIsFinite()) {
