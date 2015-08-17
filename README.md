@@ -62,7 +62,8 @@ General options (all commands, except where indicated):
    -fwdstrand      Do not include reverse-complemented sequences
    -global         Force all of refseq to be aligned (align/train only)
    -kmatch &lt;k&gt;     Length of kmers for pre-filtering heuristic (default 6)
-   -kmatchn &lt;n&gt;    Threshold# of kmer matches to include a diagonal (default 14)
+   -kmatchn &lt;n&gt;    Threshold# of kmer matches to seed a diagonal
+                    (default is 14 for overlap, 20 for align/train)
    -kmatchband &lt;n&gt; Size of DP band around kmer-matching diagonals (default 64)
    -dense          Do full DP, not just kmer-matching diagonals (memory hog!)
    -null &lt;file&gt;, -savenull &lt;file&gt;

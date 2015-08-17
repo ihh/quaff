@@ -7,6 +7,9 @@
 #include "../src/logger.h"
 #include "../src/defaultparams.h"
 
+// allow a different kmer-matching threshold for refseq-read alignment
+#define DEFAULT_REFSEQ_KMER_THRESHOLD 20
+
 struct QuaffUsage {
   deque<string>& argvec;
   string prog, briefText, text;
@@ -114,6 +117,7 @@ int main (int argc, char** argv) {
     usage.implicitSwitches.push_back (string ("-ref"));
     usage.implicitSwitches.push_back (string ("-read"));
     usage.unlimitImplicitSwitches = true;
+    config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
     while (logger.parseLogArgs (argvec)
 	   || aligner.parseAlignmentArgs (argvec)
 	   || config.parseConfigArgs (argvec)
@@ -140,6 +144,7 @@ int main (int argc, char** argv) {
     usage.implicitSwitches.push_back (string ("-ref"));
     usage.implicitSwitches.push_back (string ("-read"));
     usage.unlimitImplicitSwitches = true;
+    config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
     while (logger.parseLogArgs (argvec)
 	   || trainer.parseTrainingArgs (argvec)
 	   || config.parseConfigArgs (argvec)
@@ -431,7 +436,8 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -fwdstrand      Do not include reverse-complemented sequences\n"
     + "   -global         Force all of refseq to be aligned (align/train only)\n"
     + "   -kmatch <k>     Length of kmers for pre-filtering heuristic (default " + to_string(DEFAULT_KMER_LENGTH) + ")\n"
-    + "   -kmatchn <n>    Threshold# of kmer matches to include a diagonal (default " + to_string(DEFAULT_KMER_THRESHOLD) + ")\n"
+    + "   -kmatchn <n>    Threshold# of kmer matches to seed a diagonal\n"
+    + "                    (default is " + to_string(DEFAULT_KMER_THRESHOLD) + " for overlap, " + to_string(DEFAULT_REFSEQ_KMER_THRESHOLD) + " for align/train)\n"
     // uncomment to document this uncertain, experimental option:
     //    + "   -kmatchsd <n>   Set kmer threshold to n standard deviations above background\n"
     + "   -kmatchband <n> Size of DP band around kmer-matching diagonals (default " + to_string(DEFAULT_BAND_SIZE) + ")\n"
