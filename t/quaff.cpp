@@ -381,6 +381,8 @@ void SeqList::loadSequences() {
   nOriginals = seqs.size();
   if (wantRevcomps)
     addRevcomps (seqs);
+
+  Require (seqs.size() > 0, "Please specify a valid %s file using %s", type.c_str(), tag.c_str());
 }
 
 QuaffUsage::QuaffUsage (deque<string>& argvec)

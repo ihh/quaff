@@ -5,4 +5,6 @@
 
 QuaffParams defaultQuaffParams();
 
+extern const char* defaultQuaffParamsText;
+
 #endif /* DEFAULT_PARAMS_INCLUDED */
