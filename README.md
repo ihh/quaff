@@ -46,14 +46,14 @@ Commands:
   (to find overlaps between FASTQ reads, using Viterbi)
 
 
-Alignment options (align/overlap commands):
+Alignment options (for align/overlap commands):
    -format {fasta,stockholm,refseq}
                    Alignment output format
    -threshold &lt;n&gt;
    -nothreshold    Log-odds ratio score threshold for alignment reporting
    -noquals        Ignore read quality scores during alignment
 
-General options (all commands, except where indicated):
+General options (for all commands, except where indicated):
    -verbose, -vv, -vvv, -v4, etc.
                    Various levels of logging
    -params &lt;file&gt;  Load model parameters from file
