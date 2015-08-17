@@ -8,11 +8,6 @@
 
 using namespace std;
 
-#define dnaAlphabetSize 4
-extern const string dnaAlphabet;
-unsigned int dnaComplement (unsigned int token);
-char dnaComplementChar (char c);
-
 typedef unsigned int SeqIdx;
 typedef unsigned int AlphTok;
 typedef int UnvalidatedAlphTok;
@@ -23,6 +18,11 @@ UnvalidatedAlphTok tokenize (char c, const string& alphabet);
 Kmer makeKmer (SeqIdx k, vector<AlphTok>::const_iterator tok, AlphTok alphabetSize);
 Kmer numberOfKmers (SeqIdx k, AlphTok alphabetSize);
 string kmerToString (Kmer kmer, SeqIdx k, const string& alphabet);
+
+#define dnaAlphabetSize 4
+extern const string dnaAlphabet;
+AlphTok dnaComplement (AlphTok token);
+char dnaComplementChar (char c);
 
 struct FastSeq {
   string name, comment, seq, qual;
