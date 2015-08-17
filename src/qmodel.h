@@ -3,6 +3,7 @@
 
 #include <map>
 #include <numeric>
+#include <deque>
 #include "fastseq.h"
 #include "diagenv.h"
 
@@ -147,8 +148,8 @@ struct QuaffDPConfig {
       kmerStDevThreshold(DEFAULT_KMER_STDEV_THRESHOLD),
       bandSize(DEFAULT_BAND_SIZE)
   { }
-  bool parseConfigArgs (int& argc, char**& argv);
-  bool parseOverlapConfigArgs (int& argc, char**& argv);
+  bool parseConfigArgs (deque<string>& argvec);
+  bool parseOverlapConfigArgs (deque<string>& argvec);
   DiagonalEnvelope makeEnvelope (const FastSeq& x, const FastSeq& y) const;
 };
 
@@ -248,7 +249,7 @@ struct QuaffTrainer {
   string rawCountsFilename, countsWithPriorFilename;
   
   QuaffTrainer();
-  bool parseTrainingArgs (int& argc, char**& argv);
+  bool parseTrainingArgs (deque<string>& argvec);
   QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config);
 };
 
@@ -258,7 +259,7 @@ struct QuaffAlignmentPrinter {
   double logOddsThreshold;
 
   QuaffAlignmentPrinter();
-  bool parseAlignmentPrinterArgs (int& argc, char**& argv);
+  bool parseAlignmentPrinterArgs (deque<string>& argvec);
   void writeAlignment (ostream& out, const Alignment& align) const;
 };
 
@@ -266,7 +267,7 @@ struct QuaffAligner : QuaffAlignmentPrinter {
   bool printAllAlignments;  // print alignment to every reference sequence that matches
 
   QuaffAligner();
-  bool parseAlignmentArgs (int& argc, char**& argv);
+  bool parseAlignmentArgs (deque<string>& argvec);
   void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
 };
 

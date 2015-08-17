@@ -1,15 +1,16 @@
 #include <iostream>
 #include <fstream>
 #include <regex>
+#include <deque>
 #include "../src/qmodel.h"
 #include "../src/qoverlap.h"
 #include "../src/logger.h"
+#include "../src/defaultparams.h"
 
 struct QuaffUsage {
-  int& argc;
-  char**& argv;
+  deque<string>& argvec;
   string prog, briefText, text;
-  QuaffUsage (int& argc, char**& argv);
+  QuaffUsage (deque<string>& argvec);
   string getCommand();
   bool parseUnknown();
 };
@@ -18,15 +19,13 @@ struct SeqList {
   vguard<string> filenames;
   string type, tag;
   regex tagRegex;
-  int& argc;
-  char**& argv;
+  deque<string>& argvec;
   bool wantQualScores, wantRevcomps;
   vguard<FastSeq> seqs;
   size_t nOriginals;  // number of seqs that are NOT revcomps
   
-  SeqList (int& argc, char**& argv, const char* type, const char* tag, const char* tagRegex)
-    : argc(argc),
-      argv(argv),
+  SeqList (deque<string>& argvec, const char* type, const char* tag, const char* tagRegex)
+    : argvec(argvec),
       type(type),
       tag(tag),
       tagRegex(tagRegex),
@@ -42,32 +41,28 @@ struct SeqList {
 };
 
 struct QuaffParamsIn : QuaffParams {
-  int& argc;
-  char**& argv;
+  deque<string>& argvec;
   bool initialized;
 
-  QuaffParamsIn (int& argc, char**& argv)
+  QuaffParamsIn (deque<string>& argvec)
     : QuaffParams(),
-      argc(argc),
-      argv(argv),
+      argvec(argvec),
       initialized(false)
   { }
 
   bool parseParamFilename();
-  void requireParams();
+  void requireParamsOrUseDefaults();
   void requireParamsOrUsePrior (const QuaffParamCounts& prior);
 };
 
 struct QuaffNullParamsIn : QuaffNullParams {
-  int& argc;
-  char**& argv;
+  deque<string>& argvec;
   bool initialized;
   string saveFilename;
   
-  QuaffNullParamsIn (int& argc, char**& argv)
+  QuaffNullParamsIn (deque<string>& argvec)
     : QuaffNullParams(),
-      argc(argc),
-      argv(argv),
+      argvec(argvec),
       initialized(false)
   { }
 
@@ -76,15 +71,13 @@ struct QuaffNullParamsIn : QuaffNullParams {
 };
 
 struct QuaffPriorIn : QuaffParamCounts {
-  int& argc;
-  char**& argv;
+  deque<string>& argvec;
   bool initialized, kmerLenSpecified;
   string saveFilename;
 
-  QuaffPriorIn (int& argc, char**& argv)
+  QuaffPriorIn (deque<string>& argvec)
     : QuaffParamCounts(1),  // fix initial kmerLen at 1
-      argc(argc),
-      argv(argv),
+      argvec(argvec),
       initialized(false),
       kmerLenSpecified(false)
   { }
@@ -96,25 +89,29 @@ struct QuaffPriorIn : QuaffParamCounts {
 
 int main (int argc, char** argv) {
 
-  QuaffUsage usage (argc, argv);
+  deque<string> argvec (argc);
+  for (int n = 0; n < argc; ++n)
+    argvec[n] = argv[n];
+  
+  QuaffUsage usage (argvec);
   const string command = usage.getCommand();
 
-  QuaffParamsIn params (argc, argv);
+  QuaffParamsIn params (argvec);
 
-  SeqList refs (argc, argv, "reference", "-ref", "^-(ref|refs|fasta)$");
+  SeqList refs (argvec, "reference", "-ref", "^-(ref|refs|fasta)$");
   refs.wantRevcomps = true;
 
-  SeqList reads (argc, argv, "read", "-read", "^-(read|reads|fastq)$");
+  SeqList reads (argvec, "read", "-read", "^-(read|reads|fastq)$");
   reads.wantQualScores = true;
 
   QuaffDPConfig config;
 
   if (command == "align") {
     QuaffAligner aligner;
-    QuaffNullParamsIn nullModel (argc, argv);
-    while (logger.parseLogArgs (argc, argv)
-	   || aligner.parseAlignmentArgs (argc, argv)
-	   || config.parseConfigArgs (argc, argv)
+    QuaffNullParamsIn nullModel (argvec);
+    while (logger.parseLogArgs (argvec)
+	   || aligner.parseAlignmentArgs (argvec)
+	   || config.parseConfigArgs (argvec)
 	   || params.parseParamFilename()
 	   || nullModel.parseNullModelFilename()
 	   || refs.parseSeqFilename()
@@ -126,18 +123,18 @@ int main (int argc, char** argv) {
 
     reads.loadSequences();
     refs.loadSequences();
-    params.requireParams();
+    params.requireParamsOrUseDefaults();
     nullModel.requireNullModelOrFit (reads);
     
     aligner.align (cout, refs.seqs, reads.seqs, params, nullModel, config);
 
   } else if (command == "train") {
     QuaffTrainer trainer;
-    QuaffNullParamsIn nullModel (argc, argv);
-    QuaffPriorIn prior (argc, argv);
-    while (logger.parseLogArgs (argc, argv)
-	   || trainer.parseTrainingArgs (argc, argv)
-	   || config.parseConfigArgs (argc, argv)
+    QuaffNullParamsIn nullModel (argvec);
+    QuaffPriorIn prior (argvec);
+    while (logger.parseLogArgs (argvec)
+	   || trainer.parseTrainingArgs (argvec)
+	   || config.parseConfigArgs (argvec)
 	   || params.parseParamFilename()
 	   || nullModel.parseNullModelFilename()
 	   || prior.parsePriorArgs()
@@ -159,11 +156,11 @@ int main (int argc, char** argv) {
 
   } else if (command == "overlap") {
     QuaffOverlapAligner aligner;
-    QuaffNullParamsIn nullModel (argc, argv);
+    QuaffNullParamsIn nullModel (argvec);
     reads.wantRevcomps = true;
-    while (logger.parseLogArgs (argc, argv)
-	   || aligner.parseAlignmentArgs (argc, argv)
-	   || config.parseOverlapConfigArgs (argc, argv)
+    while (logger.parseLogArgs (argvec)
+	   || aligner.parseAlignmentArgs (argvec)
+	   || config.parseOverlapConfigArgs (argvec)
 	   || params.parseParamFilename()
 	   || nullModel.parseNullModelFilename()
 	   || reads.parseSeqFilename()
@@ -173,7 +170,7 @@ int main (int argc, char** argv) {
       { }
 
     reads.loadSequences();
-    params.requireParams();
+    params.requireParamsOrUseDefaults();
     nullModel.requireNullModelOrFit (reads);
 
     aligner.align (cout, reads.seqs, reads.nOriginals, params, nullModel, config);
@@ -191,24 +188,25 @@ int main (int argc, char** argv) {
 }
 
 bool QuaffParamsIn::parseParamFilename() {
-  if (argc > 0) {
-    const string arg = argv[0];
+  if (argvec.size()) {
+    const string& arg = argvec[0];
     if (arg == "-params") {
-      Require (argc > 1, "%s needs an argument", arg.c_str());
-      ifstream inFile (argv[1]);
-      Require (!inFile.fail(), "Couldn't open %s", argv[1]);
+      Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
+      ifstream inFile (argvec[1]);
+      Require (!inFile.fail(), "Couldn't open %s", argvec[1].c_str());
       read (inFile);
       initialized = true;
-      argc -= 2;
-      argv += 2;
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
     }
   }
   return false;
 }
 
-void QuaffParamsIn::requireParams() {
-  Require (initialized, "Please specify a parameter file using -params");
+void QuaffParamsIn::requireParamsOrUseDefaults() {
+  if (!initialized)
+    (QuaffParams&) *this = defaultQuaffParams();
 }
 
 void QuaffParamsIn::requireParamsOrUsePrior (const QuaffParamCounts& prior) {
@@ -220,23 +218,23 @@ void QuaffParamsIn::requireParamsOrUsePrior (const QuaffParamCounts& prior) {
 }
 
 bool QuaffNullParamsIn::parseNullModelFilename() {
-  if (argc > 0) {
-    const string arg = argv[0];
+  if (argvec.size()) {
+    const string& arg = argvec[0];
     if (arg == "-null") {
-      Require (argc > 1, "%s needs an argument", arg.c_str());
-      ifstream inFile (argv[1]);
-      Require (!inFile.fail(), "Couldn't open %s", argv[1]);
+      Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
+      ifstream inFile (argvec[1]);
+      Require (!inFile.fail(), "Couldn't open %s", argvec[1].c_str());
       read (inFile);
       initialized = true;
-      argc -= 2;
-      argv += 2;
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 
     } else if (arg == "-savenull") {
-      Require (argc > 1, "%s needs an argument", arg.c_str());
-      saveFilename = argv[1];
-      argc -= 2;
-      argv += 2;
+      Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
+      saveFilename = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
     }
   }
@@ -256,32 +254,32 @@ void QuaffNullParamsIn::requireNullModelOrFit (const SeqList& seqList) {
 }
 
 bool QuaffPriorIn::parsePriorArgs() {
-  if (argc > 0) {
-    const string arg = argv[0];
+  if (argvec.size()) {
+    const string& arg = argvec[0];
     if (arg == "-prior") {
-      Require (argc > 1, "%s needs an argument", arg.c_str());
-      ifstream inFile (argv[1]);
-      Require (!inFile.fail(), "Couldn't open %s", argv[1]);
+      Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
+      ifstream inFile (argvec[1]);
+      Require (!inFile.fail(), "Couldn't open %s", argvec[1].c_str());
       read (inFile);
       initialized = true;
-      argc -= 2;
-      argv += 2;
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 
     } else if (arg == "-order") {
-      Require (argc > 1, "%s needs an argument", arg.c_str());
-      initKmerContext (atoi (argv[1]));
+      Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
+      initKmerContext (atoi (argvec[1].c_str()));
       resize();
       kmerLenSpecified = true;
-      argc -= 2;
-      argv += 2;
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 
     } else if (arg == "-saveprior") {
-      Require (argc > 1, "%s needs an argument", arg.c_str());
-      saveFilename = argv[1];
-      argc -= 2;
-      argv += 2;
+      Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
+      saveFilename = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 
     }
@@ -313,13 +311,13 @@ void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffNullParams& nullModel,
 }
 
 bool SeqList::parseSeqFilename() {
-  if (argc > 0) {
-    const string arg = argv[0];
+  if (argvec.size()) {
+    const string& arg = argvec[0];
     if (regex_match (arg, tagRegex)) {
-      Require (argc > 1, "%s needs an argument", arg.c_str());
-      filenames.push_back (string (argv[1]));
-      argc -= 2;
-      argv += 2;
+      Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
+      filenames.push_back (string (argvec[1]));
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
     }
   }
@@ -327,12 +325,11 @@ bool SeqList::parseSeqFilename() {
 }
 
 bool SeqList::parseRevcompArgs() {
-  if (argc > 0) {
-    const string arg = argv[0];
+  if (argvec.size()) {
+    const string& arg = argvec[0];
     if (arg == "-fwdstrand") {
       wantRevcomps = false;
-      argc -= 1;
-      argv += 1;
+      argvec.pop_front();
       return true;
     }
   }
@@ -340,12 +337,11 @@ bool SeqList::parseRevcompArgs() {
 }
 
 bool SeqList::parseQualScoreArgs() {
-  if (argc > 0) {
-    const string arg = argv[0];
+  if (argvec.size()) {
+    const string& arg = argvec[0];
     if (arg == "-noquals") {
       wantQualScores = false;
-      argc -= 1;
-      argv += 1;
+      argvec.pop_front();
       return true;
     }
   }
@@ -372,10 +368,9 @@ void SeqList::loadSequences() {
     addRevcomps (seqs);
 }
 
-QuaffUsage::QuaffUsage (int& argc, char**& argv)
-  : argc(argc),
-    argv(argv),
-    prog (argv[0])
+QuaffUsage::QuaffUsage (deque<string>& argvec)
+  : argvec(argvec),
+    prog (argvec[0])
 {
   briefText = "Usage: " + prog + " {help,train,align,overlap} [options]\n";
   
@@ -434,19 +429,19 @@ QuaffUsage::QuaffUsage (int& argc, char**& argv)
 }
 
 string QuaffUsage::getCommand() {
-  if (argc < 2) {
+  if (argvec.size() < 2) {
     cerr << briefText;
     exit (EXIT_FAILURE);
   }
-  const string command (argv[1]);
-  argv += 2;
-  argc -= 2;
+  const string command (argvec[1]);
+  argvec.pop_front();
+  argvec.pop_front();
   return command;
 }
 
 bool QuaffUsage::parseUnknown() {
-  if (argc > 0) {
-    string arg (argv[0]);
+  if (argvec.size()) {
+    string arg (argvec[0]);
     if (arg == "-abort") {
       // test stack trace
       Abort ("abort triggered");

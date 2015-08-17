@@ -3,6 +3,7 @@
 
 #include <set>
 #include <string>
+#include <deque>
 #include "util.h"
 
 using namespace std;
@@ -12,8 +13,9 @@ struct Logger {
   set<string> logTags;
   Logger() : verbosity(0) { }
   void addTag (const char* tag);
+  void addTag (const string& tag);
   void setVerbose (int v);
-  bool parseLogArgs (int& argc, char**& argv);
+  bool parseLogArgs (deque<string>& argvec);
 };
 
 extern Logger logger;

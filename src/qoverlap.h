@@ -50,7 +50,7 @@ struct QuaffOverlapViterbiMatrix : QuaffDPMatrixContainer {
 // config/wrapper struct for Viterbi alignment
 struct QuaffOverlapAligner : QuaffAlignmentPrinter {
   QuaffOverlapAligner();
-  bool parseAlignmentArgs (int& argc, char**& argv);
+  bool parseAlignmentArgs (deque<string>& argvec);
   void align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
 };
 

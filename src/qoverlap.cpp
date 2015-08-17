@@ -244,8 +244,8 @@ QuaffOverlapAligner::QuaffOverlapAligner()
   : QuaffAlignmentPrinter()
 { }
 
-bool QuaffOverlapAligner::parseAlignmentArgs (int& argc, char**& argv) {
-  return parseAlignmentPrinterArgs (argc, argv);
+bool QuaffOverlapAligner::parseAlignmentArgs (deque<string>& argvec) {
+  return parseAlignmentPrinterArgs (argvec);
 }
 
 void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {

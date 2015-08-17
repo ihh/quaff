@@ -439,61 +439,59 @@ FastSeq Alignment::getUngapped (size_t row) const {
   return s;
 }
 
-bool QuaffDPConfig::parseConfigArgs (int& argc, char**& argv) {
-  if (argc > 0) {
-    const string arg = argv[0];
+bool QuaffDPConfig::parseConfigArgs (deque<string>& argvec) {
+  if (argvec.size()) {
+    const string& arg = argvec[0];
     if (arg == "-global") {
       local = false;
-      argv += 1;
-      argc -= 1;
+      argvec.pop_front();
       return true;
     }
   }
 
-  return parseOverlapConfigArgs (argc, argv);
+  return parseOverlapConfigArgs (argvec);
 }
 
-bool QuaffDPConfig::parseOverlapConfigArgs (int& argc, char**& argv) {
-  if (argc > 0) {
-    const string arg = argv[0];
+bool QuaffDPConfig::parseOverlapConfigArgs (deque<string>& argvec) {
+  if (argvec.size()) {
+    const string& arg = argvec[0];
     if (arg == "-kmatchband") {
-      Require (argc > 1, "%s must have an argument", arg.c_str());
-      const char* val = argv[1];
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      const char* val = argvec[1].c_str();
       bandSize = atoi (val);
-      argv += 2;
-      argc -= 2;
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 
     } else if (arg == "-kmatch") {
-      Require (argc > 1, "%s must have an argument", arg.c_str());
-      const char* val = argv[1];
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      const char* val = argvec[1].c_str();
       kmerLen = atoi (val);
       Require (kmerLen >= 5 && kmerLen <= 32, "%s out of range (%d). Try 5 to 32", arg.c_str(), kmerLen);
-      argv += 2;
-      argc -= 2;
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 
     } else if (arg == "-kmatchn") {
-      Require (argc > 1, "%s must have an argument", arg.c_str());
-      const char* val = argv[1];
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      const char* val = argvec[1].c_str();
       kmerThreshold = atoi (val);
-      argv += 2;
-      argc -= 2;
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 
     } else if (arg == "-kmatchsd") {
-      Require (argc > 1, "%s must have an argument", arg.c_str());
-      const char* val = argv[1];
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      const char* val = argvec[1].c_str();
       kmerStDevThreshold = atof (val);
       kmerThreshold = -1;
-      argv += 2;
-      argc -= 2;
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 
     } else if (arg == "-dense") {
       sparse = false;
-      argv += 1;
-      argc -= 1;
+      argvec.pop_front();
       return true;
 
     }
@@ -1110,43 +1108,42 @@ QuaffTrainer::QuaffTrainer()
     allowNullModel (true)
 { }
 
-bool QuaffTrainer::parseTrainingArgs (int& argc, char**& argv) {
-  if (argc > 0) {
-    const string arg = argv[0];
+bool QuaffTrainer::parseTrainingArgs (deque<string>& argvec) {
+  if (argvec.size()) {
+    const string& arg = argvec[0];
     if (arg == "-maxiter") {
-      Require (argc > 1, "%s must have an argument", arg.c_str());
-      const char* val = argv[1];
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      const char* val = argvec[1].c_str();
       maxIterations = atoi (val);
-      argv += 2;
-      argc -= 2;
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 
     } else if (arg == "-mininc") {
-      Require (argc > 1, "%s must have an argument", arg.c_str());
-      const char* val = argv[1];
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      const char* val = argvec[1].c_str();
       minFractionalLoglikeIncrement = atof (val);
-      argv += 2;
-      argc -= 2;
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
     
     } else if (arg == "-force") {
       allowNullModel = false;
-      argv += 1;
-      argc -= 1;
+      argvec.pop_front();
       return true;
 
     } else if (arg == "-counts") {
-      Require (argc > 1, "%s must have an argument", arg.c_str());
-      rawCountsFilename = argv[1];
-      argv += 2;
-      argc -= 2;
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      rawCountsFilename = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 
     } else if (arg == "-countswithprior") {
-      Require (argc > 1, "%s must have an argument", arg.c_str());
-      countsWithPriorFilename = argv[1];
-      argv += 2;
-      argc -= 2;
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      countsWithPriorFilename = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 }
   }
@@ -1236,12 +1233,12 @@ QuaffAlignmentPrinter::QuaffAlignmentPrinter()
     logOddsThreshold (0)
 { }
 
-bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (int& argc, char**& argv) {
-  if (argc > 0) {
-    const string arg = argv[0];
+bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (deque<string>& argvec) {
+  if (argvec.size()) {
+    const string& arg = argvec[0];
     if (arg == "-format") {
-      Require (argc > 1, "%s must have an argument", arg.c_str());
-      const string fmt = argv[1];
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      const string fmt = argvec[1];
       if (fmt == "fasta")
 	format = GappedFastaAlignment;
       else if (fmt == "stockholm")
@@ -1250,22 +1247,21 @@ bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (int& argc, char**& argv) 
 	format = UngappedFastaRef;
       else
 	Fail ("Unknown format: %s", fmt.c_str());
-      argv += 2;
-      argc -= 2;
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 
     } else if (arg == "-threshold") {
-      Require (argc > 1, "%s must have an argument", arg.c_str());
-      const char* val = argv[1];
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      const char* val = argvec[1].c_str();
       logOddsThreshold = atof (val);
-      argv += 2;
-      argc -= 2;
+      argvec.pop_front();
+      argvec.pop_front();
       return true;
 
     } else if (arg == "-nothreshold") {
       logOddsThreshold = -numeric_limits<double>::infinity();
-      argv += 1;
-      argc -= 1;
+      argvec.pop_front();
       return true;
 
     }
@@ -1306,18 +1302,17 @@ QuaffAligner::QuaffAligner()
     printAllAlignments (false)
 { }
 
-bool QuaffAligner::parseAlignmentArgs (int& argc, char**& argv) {
-  if (argc > 0) {
-    const string arg = argv[0];
+bool QuaffAligner::parseAlignmentArgs (deque<string>& argvec) {
+  if (argvec.size()) {
+    const string& arg = argvec[0];
     if (arg == "-printall") {
       printAllAlignments = true;
-      argv += 1;
-      argc -= 1;
+      argvec.pop_front();
       return true;
     }
   }
 
-  return parseAlignmentPrinterArgs (argc, argv);
+  return parseAlignmentPrinterArgs (argvec);
 }
 
 void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
