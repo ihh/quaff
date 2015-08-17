@@ -22,10 +22,9 @@ Usage: quaff {help,train,align,overlap} [options]
 
 Commands:
 
- quaff train -ref refs.fasta -read reads.fastq  &gt;params.yaml
+ quaff train refs.fasta reads.fastq  &gt;params.yaml
   (to fit a model to unaligned sequences, using EM)
 
-   -params &lt;file&gt;  Optional initial parameters
    -maxiter &lt;n&gt;    Max number of EM iterations
    -mininc &lt;n&gt;     EM convergence threshold (relative log-likelihood increase)
    -force          Force each read to match a refseq, i.e. disallow null model
@@ -37,13 +36,13 @@ Commands:
                    Like -counts, but adds in prior pseudocounts as well
 
 
- quaff align -params params.yaml -ref refs.fasta -read reads.fastq
+ quaff align refs.fasta reads.fastq
   (to align FASTQ reads to FASTA reference sequences, using Viterbi)
 
    -printall       Print all pairwise alignments, not just best for each read
 
 
- quaff overlap -params params.yaml -read reads.fastq
+ quaff overlap reads.fastq
   (to find overlaps between FASTQ reads, using Viterbi)
 
 
@@ -57,6 +56,9 @@ Alignment options (align/overlap commands):
 General options (all commands, except where indicated):
    -verbose, -vv, -vvv, -v4, etc.
                    Various levels of logging
+   -params &lt;file&gt;  Load model parameters from file
+   -ref &lt;file&gt;     Load additional FASTA reference sequences
+   -read &lt;file&gt;    Load additional FASTQ read sequences
    -fwdstrand      Do not include reverse-complemented sequences
    -global         Force all of refseq to be aligned (align/train only)
    -kmatch &lt;k&gt;     Length of kmers for pre-filtering heuristic (default 6)

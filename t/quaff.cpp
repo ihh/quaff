@@ -10,6 +10,8 @@
 struct QuaffUsage {
   deque<string>& argvec;
   string prog, briefText, text;
+  deque<string> implicitSwitches;
+  bool unlimitImplicitSwitches;
   QuaffUsage (deque<string>& argvec);
   string getCommand();
   bool parseUnknown();
@@ -109,6 +111,9 @@ int main (int argc, char** argv) {
   if (command == "align") {
     QuaffAligner aligner;
     QuaffNullParamsIn nullModel (argvec);
+    usage.implicitSwitches.push_back (string ("-ref"));
+    usage.implicitSwitches.push_back (string ("-read"));
+    usage.unlimitImplicitSwitches = true;
     while (logger.parseLogArgs (argvec)
 	   || aligner.parseAlignmentArgs (argvec)
 	   || config.parseConfigArgs (argvec)
@@ -132,6 +137,9 @@ int main (int argc, char** argv) {
     QuaffTrainer trainer;
     QuaffNullParamsIn nullModel (argvec);
     QuaffPriorIn prior (argvec);
+    usage.implicitSwitches.push_back (string ("-ref"));
+    usage.implicitSwitches.push_back (string ("-read"));
+    usage.unlimitImplicitSwitches = true;
     while (logger.parseLogArgs (argvec)
 	   || trainer.parseTrainingArgs (argvec)
 	   || config.parseConfigArgs (argvec)
@@ -158,6 +166,8 @@ int main (int argc, char** argv) {
     QuaffOverlapAligner aligner;
     QuaffNullParamsIn nullModel (argvec);
     reads.wantRevcomps = true;
+    usage.implicitSwitches.push_back (string ("-read"));
+    usage.unlimitImplicitSwitches = true;
     while (logger.parseLogArgs (argvec)
 	   || aligner.parseAlignmentArgs (argvec)
 	   || config.parseOverlapConfigArgs (argvec)
@@ -370,7 +380,8 @@ void SeqList::loadSequences() {
 
 QuaffUsage::QuaffUsage (deque<string>& argvec)
   : argvec(argvec),
-    prog (argvec[0])
+    prog(argvec[0]),
+    unlimitImplicitSwitches(false)
 {
   briefText = "Usage: " + prog + " {help,train,align,overlap} [options]\n";
   
@@ -378,10 +389,9 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "\n"
     + "Commands:\n"
     + "\n"
-    + " " + prog + " train -ref refs.fasta -read reads.fastq  >params.yaml\n"
+    + " " + prog + " train refs.fasta reads.fastq  >params.yaml\n"
     + "  (to fit a model to unaligned sequences, using EM)\n"
     + "\n"
-    + "   -params <file>  Optional initial parameters\n"
     + "   -maxiter <n>    Max number of EM iterations\n"
     + "   -mininc <n>     EM convergence threshold (relative log-likelihood increase)\n"
     + "   -force          Force each read to match a refseq, i.e. disallow null model\n"
@@ -393,13 +403,13 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "                   Like -counts, but adds in prior pseudocounts as well\n"
     + "\n"
     + "\n"
-    + " " + prog + " align -params params.yaml -ref refs.fasta -read reads.fastq\n"
+    + " " + prog + " align refs.fasta reads.fastq\n"
     + "  (to align FASTQ reads to FASTA reference sequences, using Viterbi)\n"
     + "\n"
     + "   -printall       Print all pairwise alignments, not just best for each read\n"
     + "\n"
     + "\n"
-    + " " + prog + " overlap -params params.yaml -read reads.fastq\n"
+    + " " + prog + " overlap reads.fastq\n"
     + "  (to find overlaps between FASTQ reads, using Viterbi)\n"
     + "\n"
     + "\n"
@@ -415,6 +425,9 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     // uncomment to document debug logging:
     //    + "   -log <function_name>\n"
     + "                   Various levels of logging\n"
+    + "   -params <file>  Load model parameters from file\n"
+    + "   -ref <file>     Load additional FASTA reference sequences\n"
+    + "   -read <file>    Load additional FASTQ read sequences\n"
     + "   -fwdstrand      Do not include reverse-complemented sequences\n"
     + "   -global         Force all of refseq to be aligned (align/train only)\n"
     + "   -kmatch <k>     Length of kmers for pre-filtering heuristic (default " + to_string(DEFAULT_KMER_LENGTH) + ")\n"
@@ -447,10 +460,17 @@ bool QuaffUsage::parseUnknown() {
       Abort ("abort triggered");
 
     } else {
-      cerr << text << "Unknown option: " << arg << endl;
-      cerr << "Error parsing command-line options\n";
-      exit (EXIT_FAILURE);
+      if (arg[0] == '-' || implicitSwitches.empty()) {
+	cerr << text << "Unknown option: " << arg << endl;
+	cerr << "Error parsing command-line options\n";
+	exit (EXIT_FAILURE);
 
+      } else {
+	argvec.push_front (implicitSwitches.front());
+	if (implicitSwitches.size() > 1 || !unlimitImplicitSwitches)
+	  implicitSwitches.pop_front();
+	return true;
+      }
     }
   }
   return false;
