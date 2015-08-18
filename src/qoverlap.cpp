@@ -1,4 +1,3 @@
-#include <list>
 #include <cmath>
 #include "qoverlap.h"
 #include "logsumexp.h"
@@ -100,18 +99,6 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
     yIndelKmer = y.kmers(dnaAlphabet,qp.indelContext.kmerLen);
   }
 
-  for (SeqIdx j = 0; j < xLen; ++j)
-    Assert (xMatchKmer[j] < qos.matchContext.numKmers, "oops. xMatchKmer %u/%u is %llu", j, xLen, xMatchKmer[j]);
-
-  for (SeqIdx j = 0; j < xLen; ++j)
-    Assert (xIndelKmer[j] < qos.indelContext.numKmers, "oops. xIndelKmer %u/%u is %llu", j, xLen, xIndelKmer[j]);
-
-  for (SeqIdx j = 0; j < yLen; ++j)
-    Assert (yMatchKmer[j] < qos.matchContext.numKmers, "oops. yMatchKmer %u/%u is %llu", j, yLen, yMatchKmer[j]);
-
-  for (SeqIdx j = 0; j < yLen; ++j)
-    Assert (yIndelKmer[j] < qos.indelContext.numKmers, "oops. yIndelKmer %u/%u is %llu", j, yLen, yIndelKmer[j]);
-
   for (SeqIdx i = 0; i < xLen; ++i) {
     const SymQualScores& sqs = qos.xInsert[xTok[i]];
     xInsertScore += xQual.size() ? sqs.logSymQualProb[xQual[i]] : sqs.logSymProb;
@@ -186,7 +173,7 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
   }
 
   SeqIdx i = xEnd, j = yEnd;
-  list<char> xRow, yRow, xQual, yQual;
+  deque<char> xRow, yRow, xQual, yQual, xRowDel, xQualDel, yRowIns, yQualIns;
   State state = Match;
   while (state != Start) {
     if (LogThisAt(7))
@@ -211,24 +198,18 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
       break;
 
     case Insert:
-      xRow.push_front (Alignment::gapChar);
-      yRow.push_front (py->seq[--j]);
-      if (px->hasQual())
-	xQual.push_front (FastSeq::maxQualityChar);
+      yRowIns.push_front (py->seq[--j]);
       if (py->hasQual())
-	yQual.push_front (py->qual[j]);
+	yQualIns.push_front (py->qual[j]);
       updateMax (srcSc, state, mat(i,j) + m2iScore(i,j), Match);
       updateMax (srcSc, state, ins(i,j) + i2iScore(), Insert);
       updateMax (srcSc, state, del(i,j) + d2iScore(), Delete);
       break;
 
     case Delete:
-      xRow.push_front (px->seq[--i]);
-      yRow.push_front (Alignment::gapChar);
+      xRowDel.push_front (px->seq[--i]);
       if (px->hasQual())
-	xQual.push_front (px->qual[i]);
-      if (py->hasQual())
-	yQual.push_front (FastSeq::maxQualityChar);
+	xQualDel.push_front (px->qual[i]);
       updateMax (srcSc, state, mat(i,j) + m2dScore(i,j), Match);
       updateMax (srcSc, state, ins(i,j) + i2dScore(), Insert);
       updateMax (srcSc, state, del(i,j) + d2dScore(), Delete);
@@ -237,6 +218,44 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
     default:
       Abort ("Traceback error");
       break;
+    }
+
+    if (state == Match) {  // squash adjacent insertions & deletions together
+      const size_t insLen = yRowIns.size(), delLen = xRowDel.size();
+      const size_t sharedLen = min (insLen, delLen);
+      const size_t extraIns = insLen - sharedLen, extraDel = delLen - sharedLen;
+
+      // ---...
+      // yyy...
+      xRow.insert (xRow.begin(), extraIns, Alignment::gapChar);
+      yRow.insert (yRow.begin(), yRowIns.begin() + sharedLen, yRowIns.end());
+      if (px->hasQual())
+	xQual.insert (xQual.begin(), extraIns, FastSeq::maxQualityChar);
+      if (py->hasQual())
+	yQual.insert (yQual.begin(), yQualIns.begin() + sharedLen, yQualIns.end());
+
+      // xxx...
+      // ---...
+      xRow.insert (xRow.begin(), xRowDel.begin() + sharedLen, xRowDel.end());
+      yRow.insert (yRow.begin(), extraDel, Alignment::gapChar);
+      if (px->hasQual())
+	xQual.insert (xQual.begin(), xQualDel.begin() + sharedLen, xQualDel.end());
+      if (py->hasQual())
+	yQual.insert (yQual.begin(), extraDel, FastSeq::maxQualityChar);
+
+      // xxx...
+      // yyy...
+      xRow.insert (xRow.begin(), xRowDel.begin(), xRowDel.begin() + sharedLen);
+      yRow.insert (yRow.begin(), yRowIns.begin(), yRowIns.begin() + sharedLen);
+      if (px->hasQual())
+	xQual.insert (xQual.begin(), xQualDel.begin(), xQualDel.begin() + sharedLen);
+      if (py->hasQual())
+	yQual.insert (yQual.begin(), yQualIns.begin(), yQualIns.begin() + sharedLen);
+
+      xRowDel.clear();
+      xQualDel.clear();
+      yRowIns.clear();
+      yQualIns.clear();
     }
   }
   const SeqIdx xStart = i + 1;

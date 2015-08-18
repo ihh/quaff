@@ -23,13 +23,14 @@ Usage: quaff {help,train,align,overlap} [options]
 Commands:
 
  quaff train refs.fasta reads.fastq  &gt;params.yaml
-  (to fit a model to unaligned sequences, using EM)
+  (to fit a model to unaligned sequences, using EM/Forward-Backward)
 
    -maxiter &lt;n&gt;    Max number of EM iterations (default is 100)
    -mininc &lt;n&gt;     EM convergence threshold as relative log-likelihood increase
                     (default is .01)
    -force          Force each read to match a refseq, i.e. disallow null model
    -order &lt;k&gt;      Allow substitutions to depend on k-mer contexts
+   -gaporder &lt;k&gt;   Allow gap open probabilities to depend on k-mer contexts
    -prior &lt;file&gt;, -saveprior &lt;file&gt;
                    Respectively: load/save prior pseudocounts from/to file
    -counts &lt;file&gt;  Save E-step counts to file, which can then be used as a prior
