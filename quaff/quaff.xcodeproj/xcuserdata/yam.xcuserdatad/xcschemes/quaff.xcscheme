@@ -94,6 +94,10 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "overlap -reads nanopair-data/ch8_file30_strand.fastq -reads nanopair-data/ch8_file30_strand.fastq -v -params params2.yaml"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "overlap c8f30.fastq.gz c8f30.fastq.gz"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

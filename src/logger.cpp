@@ -35,7 +35,7 @@ bool Logger::parseLogArgs (deque<string>& argvec) {
       return true;
 
     } else if (regex_match (arg, all_v)) {
-      setVerbose (arg.size() - 1);
+      setVerbose ((unsigned int) (arg.size() - 1));
       argvec.pop_front();
       return true;
 

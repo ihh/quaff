@@ -105,9 +105,11 @@ void SymQualCounts::read (const string& counts) {
   }
 }
 
-QuaffKmerContext::QuaffKmerContext (unsigned int kmerLen)
+QuaffKmerContext::QuaffKmerContext (const char* prefix, unsigned int kmerLen)
+  : prefix(prefix),
+    defaultKmerLen (kmerLen)
 {
-  initKmerContext (kmerLen);
+  initKmerContext (defaultKmerLen);
 }
 
 void QuaffKmerContext::initKmerContext (unsigned int newKmerLen) {
@@ -116,16 +118,16 @@ void QuaffKmerContext::initKmerContext (unsigned int newKmerLen) {
 }
 
 void QuaffKmerContext::readKmerLen (map<string,string>& paramVal) {
-  const string tag ("order");
+  const string tag = string(prefix) + "Order";
   if (paramVal.find(tag) == paramVal.end())
-    initKmerContext (1);
+    initKmerContext (defaultKmerLen);
   else
     initKmerContext (atoi (paramVal[tag].c_str()));
 }
 
 void QuaffKmerContext::writeKmerLen (ostream& out) const {
-  if (kmerLen > 1)
-    out << "order: " << kmerLen << endl;
+  if (kmerLen != defaultKmerLen)
+    out << prefix << "Order: " << kmerLen << endl;
 }
 
 string QuaffKmerContext::kmerString (Kmer kmer) const {
@@ -136,7 +138,7 @@ string QuaffKmerContext::insertParamName (AlphTok i) const {
   return string("insert") + dnaAlphabet[i];
 }
 
-string QuaffKmerContext::matchParamName (AlphTok i, Kmer j) const {
+string QuaffMatchKmerContext::matchParamName (AlphTok i, Kmer j) const {
   const string ks = kmerString(j);
   string name = "match";
   if (kmerLen > 1)
@@ -144,12 +146,18 @@ string QuaffKmerContext::matchParamName (AlphTok i, Kmer j) const {
   return name + dnaAlphabet[i] + ks.back();
 }
 
-QuaffParams::QuaffParams (unsigned int kmerLen)
-  : QuaffKmerContext(kmerLen),
+string QuaffIndelKmerContext::booleanParamName (const char* tag, Kmer j) const {
+  string name = string(tag);
+  if (kmerLen > 0)
+    name = name + kmerString(j);
+  return name;
+}
+
+QuaffParams::QuaffParams (unsigned int matchKmerLen, unsigned int indelKmerLen)
+  : matchContext(matchKmerLen),
+    indelContext(indelKmerLen),
     refBase(dnaAlphabetSize,.25),
-    beginInsert(.5),
     extendInsert(.5),
-    beginDelete(.5),
     extendDelete(.5),
     insert (dnaAlphabetSize)
 {
@@ -157,42 +165,52 @@ QuaffParams::QuaffParams (unsigned int kmerLen)
 }
 
 void QuaffParams::resize() {
-  match = vguard<vguard<SymQualDist> > (dnaAlphabetSize, vguard<SymQualDist> (numKmers));
+  match = vguard<vguard<SymQualDist> > (dnaAlphabetSize, vguard<SymQualDist> (matchContext.numKmers));
+  beginInsert = vguard<double> (indelContext.numKmers, .5);
+  beginDelete = vguard<double> (indelContext.numKmers, .5);
 }
 
 #define QuaffParamWrite(X) out << #X ": " << X << endl
+#define QuaffParamWriteK(X,KMER) out << indelContext.booleanParamName(#X,KMER) << ": " << X[KMER] << endl
 void QuaffParams::write (ostream& out) const {
-  writeKmerLen (out);
+  matchContext.writeKmerLen (out);
+  indelContext.writeKmerLen (out);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     out << "refBase" << dnaAlphabet[i] << ": " << refBase[i] << endl;
-  QuaffParamWrite(beginInsert);
+  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
+    QuaffParamWriteK(beginInsert,j);
+    QuaffParamWriteK(beginDelete,j);
+  }
   QuaffParamWrite(extendInsert);
-  QuaffParamWrite(beginDelete);
   QuaffParamWrite(extendDelete);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].write (out, insertParamName(i));
+    insert[i].write (out, matchContext.insertParamName(i));
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer j = 0; j < numKmers; ++j)
-      match[i][j].write (out, matchParamName(i,j));
+    for (Kmer j = 0; j < matchContext.numKmers; ++j)
+      match[i][j].write (out, matchContext.matchParamName(i,j));
 }
 
 #define QuaffParamRead(X) Require(val.find(#X) != val.end(),"Missing parameter: " #X), X = atof(val[#X].c_str())
+#define QuaffParamReadK(X,KMER) do { const string tmpParamName = indelContext.booleanParamName(#X,KMER); Require(val.find(tmpParamName) != val.end(),"Missing parameter: %s",tmpParamName.c_str()), X[KMER] = atof(val[tmpParamName].c_str()); } while(0)
 void QuaffParams::read (istream& in) {
   map<string,string> val = readParamFile (in);
 
-  readKmerLen(val);
+  matchContext.readKmerLen(val);
+  indelContext.readKmerLen(val);
   resize();
   
-  QuaffParamRead(beginInsert);
+  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
+    QuaffParamReadK(beginInsert,j);
+    QuaffParamReadK(beginDelete,j);
+  }
   QuaffParamRead(extendInsert);
-  QuaffParamRead(beginDelete);
   QuaffParamRead(extendDelete);
 
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].read (val, insertParamName(i));
+    insert[i].read (val, matchContext.insertParamName(i));
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer j = 0; j < numKmers; ++j)
-      match[i][j].read (val, matchParamName(i,j));
+    for (Kmer j = 0; j < matchContext.numKmers; ++j)
+      match[i][j].read (val, matchContext.matchParamName(i,j));
 }
 
 void QuaffParams::fitRefSeqs (const vguard<FastSeq>& refs) {
@@ -208,21 +226,28 @@ void QuaffParams::fitRefSeqs (const vguard<FastSeq>& refs) {
 }
 
 QuaffScores::QuaffScores (const QuaffParams& qp)
-  : QuaffKmerContext(qp.kmerLen),
+  : matchContext(qp.matchContext.kmerLen),
+    indelContext(qp.indelContext.kmerLen),
     pqp(&qp),
     insert (dnaAlphabetSize),
-    match (dnaAlphabetSize, vguard<SymQualScores> (numKmers))
+    match (dnaAlphabetSize, vguard<SymQualScores> (matchContext.numKmers)),
+    m2m (indelContext.numKmers),
+    m2i (indelContext.numKmers),
+    m2d (indelContext.numKmers),
+    m2e (indelContext.numKmers)    
 {
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     insert[i] = SymQualScores (qp.insert[i]);
-    for (Kmer j = 0; j < numKmers; ++j)
+    for (Kmer j = 0; j < matchContext.numKmers; ++j)
       match[i][j] = SymQualScores (qp.match[i][j]);
   }
 
-  m2m = log(1-qp.beginInsert) + log(1-qp.beginDelete);
-  m2i = log(qp.beginInsert);
-  m2d = log(1-qp.beginInsert) + log(qp.beginDelete);
-  m2e = log(qp.beginInsert);
+  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
+    m2m[j] = log(1-qp.beginInsert[j]) + log(1-qp.beginDelete[j]);
+    m2i[j] = log(qp.beginInsert[j]);
+    m2d[j] = log(1-qp.beginInsert[j]) + log(qp.beginDelete[j]);
+    m2e[j] = log(qp.beginInsert[j]);
+  }
 
   d2d = log(qp.extendDelete);
   d2m = log(1-qp.extendDelete);
@@ -231,14 +256,15 @@ QuaffScores::QuaffScores (const QuaffParams& qp)
   i2m = log(1-qp.extendInsert);
 }
 
-QuaffCounts::QuaffCounts (unsigned int kmerLen)
-  : QuaffKmerContext(kmerLen),
+QuaffCounts::QuaffCounts (unsigned int matchKmerLen, unsigned int indelKmerLen)
+  : matchContext(matchKmerLen),
+    indelContext(indelKmerLen),
     insert (dnaAlphabetSize),
-    match (dnaAlphabetSize, vguard<SymQualCounts> (numKmers)),
-    m2m(0),
-    m2i(0),
-    m2d(0),
-    m2e(0),
+    match (dnaAlphabetSize, vguard<SymQualCounts> (matchContext.numKmers)),
+    m2m(indelContext.numKmers,0),
+    m2i(indelContext.numKmers,0),
+    m2d(indelContext.numKmers,0),
+    m2e(indelContext.numKmers,0),
     d2d(0),
     d2m(0),
     i2i(0),
@@ -246,41 +272,49 @@ QuaffCounts::QuaffCounts (unsigned int kmerLen)
 { }
 
 void QuaffCounts::write (ostream& out) const {
-  writeKmerLen (out);
-  QuaffParamWrite(m2m);
-  QuaffParamWrite(m2i);
-  QuaffParamWrite(m2d);
-  QuaffParamWrite(m2e);
+  matchContext.writeKmerLen (out);
+  indelContext.writeKmerLen (out);
+  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
+    QuaffParamWriteK(m2m,j);
+    QuaffParamWriteK(m2i,j);
+    QuaffParamWriteK(m2d,j);
+    QuaffParamWriteK(m2e,j);
+  }
   QuaffParamWrite(d2d);
   QuaffParamWrite(d2m);
   QuaffParamWrite(i2i);
   QuaffParamWrite(i2m);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].write (out, insertParamName(i));
+    insert[i].write (out, matchContext.insertParamName(i));
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer j = 0; j < numKmers; ++j)
-      match[i][j].write (out, matchParamName(i,j));
+    for (Kmer j = 0; j < matchContext.numKmers; ++j)
+      match[i][j].write (out, matchContext.matchParamName(i,j));
 }
 
-QuaffParamCounts::QuaffParamCounts (unsigned int kmerLen)
-  : QuaffKmerContext(kmerLen),
+QuaffParamCounts::QuaffParamCounts (unsigned int matchKmerLen, unsigned int indelKmerLen)
+  : matchContext(matchKmerLen),
+    indelContext(indelKmerLen),
     insert (dnaAlphabetSize)
 {
   resize();
   zeroCounts();
 }
 
-
 void QuaffParamCounts::resize() {
-  match = vguard<vguard<SymQualCounts> > (dnaAlphabetSize, vguard<SymQualCounts> (numKmers));
+  match = vguard<vguard<SymQualCounts> > (dnaAlphabetSize, vguard<SymQualCounts> (matchContext.numKmers));
+  beginInsertNo = vguard<double> (indelContext.numKmers, 0);
+  beginInsertYes = vguard<double> (indelContext.numKmers, 0);
+  beginDeleteNo = vguard<double> (indelContext.numKmers, 0);
+  beginDeleteYes = vguard<double> (indelContext.numKmers, 0);
 }
 
 QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
-  : QuaffKmerContext(counts.kmerLen),
+  : matchContext(counts.matchContext.kmerLen),
+    indelContext(counts.indelContext.kmerLen),
     insert (counts.insert),
     match (counts.match),
-    beginInsertNo (counts.m2m + counts.m2d),
-    beginInsertYes (counts.m2i + counts.m2e),
+    beginInsertNo (vector_sum (counts.m2m, counts.m2d)),
+    beginInsertYes (vector_sum (counts.m2i, counts.m2e)),
     extendInsertNo (counts.i2m),
     extendInsertYes (counts.i2i),
     beginDeleteNo (counts.m2m),
@@ -301,7 +335,7 @@ void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, d
       else
 	insert[j].qualCount[k] = otherCount / FastSeq::qualScoreRange;
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer jPrefix = 0; jPrefix < numKmers; jPrefix += dnaAlphabetSize)
+    for (Kmer jPrefix = 0; jPrefix < matchContext.numKmers; jPrefix += dnaAlphabetSize)
       for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix) {
 	const Kmer j = jPrefix + jSuffix;
 	for (QualScore k = 0; k < FastSeq::qualScoreRange; ++k)
@@ -310,54 +344,61 @@ void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, d
 	  else
 	    match[i][j].qualCount[k] = (i == j ? matchIdentCount : otherCount) / FastSeq::qualScoreRange;
       }
-  beginInsertNo = noBeginCount;
-  beginInsertYes = otherCount;
+  beginInsertNo = vguard<double> (indelContext.numKmers, noBeginCount);
+  beginInsertYes = vguard<double> (indelContext.numKmers, otherCount);
   extendInsertNo = otherCount;
   extendInsertYes = yesExtendCount;
-  beginDeleteNo = noBeginCount;
-  beginDeleteYes = otherCount;
+  beginDeleteNo = vguard<double> (indelContext.numKmers, noBeginCount);
+  beginDeleteYes = vguard<double> (indelContext.numKmers, otherCount);
   extendDeleteNo = otherCount;
   extendDeleteYes = yesExtendCount;
 }
 
 void QuaffParamCounts::write (ostream& out) const {
-  writeKmerLen (out);
-  QuaffParamWrite(beginInsertNo);
-  QuaffParamWrite(beginInsertYes);
+  matchContext.writeKmerLen (out);
+  indelContext.writeKmerLen (out);
+  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
+    QuaffParamWriteK(beginInsertNo,j);
+    QuaffParamWriteK(beginInsertYes,j);
+    QuaffParamWriteK(beginDeleteNo,j);
+    QuaffParamWriteK(beginDeleteYes,j);
+  }
   QuaffParamWrite(extendInsertNo);
   QuaffParamWrite(extendInsertYes);
-  QuaffParamWrite(beginDeleteNo);
-  QuaffParamWrite(beginDeleteYes);
   QuaffParamWrite(extendDeleteNo);
   QuaffParamWrite(extendDeleteYes);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].write (out, insertParamName(i));
+    insert[i].write (out, matchContext.insertParamName(i));
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer j = 0; j < numKmers; ++j)
-      match[i][j].write (out, matchParamName(i,j));
+    for (Kmer j = 0; j < matchContext.numKmers; ++j)
+      match[i][j].write (out, matchContext.matchParamName(i,j));
 }
 
 void QuaffParamCounts::read (istream& in) {
   map<string,string> val = readParamFile (in);
 
-  readKmerLen(val);
+  matchContext.readKmerLen(val);
+  indelContext.readKmerLen(val);
   resize();
   
-  QuaffParamRead(beginInsertYes);
+  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
+    QuaffParamReadK(beginInsertYes,j);
+    QuaffParamReadK(beginInsertNo,j);
+    QuaffParamReadK(beginDeleteYes,j);
+    QuaffParamReadK(beginDeleteNo,j);
+  }
+
   QuaffParamRead(extendInsertYes);
-  QuaffParamRead(beginDeleteYes);
   QuaffParamRead(extendDeleteYes);
 
-  QuaffParamRead(beginInsertNo);
   QuaffParamRead(extendInsertNo);
-  QuaffParamRead(beginDeleteNo);
   QuaffParamRead(extendDeleteNo);
 
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].read (val[insertParamName(i)]);
+    insert[i].read (val[matchContext.insertParamName(i)]);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer j = 0; j < numKmers; ++j)
-      match[i][j].read (val[matchParamName(i,j)]);
+    for (Kmer j = 0; j < matchContext.numKmers; ++j)
+      match[i][j].read (val[matchContext.matchParamName(i,j)]);
 }
 
 const char Alignment::gapChar = '-';
@@ -581,7 +622,8 @@ QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp
     qs (qp),
     xTok (px->tokens(dnaAlphabet)),
     yTok (py->tokens(dnaAlphabet)),
-    yKmer (py->kmers(dnaAlphabet,qp.kmerLen)),
+    yMatchKmer (py->kmers(dnaAlphabet,qp.matchContext.kmerLen)),
+    yIndelKmer (py->kmers(dnaAlphabet,qp.indelContext.kmerLen)),
     yQual (py->qualScores()),
     cachedInsertEmitScore (py->length() + 1, -numeric_limits<double>::infinity())
 {
@@ -615,9 +657,9 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
 
     for (SeqIdx i : env.forward_i(j)) {
 
-      mat(i,j) = log_sum_exp (mat(i-1,j-1) + qs.m2m,
-			      del(i-1,j-1) + qs.d2m,
-			      ins(i-1,j-1) + qs.i2m);
+      mat(i,j) = log_sum_exp (mat(i-1,j-1) + m2mScore(j-1),
+			      del(i-1,j-1) + d2mScore(),
+			      ins(i-1,j-1) + i2mScore());
 
       if (j == 1 && (i == 1 || config.local))
 	mat(i,j) = log_sum_exp (mat(i,j),
@@ -625,15 +667,15 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
 
       mat(i,j) += matchEmitScore(i,j);
 
-      ins(i,j) = cachedInsertEmitScore[j] + log_sum_exp (ins(i,j-1) + qs.i2i,
-							 mat(i,j-1) + qs.m2i);
+      ins(i,j) = cachedInsertEmitScore[j] + log_sum_exp (ins(i,j-1) + i2iScore(),
+							 mat(i,j-1) + m2iScore(j-1));
 
-      del(i,j) = log_sum_exp (del(i-1,j) + qs.d2d,
-			      mat(i-1,j) + qs.m2d);
+      del(i,j) = log_sum_exp (del(i-1,j) + d2dScore(),
+			      mat(i-1,j) + m2dScore(j));
 
       if (j == yLen && (i == xLen || config.local))
 	end = log_sum_exp (end,
-			   mat(i,yLen) + qs.m2e);
+			   mat(i,yLen) + m2eScore(yLen));
     }
   }
 
@@ -649,7 +691,7 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
 QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
   : QuaffDPMatrix (*fwd.penv, *fwd.qs.pqp, *fwd.pconfig),
     pfwd (&fwd),
-    qc(fwd.qs.kmerLen)
+    qc(fwd.qs.matchContext.kmerLen,fwd.qs.indelContext.kmerLen)
 {
   Require (py->hasQual(), "Forward-Backward algorithm requires quality scores to fit model, but sequence %s lacks quality scores", py->name.c_str());
 
@@ -667,9 +709,9 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
       if (j == yLen && (i == xLen || pconfig->local)) {
 	const double m2e = transCount (mat(i,yLen),
 				       fwd.mat(i,yLen),
-				       qs.m2e,
+				       m2eScore(yLen),
 				       end);
-	qc.m2e += m2e;
+	m2eCount(yLen) += m2e;
       }
 
       const double matEmit = matchEmitScore(i,j);
@@ -678,23 +720,23 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 
       const double m2m = transCount (mat(i-1,j-1),
 				     fwd.mat(i-1,j-1),
-				     qs.m2m + matEmit,
+				     m2mScore(j-1) + matEmit,
 				     matDest);
-      qc.m2m += m2m;
+      m2mCount(j-1) += m2m;
       matCount += m2m;
 
       const double d2m = transCount (del(i-1,j-1),
 				     fwd.del(i-1,j-1),
-				     qs.d2m + matEmit,
+				     d2mScore() + matEmit,
 				     matDest);
-      qc.d2m += d2m;
+      d2mCount() += d2m;
       matCount += d2m;
 
       const double i2m = transCount (ins(i-1,j-1),
 				     fwd.ins(i-1,j-1),
-				     qs.i2m + matEmit,
+				     i2mScore() + matEmit,
 				     matDest);
-      qc.i2m += i2m;
+      i2mCount() += i2m;
       matCount += i2m;
 
       if (j == 1 && (i == 1 || pconfig->local)) {
@@ -711,31 +753,31 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 
       const double m2i = transCount (mat(i,j-1),
 				     fwd.mat(i,j-1),
-				     qs.m2i + insEmit,
+				     m2iScore(j-1) + insEmit,
 				     insDest);
-      qc.m2i += m2i;
+      m2iCount(j-1) += m2i;
       insCount += m2i;
 
       const double i2i = transCount (ins(i,j-1),
 				     fwd.ins(i,j-1),
-				     qs.i2i + insEmit,
+				     i2iScore() + insEmit,
 				     insDest);
-      qc.i2i += i2i;
+      i2iCount() += i2i;
       insCount += i2i;
 
       const double delDest = del(i,j);
 
       const double m2d = transCount (mat(i-1,j),
 				     fwd.mat(i-1,j),
-				     qs.m2d,
+				     m2dScore(j),
 				     delDest);
-      qc.m2d += m2d;
+      m2dCount(j) += m2d;
 
       const double d2d = transCount (del(i-1,j),
 				     fwd.del(i-1,j),
-				     qs.d2d,
+				     d2dScore(),
 				     delDest);
-      qc.d2d += d2d;
+      d2dCount() += d2d;
     }
   }
 
@@ -779,9 +821,9 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
 
     for (SeqIdx i : env.forward_i(j)) {
 
-      mat(i,j) = max (max (mat(i-1,j-1) + qs.m2m,
-			   del(i-1,j-1) + qs.d2m),
-		      ins(i-1,j-1) + qs.i2m);
+      mat(i,j) = max (max (mat(i-1,j-1) + m2mScore(j-1),
+			   del(i-1,j-1) + d2mScore()),
+		      ins(i-1,j-1) + i2mScore());
 
       if (j == 1 && (i == 1 || config.local))
 	mat(i,j) = max (mat(i,j),
@@ -789,15 +831,15 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
 
       mat(i,j) += matchEmitScore(i,j);
 
-      ins(i,j) = cachedInsertEmitScore[j] + max (ins(i,j-1) + qs.i2i,
-						 mat(i,j-1) + qs.m2i);
+      ins(i,j) = cachedInsertEmitScore[j] + max (ins(i,j-1) + i2iScore(),
+						 mat(i,j-1) + m2iScore(j-1));
 
-      del(i,j) = max (del(i-1,j) + qs.d2d,
-		      mat(i-1,j) + qs.m2d);
+      del(i,j) = max (del(i-1,j) + d2dScore(),
+		      mat(i-1,j) + m2dScore(j));
 
       if (j == yLen && (i == xLen || config.local))
 	end = max (end,
-		   mat(i,j) + qs.m2e);
+		   mat(i,j) + m2eScore(j));
     }
   }
 
@@ -817,7 +859,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
     double bestEndSc = -numeric_limits<double>::infinity();
     double sc;
     for (SeqIdx iEnd = xLen; iEnd > 0; --iEnd) {
-      sc = mat(iEnd,yLen) + qs.m2e;
+      sc = mat(iEnd,yLen) + m2eScore(yLen);
       if (iEnd == xLen || sc > bestEndSc) {
 	bestEndSc = sc;
 	xEnd = iEnd;
@@ -839,9 +881,9 @@ Alignment QuaffViterbiMatrix::alignment() const {
       yRow.push_front (py->seq[--j]);
       if (py->hasQual())
 	yQual.push_front (py->qual[j]);
-      updateMax (srcSc, state, mat(i,j) + qs.m2m + emitSc, Match);
-      updateMax (srcSc, state, ins(i,j) + qs.i2m + emitSc, Insert);
-      updateMax (srcSc, state, del(i,j) + qs.d2m + emitSc, Delete);
+      updateMax (srcSc, state, mat(i,j) + m2mScore(j) + emitSc, Match);
+      updateMax (srcSc, state, ins(i,j) + i2mScore() + emitSc, Insert);
+      updateMax (srcSc, state, del(i,j) + d2mScore() + emitSc, Delete);
       if (j == 0 && (i == 0 || pconfig->local))
 	updateMax (srcSc, state, emitSc, Start);
       Assert (srcSc == mat(i+1,j+1), "Traceback error");
@@ -853,8 +895,8 @@ Alignment QuaffViterbiMatrix::alignment() const {
       yRow.push_front (py->seq[--j]);
       if (py->hasQual())
 	yQual.push_front (py->qual[j]);
-      updateMax (srcSc, state, mat(i,j) + qs.m2i + emitSc, Match);
-      updateMax (srcSc, state, ins(i,j) + qs.i2i + emitSc, Insert);
+      updateMax (srcSc, state, mat(i,j) + m2iScore(j) + emitSc, Match);
+      updateMax (srcSc, state, ins(i,j) + i2iScore() + emitSc, Insert);
       Assert (srcSc == ins(i,j+1), "Traceback error");
       break;
 
@@ -863,8 +905,8 @@ Alignment QuaffViterbiMatrix::alignment() const {
       yRow.push_front (Alignment::gapChar);
       if (py->hasQual())
 	yQual.push_front (FastSeq::maxQualityChar);
-      updateMax (srcSc, state, mat(i,j) + qs.m2d, Match);
-      updateMax (srcSc, state, del(i,j) + qs.d2d, Delete);
+      updateMax (srcSc, state, mat(i,j) + m2dScore(j), Match);
+      updateMax (srcSc, state, del(i,j) + d2dScore(), Delete);
       Assert (srcSc == del(i+1,j), "Traceback error");
       break;
 
@@ -899,28 +941,31 @@ Alignment QuaffViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nul
 }
 
 void QuaffParamCounts::addWeighted (const QuaffParamCounts& counts, double weight) {
-  Assert (counts.kmerLen == kmerLen, "Cannot add two QuaffParamCounts with different kmer lengths");
+  Assert (counts.matchContext.kmerLen == matchContext.kmerLen, "Cannot add two QuaffParamCounts with different match kmer lengths");
+  Assert (counts.indelContext.kmerLen == indelContext.kmerLen, "Cannot add two QuaffParamCounts with different indel kmer lengths");
   for (QualScore q = 0; q < FastSeq::qualScoreRange; ++q)
     for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
       insert[i].qualCount[q] += weight * counts.insert[i].qualCount[q];
-      for (Kmer j = 0; j < numKmers; ++j)
+      for (Kmer j = 0; j < matchContext.numKmers; ++j)
 	match[i][j].qualCount[q] += weight * counts.match[i][j].qualCount[q];
     }
-  beginInsertNo += weight * counts.beginInsertNo;
-  beginInsertYes += weight * counts.beginInsertYes;
+  beginInsertNo = vector_sum (beginInsertNo, vector_scale (weight, counts.beginInsertNo));
+  beginInsertYes = vector_sum (beginInsertYes, vector_scale (weight, counts.beginInsertYes));
+  beginDeleteNo = vector_sum (beginDeleteNo, vector_scale (weight, counts.beginDeleteNo));
+  beginDeleteYes = vector_sum (beginDeleteYes, vector_scale (weight, counts.beginDeleteYes));
   extendInsertNo += weight * counts.extendInsertNo;
   extendInsertYes += weight * counts.extendInsertYes;
-  beginDeleteNo += weight * counts.beginDeleteNo;
-  beginDeleteYes += weight * counts.beginDeleteYes;
   extendDeleteNo += weight * counts.extendDeleteNo;
   extendDeleteYes += weight * counts.extendDeleteYes;
 }
 
 double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
   double lp = 0;
-  lp += logBetaPdf (qp.beginInsert, beginInsertYes, beginInsertNo);
+  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
+    lp += logBetaPdf (qp.beginInsert[j], beginInsertYes[j], beginInsertNo[j]);
+    lp += logBetaPdf (qp.beginDelete[j], beginDeleteYes[j], beginDeleteNo[j]);
+  }
   lp += logBetaPdf (qp.extendInsert, extendInsertYes, extendInsertNo);
-  lp += logBetaPdf (qp.beginDelete, beginDeleteYes, beginDeleteNo);
   lp += logBetaPdf (qp.extendDelete, extendDeleteYes, extendDeleteNo);
   double *alpha = new double[dnaAlphabetSize], *theta = new double[dnaAlphabetSize];
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
@@ -930,7 +975,7 @@ double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
   }
   lp += log (gsl_ran_dirichlet_pdf (dnaAlphabetSize, alpha, theta));
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
-    for (Kmer jPrefix = 0; jPrefix < numKmers; jPrefix += dnaAlphabetSize) {
+    for (Kmer jPrefix = 0; jPrefix < matchContext.numKmers; jPrefix += dnaAlphabetSize) {
       for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix) {
 	const Kmer j = jPrefix + jSuffix;
 	lp += qp.match[i][j].logQualProb (match[i][j].qualCount);  // not normalized...
@@ -947,16 +992,18 @@ double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
 
 double QuaffParamCounts::expectedLogLike (const QuaffParams& qp) const {
   double ll = 0;
-  ll += log (qp.beginInsert) * beginInsertYes + log (1 - qp.beginInsert) * beginInsertNo;
+  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
+    ll += log (qp.beginInsert[j]) * beginInsertYes[j] + log (1 - qp.beginInsert[j]) * beginInsertNo[j];
+    ll += log (qp.beginDelete[j]) * beginDeleteYes[j] + log (1 - qp.beginDelete[j]) * beginDeleteNo[j];
+  }
   ll += log (qp.extendInsert) * extendInsertYes + log (1 - qp.extendInsert) * extendInsertNo;
-  ll += log (qp.beginDelete) * beginDeleteYes + log (1 - qp.beginDelete) * beginDeleteNo;
   ll += log (qp.extendDelete) * extendDeleteYes + log (1 - qp.extendDelete) * extendDeleteNo;
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     ll += qp.insert[i].logQualProb (insert[i].qualCount);
     ll += log (qp.insert[i].symProb) * accumulate (insert[i].qualCount.begin(), insert[i].qualCount.end(), 0.);
   }
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
-    for (Kmer j = 0; j < numKmers; ++j) {
+    for (Kmer j = 0; j < matchContext.numKmers; ++j) {
       ll += qp.match[i][j].logQualProb (match[i][j].qualCount);  // not normalized...
       ll += log (qp.match[i][j].symProb) * accumulate (match[i][j].qualCount.begin(), match[i][j].qualCount.end(), 0.);
     }
@@ -965,10 +1012,12 @@ double QuaffParamCounts::expectedLogLike (const QuaffParams& qp) const {
 }
 
 QuaffParams QuaffParamCounts::fit() const {
-  QuaffParams qp (kmerLen);
-  qp.beginDelete = 1. / (1. + beginDeleteNo / beginDeleteYes);
+  QuaffParams qp (matchContext.kmerLen, indelContext.kmerLen);
+  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
+    qp.beginDelete[j] = 1. / (1. + beginDeleteNo[j] / beginDeleteYes[j]);
+    qp.beginInsert[j] = 1. / (1. + beginInsertNo[j] / beginInsertYes[j]);
+  }
   qp.extendDelete = 1. / (1. + extendDeleteNo / extendDeleteYes);
-  qp.beginInsert = 1. / (1. + beginInsertNo / beginInsertYes);
   qp.extendInsert = 1. / (1. + extendInsertNo / extendInsertYes);
 
   vguard<double> insFreq;
@@ -981,7 +1030,7 @@ QuaffParams QuaffParamCounts::fit() const {
   }
 
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
-    for (Kmer jPrefix = 0; jPrefix < numKmers; jPrefix += dnaAlphabetSize) {
+    for (Kmer jPrefix = 0; jPrefix < matchContext.numKmers; jPrefix += dnaAlphabetSize) {
       vguard<double> iMatFreq (dnaAlphabetSize);
       for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix) {
 	const Kmer j = jPrefix + jSuffix;
@@ -1145,58 +1194,91 @@ bool QuaffTrainer::parseTrainingArgs (deque<string>& argvec) {
       argvec.pop_front();
       argvec.pop_front();
       return true;
+    }
+  }
+
+  return parseCountingArgs (argvec);
 }
+
+bool QuaffTrainer::parseCountingArgs (deque<string>& argvec) {
+  if (argvec.size()) {
+    const string& arg = argvec[0];
+    if (arg == "-force") {
+      allowNullModel = false;
+      argvec.pop_front();
+      return true;
+    }
   }
 
   return false;
 }
 
-QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config) {
-  const unsigned int kmerLen = seed.kmerLen;
-  Assert (pseudocounts.kmerLen == kmerLen, "Prior must have same kmer-length as parameters");
-  QuaffParams qp = seed;
-  QuaffParamCounts counts(kmerLen), countsWithPrior(kmerLen);
-  double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
+vguard<vguard<size_t> > QuaffTrainer::defaultSortOrder (const vguard<FastSeq>& x, const vguard<FastSeq>& y) {
   vguard<size_t> initialSortOrder (x.size());
   iota (initialSortOrder.begin(), initialSortOrder.end(), (size_t) 0);
-  vguard<vguard<size_t> > sortOrder (y.size(), initialSortOrder);
-  for (int iter = 0; iter < maxIterations; ++iter) {
-    counts.zeroCounts();
-    double logLike = 0;
-    for (size_t ny = 0; ny < y.size(); ++ny) {
-      const auto& yfs = y[ny];
-      const double yNullLogLike = allowNullModel ? nullModel.logLikelihood(yfs) : -numeric_limits<double>::infinity();
-      double yLogLike = yNullLogLike;  // this initial value allows null model to "win"
-      if (LogThisAt(2))
-	cerr << "Null model score for " << yfs.name << " is " << yNullLogLike << endl;
-      vguard<double> xyLogLike;
-      vguard<QuaffParamCounts> xyCounts;
-      for (auto nx : sortOrder[ny]) {
-	const auto& xfs = x[nx];
-	DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
-	const QuaffForwardMatrix fwd (env, qp, config);
-	const double ll = fwd.result;
-	QuaffParamCounts qpc(kmerLen);
-	if (ll >= yLogLike - MAX_TRAINING_LOG_DELTA) {  // don't waste time computing low-weight counts
-	  const QuaffBackwardMatrix back (fwd);
-	  qpc = back.qc;
-	}
-	xyLogLike.push_back (ll);
-	xyCounts.push_back (qpc);
-	yLogLike = log_sum_exp (yLogLike, ll);
+  return vguard<vguard<size_t> > (y.size(), initialSortOrder);
+}
+
+QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike) {
+  const unsigned int matchKmerLen = params.matchContext.kmerLen;
+  const unsigned int indelKmerLen = params.indelContext.kmerLen;
+  QuaffParamCounts counts (matchKmerLen, indelKmerLen);
+  logLike = 0;
+  for (size_t ny = 0; ny < y.size(); ++ny) {
+    const auto& yfs = y[ny];
+    const double yNullLogLike = allowNullModel ? nullModel.logLikelihood(yfs) : -numeric_limits<double>::infinity();
+    double yLogLike = yNullLogLike;  // this initial value allows null model to "win"
+    if (LogThisAt(2))
+      cerr << "Null model score for " << yfs.name << " is " << yNullLogLike << endl;
+    vguard<double> xyLogLike;
+    vguard<QuaffParamCounts> xyCounts;
+    for (auto nx : sortOrder[ny]) {
+      const auto& xfs = x[nx];
+      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
+      const QuaffForwardMatrix fwd (env, params, config);
+      const double ll = fwd.result;
+      QuaffParamCounts qpc(matchKmerLen,indelKmerLen);
+      if (ll >= yLogLike - MAX_TRAINING_LOG_DELTA) {  // don't waste time computing low-weight counts
+	const QuaffBackwardMatrix back (fwd);
+	qpc = back.qc;
       }
-      for (size_t nx = 0; nx < x.size(); ++nx) {
-	const double xyPostProb = exp (xyLogLike[nx] - yLogLike);
-	if (LogThisAt(2))
-	  cerr << "P(read " << yfs.name << " derived from ref " << x[nx].name << ") = " << xyPostProb << endl;
-	counts.addWeighted (xyCounts[nx], xyPostProb);
-      }
-      if (LogThisAt(2))
-	cerr << "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl;
-      logLike += yLogLike;
-      const vguard<size_t> ascendingOrder = orderedIndices (xyLogLike);
-      sortOrder[ny] = vguard<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
+      xyLogLike.push_back (ll);
+      xyCounts.push_back (qpc);
+      yLogLike = log_sum_exp (yLogLike, ll);
     }
+    for (size_t nx = 0; nx < x.size(); ++nx) {
+      const double xyPostProb = exp (xyLogLike[nx] - yLogLike);
+      if (LogThisAt(2))
+	cerr << "P(read " << yfs.name << " derived from ref " << x[nx].name << ") = " << xyPostProb << endl;
+      counts.addWeighted (xyCounts[nx], xyPostProb);
+    }
+    if (LogThisAt(2))
+      cerr << "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl;
+    logLike += yLogLike;
+    const vguard<size_t> ascendingOrder = orderedIndices (xyLogLike);
+    sortOrder[ny] = vguard<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
+  }
+  return counts;
+}
+
+QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
+  double logLike;
+  vguard<vguard<size_t> > sortOrder = defaultSortOrder (x, y);
+  return getCounts (x, y, params, nullModel, config, sortOrder, logLike);
+}
+
+QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config) {
+  const unsigned int matchKmerLen = seed.matchContext.kmerLen;
+  const unsigned int indelKmerLen = seed.indelContext.kmerLen;
+  Assert (pseudocounts.matchContext.kmerLen == matchKmerLen, "Prior must have same match kmer-length as parameters");
+  Assert (pseudocounts.indelContext.kmerLen == indelKmerLen, "Prior must have same indel kmer-length as parameters");
+  QuaffParams qp = seed;
+  QuaffParamCounts counts(matchKmerLen,indelKmerLen), countsWithPrior(matchKmerLen,indelKmerLen);
+  double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
+  vguard<vguard<size_t> > sortOrder = defaultSortOrder (x, y);
+  for (int iter = 0; iter < maxIterations; ++iter) {
+    double logLike = 0;
+    counts = getCounts (x, y, qp, nullModel, config, sortOrder, logLike);
     const double logPrior = pseudocounts.logPrior (qp);
     const double logLikeWithPrior = logLike + logPrior;
     if (LogThisAt(1))

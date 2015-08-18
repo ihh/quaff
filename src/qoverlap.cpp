@@ -5,24 +5,42 @@
 #include "logger.h"
 
 QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemented)
-  : QuaffKmerContext (qp.kmerLen),
+  : matchContext (qp.matchContext.kmerLen),
+    indelContext (qp.indelContext.kmerLen),
     pqp(&qp),
     yComplemented(yComplemented),
     xInsert (dnaAlphabetSize),
     yInsert (dnaAlphabetSize),
-    matchMinusInsert (numKmers, vguard<SymQualPairScores> (numKmers))
+    matchMinusInsert (matchContext.numKmers, vguard<SymQualPairScores> (matchContext.numKmers)),
+    gapOpenProb (indelContext.numKmers),
+    m2m (indelContext.numKmers, vguard<double> (indelContext.numKmers)),
+    m2i (indelContext.numKmers, vguard<double> (indelContext.numKmers)),
+    m2d (indelContext.numKmers, vguard<double> (indelContext.numKmers))
 {
   // coarse approximation to various paths through the intersection of two Quaff transducers...
-  const double readInsertProb = qp.beginInsert;
-  const double readDeleteProb = (1 - qp.beginInsert) * qp.beginDelete;
-  gapOpenProb = readInsertProb + readDeleteProb;
-  const double pGapIsInsert = readInsertProb / gapOpenProb;
-  const double meanGapLength = pGapIsInsert / qp.extendInsert + (1 - pGapIsInsert) / (qp.extendDelete * (1 - gapOpenProb));
+  vguard<double> pGapIsInsertK, gapAdjacentProbK;
+  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
+    const double readInsertProb = qp.beginInsert[j];
+    const double readDeleteProb = (1 - qp.beginInsert[j]) * qp.beginDelete[j];
+    gapOpenProb[j] = readInsertProb + readDeleteProb;
+    const double pGapIsInsert = readInsertProb / gapOpenProb[j];
+    const double gapAdjacentProb = pGapIsInsert * readInsertProb + (1 - pGapIsInsert) * gapOpenProb[j] / (1 - qp.extendDelete * (1 - gapOpenProb[j]));
+    pGapIsInsertK.push_back (pGapIsInsert);
+    gapAdjacentProbK.push_back (gapAdjacentProb);
+  }
+
+  for (Kmer i = 0; i < indelContext.numKmers; ++i)
+    for (Kmer j = 0; j < indelContext.numKmers; ++j) {
+      m2m[i][j] = log(1-gapOpenProb[i]) + log(1-gapOpenProb[j]);
+      m2i[i][j] = log(gapOpenProb[i]);
+      m2d[i][j] = log(1-gapOpenProb[i]) + log(gapOpenProb[j]);
+    }
+
+  const double pGapIsInsert = accumulate (pGapIsInsertK.begin(), pGapIsInsertK.end(), 0.) / pGapIsInsertK.size();
+  const double meanGapLength = pGapIsInsert / qp.extendInsert + (1 - pGapIsInsert) / qp.extendDelete;
   gapExtendProb = 1 / meanGapLength;
-  gapAdjacentProb = pGapIsInsert * readInsertProb + (1 - pGapIsInsert) * gapOpenProb / (1 - qp.extendDelete * (1 - gapOpenProb));
+  gapAdjacentProb = accumulate (gapAdjacentProbK.begin(), gapAdjacentProbK.end(), 0.) / gapAdjacentProbK.size();
   
-  m2m = 2*log(1-gapOpenProb);
-  m2i = m2d = log(gapOpenProb);
   i2i = d2d = log(gapExtendProb);
   i2d = d2i = log(1-gapExtendProb) + log(gapAdjacentProb);
   i2m = d2m = log(1-gapExtendProb) + log(1-gapAdjacentProb);
@@ -30,10 +48,10 @@ QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemente
   const QuaffScores qsc (qp);
   xInsert = yInsert = qsc.insert;
 
-  for (Kmer iPrefix = 0; iPrefix < numKmers; iPrefix += dnaAlphabetSize)
+  for (Kmer iPrefix = 0; iPrefix < matchContext.numKmers; iPrefix += dnaAlphabetSize)
     for (AlphTok iSuffix = 0; iSuffix < dnaAlphabetSize; ++iSuffix) {
       const Kmer i = iPrefix + iSuffix;
-      for (Kmer jPrefix = 0; jPrefix < numKmers; jPrefix += dnaAlphabetSize)
+      for (Kmer jPrefix = 0; jPrefix < matchContext.numKmers; jPrefix += dnaAlphabetSize)
 	for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix) {
 	  const Kmer j = jPrefix + jSuffix;
 	  for (QualScore ik = 0; ik < FastSeq::qualScoreRange; ++ik) {
@@ -58,7 +76,8 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
   : QuaffDPMatrixContainer (env),
     qos (qp, yComplemented),
     xTok (px->tokens(dnaAlphabet)),
-    xKmer (px->kmers(dnaAlphabet,qp.kmerLen)),
+    xMatchKmer (px->kmers(dnaAlphabet,qp.matchContext.kmerLen)),
+    xIndelKmer (px->kmers(dnaAlphabet,qp.indelContext.kmerLen)),
     xQual (px->qualScores()),
     yQual (py->qualScores()),
     xInsertScore (0),
@@ -70,19 +89,28 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
   if (yComplemented) {
     const FastSeq yRevcomp = y.revcomp();
     const vguard<AlphTok> yRevcompTok = yRevcomp.tokens (dnaAlphabet);
-    const vguard<Kmer> yRevcompKmer = yRevcomp.kmers (dnaAlphabet, qp.kmerLen);
+    const vguard<Kmer> yRevcompMatchKmer = yRevcomp.kmers (dnaAlphabet, qp.matchContext.kmerLen);
+    const vguard<Kmer> yRevcompIndelKmer = yRevcomp.kmers (dnaAlphabet, qp.indelContext.kmerLen);
     yTok = vguard<AlphTok> (yRevcompTok.rbegin(), yRevcompTok.rend());
-    yKmer = vguard<Kmer> (yRevcompKmer.rbegin(), yRevcompKmer.rend());
+    yMatchKmer = vguard<Kmer> (yRevcompMatchKmer.rbegin(), yRevcompMatchKmer.rend());
+    yIndelKmer = vguard<Kmer> (yRevcompIndelKmer.rbegin(), yRevcompIndelKmer.rend());
   } else {
     yTok = y.tokens(dnaAlphabet);
-    yKmer = y.kmers(dnaAlphabet,qp.kmerLen);
+    yMatchKmer = y.kmers(dnaAlphabet,qp.matchContext.kmerLen);
+    yIndelKmer = y.kmers(dnaAlphabet,qp.indelContext.kmerLen);
   }
 
-  for (SeqIdx i = 0; i < xLen; ++i)
-    Assert (xKmer[i] < qos.numKmers, "oops. xKmer %u/%u is %llu", i, xLen, xKmer[i]);
+  for (SeqIdx j = 0; j < xLen; ++j)
+    Assert (xMatchKmer[j] < qos.matchContext.numKmers, "oops. xMatchKmer %u/%u is %llu", j, xLen, xMatchKmer[j]);
+
+  for (SeqIdx j = 0; j < xLen; ++j)
+    Assert (xIndelKmer[j] < qos.indelContext.numKmers, "oops. xIndelKmer %u/%u is %llu", j, xLen, xIndelKmer[j]);
 
   for (SeqIdx j = 0; j < yLen; ++j)
-    Assert (yKmer[j] < qos.numKmers, "oops. yKmer %u/%u is %llu", j, yLen, yKmer[j]);
+    Assert (yMatchKmer[j] < qos.matchContext.numKmers, "oops. yMatchKmer %u/%u is %llu", j, yLen, yMatchKmer[j]);
+
+  for (SeqIdx j = 0; j < yLen; ++j)
+    Assert (yIndelKmer[j] < qos.indelContext.numKmers, "oops. yIndelKmer %u/%u is %llu", j, yLen, yIndelKmer[j]);
 
   for (SeqIdx i = 0; i < xLen; ++i) {
     const SymQualScores& sqs = qos.xInsert[xTok[i]];
@@ -105,9 +133,9 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
 
     for (SeqIdx i : env.forward_i(j)) {
 
-      mat(i,j) = max (max (mat(i-1,j-1) + qos.m2m,
-			   del(i-1,j-1) + qos.d2m),
-		      ins(i-1,j-1) + qos.i2m);
+      mat(i,j) = max (max (mat(i-1,j-1) + m2mScore(i-1,j-1),
+			   del(i-1,j-1) + d2mScore()),
+		      ins(i-1,j-1) + i2mScore());
 
       if (j == 1 || i == 1)
 	mat(i,j) = max (mat(i,j),
@@ -115,13 +143,13 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
 
       mat(i,j) += matchEmitScore(i,j);
 
-      ins(i,j) = max (log_sum_exp (ins(i,j-1) + qos.i2i,
-				   del(i,j-1) + qos.d2i),
-		      mat(i,j-1) + qos.m2i);
+      ins(i,j) = max (log_sum_exp (ins(i,j-1) + i2iScore(),
+				   del(i,j-1) + d2iScore()),
+		      mat(i,j-1) + m2iScore(i,j-1));
 
-      del(i,j) = max (log_sum_exp (del(i-1,j) + qos.d2d,
-				   ins(i-1,j) + qos.d2i),
-		      mat(i-1,j) + qos.m2d);
+      del(i,j) = max (log_sum_exp (del(i-1,j) + d2dScore(),
+				   ins(i-1,j) + d2iScore()),
+		      mat(i-1,j) + m2dScore(i-1,j));
 
       if (j == yLen || i == xLen)
 	end = max (end,
@@ -174,9 +202,9 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
 	xQual.push_front (px->qual[i]);
       if (py->hasQual())
 	yQual.push_front (py->qual[j]);
-      updateMax (srcSc, state, mat(i,j) + qos.m2m + emitSc, Match);
-      updateMax (srcSc, state, ins(i,j) + qos.i2m + emitSc, Insert);
-      updateMax (srcSc, state, del(i,j) + qos.d2m + emitSc, Delete);
+      updateMax (srcSc, state, mat(i,j) + m2mScore(i,j) + emitSc, Match);
+      updateMax (srcSc, state, ins(i,j) + i2mScore() + emitSc, Insert);
+      updateMax (srcSc, state, del(i,j) + d2mScore() + emitSc, Delete);
       if (j == 0 || i == 0)
 	updateMax (srcSc, state, emitSc, Start);
       Assert (srcSc == mat(i+1,j+1), "Traceback error");
@@ -189,9 +217,9 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
 	xQual.push_front (FastSeq::maxQualityChar);
       if (py->hasQual())
 	yQual.push_front (py->qual[j]);
-      updateMax (srcSc, state, mat(i,j) + qos.m2i, Match);
-      updateMax (srcSc, state, ins(i,j) + qos.i2i, Insert);
-      updateMax (srcSc, state, del(i,j) + qos.d2i, Delete);
+      updateMax (srcSc, state, mat(i,j) + m2iScore(i,j), Match);
+      updateMax (srcSc, state, ins(i,j) + i2iScore(), Insert);
+      updateMax (srcSc, state, del(i,j) + d2iScore(), Delete);
       break;
 
     case Delete:
@@ -201,9 +229,9 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
 	xQual.push_front (px->qual[i]);
       if (py->hasQual())
 	yQual.push_front (Alignment::gapChar);
-      updateMax (srcSc, state, mat(i,j) + qos.m2d, Match);
-      updateMax (srcSc, state, ins(i,j) + qos.i2d, Insert);
-      updateMax (srcSc, state, del(i,j) + qos.d2d, Delete);
+      updateMax (srcSc, state, mat(i,j) + m2dScore(i,j), Match);
+      updateMax (srcSc, state, ins(i,j) + i2dScore(), Insert);
+      updateMax (srcSc, state, del(i,j) + d2dScore(), Delete);
       break;
 
     default:

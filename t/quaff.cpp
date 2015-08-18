@@ -81,7 +81,7 @@ struct QuaffPriorIn : QuaffParamCounts {
   string saveFilename;
 
   QuaffPriorIn (deque<string>& argvec)
-    : QuaffParamCounts(1),  // fix initial kmerLen at 1
+    : QuaffParamCounts(1,0),  // fix initial (matchKmerLen,indelKmerLen) at (1,0)
       argvec(argvec),
       initialized(false),
       kmerLenSpecified(false)
@@ -166,6 +166,33 @@ int main (int argc, char** argv) {
 
     QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, nullModel, prior, config);
     newParams.write (cout);
+
+  } else if (command == "count") {
+    QuaffTrainer trainer;
+    QuaffNullParamsIn nullModel (argvec);
+    usage.implicitSwitches.push_back (string ("-ref"));
+    usage.implicitSwitches.push_back (string ("-read"));
+    usage.unlimitImplicitSwitches = true;
+    config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
+    while (logger.parseLogArgs (argvec)
+	   || trainer.parseCountingArgs (argvec)
+	   || config.parseConfigArgs (argvec)
+	   || params.parseParamFilename()
+	   || nullModel.parseNullModelFilename()
+	   || refs.parseSeqFilename()
+	   || refs.parseRevcompArgs()
+	   || reads.parseSeqFilename()
+	   || usage.parseUnknown())
+      { }
+
+    reads.loadSequences();
+    refs.loadSequences();
+
+    nullModel.requireNullModelOrFit (reads);
+    params.requireParamsOrUseDefaults();
+
+    QuaffParamCounts counts = trainer.getCounts (refs.seqs, reads.seqs, params, nullModel, config);
+    counts.write (cout);
 
   } else if (command == "overlap") {
     QuaffOverlapAligner aligner;
@@ -283,7 +310,16 @@ bool QuaffPriorIn::parsePriorArgs() {
 
     } else if (arg == "-order") {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
-      initKmerContext (atoi (argvec[1].c_str()));
+      matchContext.initKmerContext (atoi (argvec[1].c_str()));
+      resize();
+      kmerLenSpecified = true;
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-gaporder") {
+      Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
+      indelContext.initKmerContext (atoi (argvec[1].c_str()));
       resize();
       kmerLenSpecified = true;
       argvec.pop_front();
@@ -304,16 +340,20 @@ bool QuaffPriorIn::parsePriorArgs() {
 
 void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffNullParams& nullModel, const QuaffParamsIn& params) {
   if (initialized) {
-    if (params.initialized)
-      Require (kmerLen == params.kmerLen, "Model order in prior file (%d) does not match model order in parameter file (%d)", kmerLen, params.kmerLen);
+    if (params.initialized) {
+      Require (matchContext.kmerLen == params.matchContext.kmerLen, "Order of match dependence in prior file (%d) does not match order in parameter file (%d)", matchContext.kmerLen, params.matchContext.kmerLen);
+      Require (indelContext.kmerLen == params.indelContext.kmerLen, "Order of indel dependence in prior file (%d) does not match order in parameter file (%d)", indelContext.kmerLen, params.indelContext.kmerLen);
+    }
   } else {
     if (LogThisAt(1))
       cerr << "Auto-setting prior from null model" << endl;
     if (params.initialized) {
-      if (kmerLenSpecified)
-	Require (kmerLen == params.kmerLen, "Model order specified on command-line (%d) does not match model order in parameter file (%d)", kmerLen, params.kmerLen);
-      else {
-	initKmerContext (params.kmerLen);
+      if (kmerLenSpecified) {
+	Require (matchContext.kmerLen == params.matchContext.kmerLen, "Order of match dependence specified on command line (%d) does not match order in parameter file (%d)", matchContext.kmerLen, params.matchContext.kmerLen);
+	Require (indelContext.kmerLen == params.indelContext.kmerLen, "Order of indel dependence specified on command line (%d) does not match order in parameter file (%d)", indelContext.kmerLen, params.indelContext.kmerLen);
+      } else {
+	matchContext.initKmerContext (params.matchContext.kmerLen);
+	indelContext.initKmerContext (params.indelContext.kmerLen);
 	resize();
       }
     }
@@ -390,6 +430,8 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     prog(argvec[0]),
     unlimitImplicitSwitches(false)
 {
+  // leave "count" command undocumented... it's really for the paper
+  //  briefText = "Usage: " + prog + " {help,train,count,align,overlap} [options]\n";
   briefText = "Usage: " + prog + " {help,train,align,overlap} [options]\n";
   
   text = briefText
@@ -397,13 +439,14 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "Commands:\n"
     + "\n"
     + " " + prog + " train refs.fasta reads.fastq  >params.yaml\n"
-    + "  (to fit a model to unaligned sequences, using EM)\n"
+    + "  (to fit a model to unaligned sequences, using EM/Forward-Backward)\n"
     + "\n"
     + "   -maxiter <n>    Max number of EM iterations (default is " + to_string(QuaffMaxEMIterations) + ")\n"
     + "   -mininc <n>     EM convergence threshold as relative log-likelihood increase\n"
     + "                    (default is " + TOSTRING(QuaffMinEMLogLikeInc) + ")\n"
     + "   -force          Force each read to match a refseq, i.e. disallow null model\n"
     + "   -order <k>      Allow substitutions to depend on k-mer contexts\n"
+    + "   -gaporder <k>   Allow gap open probabilities to depend on k-mer contexts\n"
     + "   -prior <file>, -saveprior <file>\n"
     + "                   Respectively: load/save prior pseudocounts from/to file\n"
     + "   -counts <file>  Save E-step counts to file, which can then be used as a prior\n"
@@ -411,6 +454,11 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "                   Like -counts, but adds in prior pseudocounts as well\n"
     + "\n"
     + "\n"
+    // uncomment to document "count" command:
+    //    + " " + prog + " count refs.fasta reads.fastq\n"
+    //    + "  (to get summary statistics, i.e. E-step counts, using Forward-Backward)\n"
+    //    + "\n"
+    //    + "\n"
     + " " + prog + " align refs.fasta reads.fastq\n"
     + "  (to align FASTQ reads to FASTA reference sequences, using Viterbi)\n"
     + "\n"

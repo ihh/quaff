@@ -15,26 +15,39 @@ struct SymQualPairScores {
   { }
 };
 
-struct QuaffOverlapScores : QuaffKmerContext {
+struct QuaffOverlapScores {
   const QuaffParams *pqp;
+  QuaffMatchKmerContext matchContext;
+  QuaffIndelKmerContext indelContext;
   bool yComplemented;
   vguard<SymQualScores> xInsert, yInsert;
   vguard<vguard<SymQualPairScores> > matchMinusInsert;
-  double gapOpenProb, gapExtendProb, gapAdjacentProb;
-  double m2m, m2i, m2d, i2m, i2i, i2d, d2m, d2i, d2d;
+  vguard<double> gapOpenProb;
+  double gapExtendProb, gapAdjacentProb;
+  vguard<vguard<double> > m2m, m2i, m2d;
+  double i2m, i2i, i2d, d2m, d2i, d2d;
   QuaffOverlapScores (const QuaffParams &qp, bool yComplemented = false);
 };
 
 struct QuaffOverlapViterbiMatrix : QuaffDPMatrixContainer {
   QuaffOverlapScores qos;
   vguard<AlphTok> xTok, yTok;
-  vguard<Kmer> xKmer, yKmer;
+  vguard<Kmer> xMatchKmer, yMatchKmer, xIndelKmer, yIndelKmer;
   vguard<QualScore> xQual, yQual;
   double xInsertScore, yInsertScore;
   QuaffOverlapViterbiMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, bool yComplemented);
   bool resultIsFinite() const { return result > -numeric_limits<double>::infinity(); }
+  inline double m2mScore (SeqIdx i, SeqIdx j) const { return i > 0 && j > 0 ? qos.m2m[xIndelKmer[i-1]][yIndelKmer[j-1]] : 0; }
+  inline double m2iScore (SeqIdx i, SeqIdx j) const { return i > 0 && j > 0 ? qos.m2i[xIndelKmer[i-1]][yIndelKmer[j-1]] : 0; }
+  inline double m2dScore (SeqIdx i, SeqIdx j) const { return i > 0 && j > 0 ? qos.m2d[xIndelKmer[i-1]][yIndelKmer[j-1]] : 0; }
+  inline double i2mScore() const { return qos.i2i; }
+  inline double i2iScore() const { return qos.i2m; }
+  inline double i2dScore() const { return qos.i2d; }
+  inline double d2mScore() const { return qos.d2i; }
+  inline double d2iScore() const { return qos.d2m; }
+  inline double d2dScore() const { return qos.d2d; }
   inline double matchEmitScore (SeqIdx i, SeqIdx j) const {
-    const SymQualPairScores& sqps = qos.matchMinusInsert[xKmer[i-1]][yKmer[j-1]];
+    const SymQualPairScores& sqps = qos.matchMinusInsert[xMatchKmer[i-1]][yMatchKmer[j-1]];
     return xQual.size()
       ? (yQual.size()
 	 ? sqps.logSymQualPairProb[xQual[i-1]][yQual[j-1]]

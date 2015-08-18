@@ -4,6 +4,9 @@
 #include <numeric>
 #include <vector>
 #include <string>
+#include <algorithm>
+#include <functional>
+#include <cassert>
 
 /* uncomment to enable NaN checks */
 #define NAN_DEBUG
@@ -52,4 +55,29 @@ std::vector<size_t> orderedIndices (std::vector<T> const& values) {
     return indices;
 }
 
+/* vector sum */
+template <typename T>
+std::vector<T> vector_sum(const std::vector<T>& a, const std::vector<T>& b)
+{
+  assert(a.size() == b.size());
+
+  std::vector<T> result;
+  result.reserve(a.size());
+
+  std::transform(a.begin(), a.end(), b.begin(), 
+		 std::back_inserter(result), std::plus<T>());
+  return result;
+}
+
+/* vector-scalar product */
+template <typename T>
+std::vector<T> vector_scale(const T x, const std::vector<T>& a)
+{
+  std::vector<T> result = a;
+  for (auto& y : result)
+    y *= x;
+
+  return result;
+}
+    
 #endif /* UTIL_INCLUDED */

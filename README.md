@@ -14,7 +14,7 @@ with the following features:
 
 - it attempts to model the FASTQ quality scores (using a negative
   binomial distribution), and also uses k-mer context for modeling
-  substitution probabilities
+  substitution and/or gap-opening probabilities
 
 
 <pre><code>

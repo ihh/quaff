@@ -67,6 +67,8 @@ vguard<AlphTok> FastSeq::tokens (const string& alphabet) const {
 }
 
 vguard<Kmer> FastSeq::kmers (const string& alphabet, unsigned int k) const {
+  if (k == 0)
+    return vguard<Kmer> (length(), 0);
   vguard<AlphTok> tok = tokens(alphabet);
   vguard<int> count (alphabet.size(), 0);
   for (auto t : tok)

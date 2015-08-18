@@ -3,8 +3,8 @@ refBaseC: 0.25
 refBaseG: 0.25
 refBaseT: 0.25
 beginInsert: 0.1
-extendInsert: 0.6
 beginDelete: 0.01
+extendInsert: 0.6
 extendDelete: 0.8
 insertA: 0.22
 insertAqp: 0.5	# mean 43.314

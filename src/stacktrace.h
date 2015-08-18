@@ -12,7 +12,7 @@ static inline void printStackTrace( FILE *out = stderr, unsigned int max_frames 
   void* addrlist[max_frames+1];
  
   // retrieve current stack addresses
-  auto addrlen = backtrace( addrlist, sizeof( addrlist ) / sizeof( void* ));
+  auto addrlen = backtrace( addrlist, ((int) sizeof( addrlist )) / (int) sizeof( void* ));
  
   if ( addrlen == 0 ) {
     fprintf( out, "  \n" );
