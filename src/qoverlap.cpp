@@ -224,11 +224,11 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
 
     case Delete:
       xRow.push_front (px->seq[--i]);
-      yRow.push_front (FastSeq::maxQualityChar);
+      yRow.push_front (Alignment::gapChar);
       if (px->hasQual())
 	xQual.push_front (px->qual[i]);
       if (py->hasQual())
-	yQual.push_front (Alignment::gapChar);
+	yQual.push_front (FastSeq::maxQualityChar);
       updateMax (srcSc, state, mat(i,j) + m2dScore(i,j), Match);
       updateMax (srcSc, state, ins(i,j) + i2dScore(), Insert);
       updateMax (srcSc, state, del(i,j) + d2dScore(), Delete);
