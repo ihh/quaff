@@ -85,7 +85,7 @@ string Logger::threadName (thread::id id) {
 }
 
 void Logger::assignThreadName (const thread& thr) {
-  threadNum[thr.get_id()] = threadNum.size() + 1;
+  threadNum[thr.get_id()] = (unsigned int) (threadNum.size() + 1);
 }
 
 void Logger::clearThreadNames() {
