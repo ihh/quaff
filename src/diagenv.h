@@ -13,10 +13,6 @@ using namespace std;
 // The number of kmer matches above which a diagonal is selected for a band
 #define DEFAULT_KMER_THRESHOLD 14
 
-// The number of standard deviations of the background distribution of kmer matches,
-// which can be used to set the kmer threshold automatically
-#define DEFAULT_KMER_STDEV_THRESHOLD 10
-
 // Default band size
 #define DEFAULT_BAND_SIZE 64
 
@@ -29,8 +25,9 @@ struct DiagonalEnvelope {
   void initFull();
   void initSparse (unsigned int kmerLen = DEFAULT_KMER_LENGTH,
 		   unsigned int bandSize = DEFAULT_BAND_SIZE,
-		   int kmerThreshold = DEFAULT_KMER_THRESHOLD,  // negative => use kmerStDevThreshold
-		   double kmerStDevThreshold = DEFAULT_KMER_STDEV_THRESHOLD);
+		   int kmerThreshold = DEFAULT_KMER_THRESHOLD,  // negative => use memory guides
+		   size_t cellSize = sizeof(double),
+		   size_t maxSize = 0);
   inline int minDiagonal() const { return 1 - (int) yLen; }
   inline int maxDiagonal() const { return xLen - 1; }
   inline bool intersects (SeqIdx j, int diag) const {

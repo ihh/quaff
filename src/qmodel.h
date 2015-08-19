@@ -163,18 +163,18 @@ struct Alignment {
 struct QuaffDPConfig {
   bool local, sparse;
   int kmerLen, kmerThreshold, bandSize;
-  double kmerStDevThreshold;
+  size_t maxSize;
   QuaffDPConfig()
     : local(true),
       sparse(true),
       kmerLen(DEFAULT_KMER_LENGTH),
       kmerThreshold(DEFAULT_KMER_THRESHOLD),
-      kmerStDevThreshold(DEFAULT_KMER_STDEV_THRESHOLD),
+      maxSize(0),
       bandSize(DEFAULT_BAND_SIZE)
   { }
   bool parseConfigArgs (deque<string>& argvec);
   bool parseOverlapConfigArgs (deque<string>& argvec);
-  DiagonalEnvelope makeEnvelope (const FastSeq& x, const FastSeq& y) const;
+  DiagonalEnvelope makeEnvelope (const FastSeq& x, const FastSeq& y, size_t cellSize) const;
 };
 
 // DP matrices

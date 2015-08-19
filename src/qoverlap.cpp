@@ -302,7 +302,7 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
       const FastSeq& yfs = seqs[ny];
       if (LogThisAt(1))
 	cerr << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
-      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
+      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, sizeof(QuaffDPCell));
       const QuaffOverlapViterbiMatrix viterbi (env, params, ny >= nOriginals);
       if (viterbi.resultIsFinite()) {
 	const Alignment align = viterbi.scoreAdjustedAlignment(nullModel);

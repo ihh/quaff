@@ -15,7 +15,7 @@ void DiagonalEnvelope::initFull() {
     diagonals.push_back (d);
 }
 
-void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, int kmerThreshold, double kmerStDevThreshold) {
+void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, int kmerThreshold, size_t cellSize, size_t maxSize) {
   if (px->length() < MIN_SEQLEN_FOR_SPARSE_ENVELOPE || py->length() < MIN_SEQLEN_FOR_SPARSE_ENVELOPE) {
     initFull();
     return;
@@ -43,53 +43,58 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
 	++diagKmerCount[get_diag(i,j)];
   }
 
+  map<unsigned int,set<unsigned int> > countDistrib;
+  for (const auto& diagKmerCountElt : diagKmerCount)
+    countDistrib[diagKmerCountElt.second].insert (diagKmerCountElt.first);
+
   if (LogThisAt(5)) {
     cerr << "Distribution of " << kmerLen << "-mer matches per diagonal for " << px->name << " vs " << py->name << ':' << endl;
-    map<unsigned int,unsigned int> countDistrib;
-    for (const auto& diagKmerCountElt : diagKmerCount)
-      ++countDistrib[diagKmerCountElt.second];
     for (const auto& countDistribElt : countDistrib)
-      cerr << countDistribElt.second << " diagonals have " << countDistribElt.first << " matches" << endl;
+      cerr << countDistribElt.second.size() << " diagonals have " << countDistribElt.first << " matches" << endl;
   }
-
-  double n = 0, sum = 0, sqsum = 0;
-  for (int d = minDiagonal(); d <= maxDiagonal(); ++d) {
-    const auto diagKmerCountIter = diagKmerCount.find(d);
-    if (diagKmerCountIter != diagKmerCount.end()) {
-      const unsigned int count = diagKmerCountIter->second;
-      sum += count;
-      sqsum += count*count;
-    }
-    ++n;
-  }
-
-  const double mean = sum / n,
-    variance = sqsum / n - mean*mean,
-    stdev = sqrt(variance);
-
-  const unsigned int threshold =
-    kmerThreshold >= 0
-    ? (unsigned int) kmerThreshold
-    : (unsigned int) (mean + kmerStDevThreshold * stdev);
-
-  if (LogThisAt(3))
-    cerr << "Per-diagonal " << kmerLen << "-mer matches: mean " << mean << ", sd " << stdev << ". Threshold for inclusion: " << threshold << endl;
 
   set<int> diags;
-  int nPastThreshold = 0;
-  for (const auto& diagKmerCountElt : diagKmerCount)
-    if (diagKmerCountElt.second >= threshold) {
+  diags.insert(0);  // always add the zeroth diagonal to ensure at least one path exists
+
+  const unsigned int halfBandSize = bandSize / 2;
+  const size_t diagSize = min(xLen,yLen) * cellSize;
+  unsigned int nPastThreshold = 0;
+
+  unsigned int threshold;
+  if (kmerThreshold >= 0)
+    threshold = kmerThreshold;
+  else if (LogThisAt(3))
+    cerr << "Automatically setting threshold based on memory limit of " << maxSize << " bytes (each diagonal takes " << diagSize << " bytes)" << endl;
+
+  for (auto countDistribIter = countDistrib.crbegin();
+       countDistribIter != countDistrib.crend();
+       ++countDistribIter) {
+
+    if (kmerThreshold >= 0 && countDistribIter->first < kmerThreshold)
+      break;
+
+    set<int> moreDiags = diags;
+    for (auto seedDiag : countDistribIter->second) {
       ++nPastThreshold;
-      for (int d = diagKmerCountElt.first - (int) bandSize / 2;
-	   d <= diagKmerCountElt.first + (int) bandSize / 2;
+      for (int d = seedDiag - (int) halfBandSize;
+	   d <= seedDiag + (int) halfBandSize;
 	   ++d)
-	diags.insert (d);
+	moreDiags.insert (d);
     }
 
-  diags.insert(0);  // always add the zeroth diagonal to ensure at least one path exists
+    if (kmerThreshold < 0) {
+      if (moreDiags.size() * diagSize >= maxSize)
+	break;
+      threshold = countDistribIter->first;
+    }
+    swap (diags, moreDiags);
+  }
+
+  if (LogThisAt(3))
+    cerr << "Threshold # of " << kmerLen << "-mer matches for seeding a diagonal is " << threshold << endl;
   
   if (LogThisAt(3))
-    cerr << nPastThreshold << " diagonals above threshold; " << diags.size() << " in envelope (band size " << bandSize << ")" << endl;
+    cerr << nPastThreshold << " diagonals above threshold; " << diags.size() << " in envelope (band size " << bandSize << "); estimated memory <" << (((diags.size() * diagSize) >> 20) + 1) << "MB" << endl;
 
   diagonals = vector<int> (diags.begin(), diags.end());
 }

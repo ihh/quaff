@@ -9,6 +9,7 @@
 #include "qmodel.h"
 #include "logsumexp.h"
 #include "negbinom.h"
+#include "memsize.h"
 #include "logger.h"
 
 // internal #defines
@@ -521,16 +522,27 @@ bool QuaffDPConfig::parseOverlapConfigArgs (deque<string>& argvec) {
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-kmatchsd") {
+    } else if (arg == "-kmatchmb") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       const char* val = argvec[1].c_str();
-      kmerStDevThreshold = atof (val);
+      maxSize = atoi(val) << 20;
+      if (maxSize == 0) {
+	maxSize = getMemorySize();
+	Assert (maxSize > 0, "Can't figure out available system memory; you will need to specify a size");
+      }
       kmerThreshold = -1;
       argvec.pop_front();
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-dense") {
+    } else if (arg == "-kmatchmax") {
+      maxSize = getMemorySize();
+      Assert (maxSize > 0, "Can't figure out available system memory; you will need to specify a size");
+      kmerThreshold = -1;
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-kmatchoff") {
       sparse = false;
       argvec.pop_front();
       return true;
@@ -541,10 +553,10 @@ bool QuaffDPConfig::parseOverlapConfigArgs (deque<string>& argvec) {
   return false;
 }
 
-DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const FastSeq& y) const {
+DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const FastSeq& y, size_t cellSize) const {
   DiagonalEnvelope env (x, y);
   if (sparse)
-    env.initSparse (kmerLen, bandSize, kmerThreshold);
+    env.initSparse (kmerLen, bandSize, kmerThreshold, cellSize, maxSize);
   else
     env.initFull();
   return env;
@@ -1234,7 +1246,7 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
     vguard<QuaffParamCounts> xyCounts;
     for (auto nx : sortOrder[ny]) {
       const auto& xfs = x[nx];
-      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
+      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, 2*sizeof(QuaffDPCell));
       const QuaffForwardMatrix fwd (env, params, config);
       const double ll = fwd.result;
       QuaffParamCounts qpc(matchKmerLen,indelKmerLen);
@@ -1404,7 +1416,7 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
     for (const auto& xfs : x) {
       if (LogThisAt(1))
 	cerr << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
-      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs);
+      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, sizeof(QuaffDPCell));
       const QuaffViterbiMatrix viterbi (env, params, config);
       if (viterbi.resultIsFinite()) {
 	const Alignment align = viterbi.scoreAdjustedAlignment(nullModel);

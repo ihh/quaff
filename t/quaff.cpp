@@ -486,15 +486,16 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -read <file>    Load additional FASTQ read sequences\n"
     + "   -fwdstrand      Do not include reverse-complemented sequences\n"
     + "   -global         Force all of refseq to be aligned (align/train only)\n"
+    + "   -null <file>, -savenull <file>\n"
+    + "                   Respectively: load/save null model from/to file\n"
+    + "\n"
     + "   -kmatch <k>     Length of kmers for pre-filtering heuristic (default " + to_string(DEFAULT_KMER_LENGTH) + ")\n"
     + "   -kmatchn <n>    Threshold# of kmer matches to seed a diagonal\n"
     + "                    (default is " + to_string(DEFAULT_KMER_THRESHOLD) + " for overlap, " + to_string(DEFAULT_REFSEQ_KMER_THRESHOLD) + " for align/train)\n"
-    // uncomment to document this uncertain, experimental option:
-    //    + "   -kmatchsd <n>   Set kmer threshold to n standard deviations above background\n"
     + "   -kmatchband <n> Size of DP band around kmer-matching diagonals (default " + to_string(DEFAULT_BAND_SIZE) + ")\n"
-    + "   -dense          Do full DP, not just kmer-matching diagonals (memory hog!)\n"
-    + "   -null <file>, -savenull <file>\n"
-    + "                   Respectively: load/save null model from/to file\n"
+    + "   -kmatchmb <M>   Set kmer threshold to use M megabytes of memory\n"
+    + "   -kmatchmax      Set kmer threshold to use all available memory (slow)\n"
+    + "   -kmatchoff      No kmer threshold, do full DP (swapfile-heavy, v slow)\n"
     + "\n";
 }
 

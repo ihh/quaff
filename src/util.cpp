@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <math.h>
 #include <time.h>
+#include <unistd.h>
 #include "util.h"
 #include "stacktrace.h"
 

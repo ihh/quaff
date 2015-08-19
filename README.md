@@ -63,12 +63,15 @@ General options (for all commands, except where indicated):
    -read &lt;file&gt;    Load additional FASTQ read sequences
    -fwdstrand      Do not include reverse-complemented sequences
    -global         Force all of refseq to be aligned (align/train only)
+   -null &lt;file&gt;, -savenull &lt;file&gt;
+                   Respectively: load/save null model from/to file
+
    -kmatch &lt;k&gt;     Length of kmers for pre-filtering heuristic (default 6)
    -kmatchn &lt;n&gt;    Threshold# of kmer matches to seed a diagonal
                     (default is 14 for overlap, 20 for align/train)
    -kmatchband &lt;n&gt; Size of DP band around kmer-matching diagonals (default 64)
-   -dense          Do full DP, not just kmer-matching diagonals (memory hog!)
-   -null &lt;file&gt;, -savenull &lt;file&gt;
-                   Respectively: load/save null model from/to file
+   -kmatchmb &lt;M&gt;   Set kmer threshold to use M megabytes of memory
+   -kmatchmax      Set kmer threshold to use all available memory (slow)
+   -kmatchoff      No kmer threshold, do full DP (swapfile-heavy, v slow)
 
 </code></pre>
