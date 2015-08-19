@@ -95,10 +95,10 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
 
   if (LogThisAt(5)) {
     if (foundThreshold)
-      logger << "Threshold # of " << kmerLen << "-mer matches for seeding a diagonal is " << threshold << endl;
+      logger << "Threshold # of " << kmerLen << "-mer matches for seeding a diagonal is " << threshold << "; " << plural((long) nPastThreshold,"diagonal") << " past this threshold" << endl;
     else
       logger << "Couldn't find a suitable threshold that would fit within memory limit" << endl;
-    logger << nPastThreshold << " diagonals above threshold; " << diags.size() << " in envelope (band size " << bandSize << "); estimated memory <" << (((diags.size() * diagSize) >> 20) + 1) << "MB" << endl;
+    logger << plural((long) diags.size(),"diagonal") << " in envelope (band size " << bandSize << "); estimated memory <" << (((diags.size() * diagSize) >> 20) + 1) << "MB" << endl;
   }
 
   diagonals = vector<int> (diags.begin(), diags.end());
