@@ -10,6 +10,7 @@
 		283CC92E1B7D3005003ADD62 /* diagenv.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 283CC92C1B7D3005003ADD62 /* diagenv.cpp */; };
 		283CC9301B7D3189003ADD62 /* quaff.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 283CC92F1B7D3189003ADD62 /* quaff.cpp */; };
 		284271551B83CC4A00FFE10B /* defaultparams.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 284271521B83CC4A00FFE10B /* defaultparams.cpp */; };
+		284271581B84525300FFE10B /* memsize.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 284271561B84525300FFE10B /* memsize.cpp */; };
 		28586ED61B7C1FF400F39A98 /* fastseq.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586ECA1B7C1FF400F39A98 /* fastseq.cpp */; };
 		28586ED71B7C1FF400F39A98 /* logger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586ECC1B7C1FF400F39A98 /* logger.cpp */; };
 		28586ED81B7C1FF400F39A98 /* logsumexp.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586ECE1B7C1FF400F39A98 /* logsumexp.cpp */; };
@@ -40,6 +41,8 @@
 		284271521B83CC4A00FFE10B /* defaultparams.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = defaultparams.cpp; path = /Users/yam/quaff/src/defaultparams.cpp; sourceTree = "<absolute>"; };
 		284271531B83CC4A00FFE10B /* defaultparams.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = defaultparams.h; path = /Users/yam/quaff/src/defaultparams.h; sourceTree = "<absolute>"; };
 		284271541B83CC4A00FFE10B /* stacktrace.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = stacktrace.h; path = /Users/yam/quaff/src/stacktrace.h; sourceTree = "<absolute>"; };
+		284271561B84525300FFE10B /* memsize.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = memsize.cpp; path = /Users/yam/quaff/src/memsize.cpp; sourceTree = "<absolute>"; };
+		284271571B84525300FFE10B /* memsize.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = memsize.h; path = /Users/yam/quaff/src/memsize.h; sourceTree = "<absolute>"; };
 		28586EC01B7C1FD400F39A98 /* quaff */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = quaff; sourceTree = BUILT_PRODUCTS_DIR; };
 		28586ECA1B7C1FF400F39A98 /* fastseq.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = fastseq.cpp; path = /Users/yam/quaff/src/fastseq.cpp; sourceTree = "<absolute>"; };
 		28586ECB1B7C1FF400F39A98 /* fastseq.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = fastseq.h; path = /Users/yam/quaff/src/fastseq.h; sourceTree = "<absolute>"; };
@@ -96,6 +99,8 @@
 			isa = PBXGroup;
 			children = (
 				283CC92F1B7D3189003ADD62 /* quaff.cpp */,
+				284271561B84525300FFE10B /* memsize.cpp */,
+				284271571B84525300FFE10B /* memsize.h */,
 				284271521B83CC4A00FFE10B /* defaultparams.cpp */,
 				284271531B83CC4A00FFE10B /* defaultparams.h */,
 				284271541B83CC4A00FFE10B /* stacktrace.h */,
@@ -177,6 +182,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				284271581B84525300FFE10B /* memsize.cpp in Sources */,
 				28586ED91B7C1FF400F39A98 /* negbinom.cpp in Sources */,
 				283CC92E1B7D3005003ADD62 /* diagenv.cpp in Sources */,
 				28586ED61B7C1FF400F39A98 /* fastseq.cpp in Sources */,
