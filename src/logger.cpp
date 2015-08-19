@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <regex>
+#include <sstream>
 #include "logger.h"
 
 Logger logger;
@@ -46,4 +47,47 @@ bool Logger::parseLogArgs (deque<string>& argvec) {
     }
   }
   return false;
+}
+
+Logger& Logger::lock() {
+  thread::id myId = this_thread::get_id();
+  if (!(mxLocked && mxOwner == myId)) {
+    if (mx.try_lock_for (std::chrono::milliseconds(1000))) {
+      if (mxOwner != myId)
+	clog << "(" << threadName(myId) << ") ";
+      mxOwner = myId;
+      mxLocked = true;
+    } else
+      clog << "(" << threadName(myId) << ", ignoring lock by " << threadName(mxOwner) << ") ";
+  }
+  return *this;
+}
+
+Logger& Logger::unlock() {
+  thread::id myId = this_thread::get_id();
+  if (mxLocked && mxOwner == myId) {
+    mxLocked = false;
+    mx.unlock();
+  }
+  return *this;
+}
+
+string Logger::threadName (thread::id id) {
+  string s;
+  const auto& iter = threadNum.find(id);
+  if (iter == threadNum.end()) {
+    ostringstream o;
+    o << "thread " << id;
+    s = o.str();
+  } else
+    s = string("thread #") + to_string (iter->second);
+  return s;
+}
+
+void Logger::assignThreadName (const thread& thr) {
+  threadNum[thr.get_id()] = threadNum.size() + 1;
+}
+
+void Logger::clearThreadNames() {
+  threadNum.clear();
 }

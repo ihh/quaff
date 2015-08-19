@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include "util.h"
 #include "stacktrace.h"
+#include "logger.h"
 
 void Warn(const char* warning, ...) {
   va_list argptr;
@@ -86,11 +87,15 @@ void initProgress (const char* desc, ...) {
   if (progress_desc)
     free (progress_desc);
 
+  logger.lock();
+  
   va_list argptr;
   va_start (argptr, desc);
   vasprintf (&progress_desc, desc, argptr);
   va_end (argptr);
   fprintf (stderr, "%s: started at %s", progress_desc, asctime(timeinfo));
+
+  logger.unlock();
 }
 
 void logProgress (double completedFraction, const char* desc, ...) {
@@ -103,6 +108,9 @@ void logProgress (double completedFraction, const char* desc, ...) {
     const double estimatedMinutesLeft = estimatedSecondsLeft / 60;
     const double estimatedHoursLeft = estimatedMinutesLeft / 60;
     const double estimatedDaysLeft = estimatedHoursLeft / 24;
+
+    logger.lock();
+
     fprintf (stderr, "%s: ", progress_desc);
     va_start (argptr, desc);
     vfprintf (stderr, desc, argptr);
@@ -117,6 +125,9 @@ void logProgress (double completedFraction, const char* desc, ...) {
     else
       fprintf (stderr, "%g secs", estimatedSecondsLeft);
     fprintf (stderr, " (%g%%)\n", 100*completedFraction);
+
+    logger.unlock();
+    
     progress_lastElapsedSeconds = elapsedSeconds;
     progress_reportInterval = fmin (10., 2*progress_reportInterval);
   }

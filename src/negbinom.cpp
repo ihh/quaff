@@ -145,13 +145,13 @@ int momentFitNegativeBinomial (double mean, double variance, double& pSuccess, d
 
   if (variance <= 0) {
     if (LogThisAt(5))
-      cerr << "Method-of-moments fit failed: zero variance" << endl;
+      logger << "Method-of-moments fit failed: zero variance" << endl;
     GSL_ERROR ("Zero variance in method-of-moments fit", NEG_BINOM_ZERO_VARIANCE);
   }
 
   if (variance < mean) {
     if (LogThisAt(5))
-      cerr << "Method-of-moments fit failed: variance less than mean" << endl;
+      logger << "Method-of-moments fit failed: variance less than mean" << endl;
     GSL_ERROR ("Variance greater than mean in method-of-moments fit", NEG_BINOM_LOW_VARIANCE);
   }
 
@@ -159,7 +159,7 @@ int momentFitNegativeBinomial (double mean, double variance, double& pSuccess, d
   nSuccess = mean * pSuccess / (1 - pSuccess);
 
   if (LogThisAt(5))
-    cerr << "Method-of-moments fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
+    logger << "Method-of-moments fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
 
   return GSL_SUCCESS;
 }
@@ -197,7 +197,7 @@ int bracketFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, d
     pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
 
     if (LogThisAt(5))
-      cerr << "Bracket fit failed; derivative has same sign at both endpoints. Choosing " << (loglikeAtLowerBound > loglikeAtUpperBound ? "lower" : "upper") << " endpoint" << endl
+      logger << "Bracket fit failed; derivative has same sign at both endpoints. Choosing " << (loglikeAtLowerBound > loglikeAtUpperBound ? "lower" : "upper") << " endpoint" << endl
 	   << "Bracket fit (fallback): pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
 
     status = GSL_SUCCESS;
@@ -247,7 +247,7 @@ int bracketFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, d
       pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
 
       if (LogThisAt(5))
-	cerr << "Bracket fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
+	logger << "Bracket fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
     }
   }
 
@@ -315,7 +315,7 @@ int gradientFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, 
     pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
 
     if (LogThisAt(5))
-      cerr << "Gradient fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
+      logger << "Gradient fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
   }
 
   gsl_root_fdfsolver_free (derivSolver);

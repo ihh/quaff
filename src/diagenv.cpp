@@ -29,9 +29,9 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
     yKmerIndex[makeKmer (kmerLen, yTok.begin() + j, dnaAlphabetSize)].insert (j);
 
   if (LogThisAt(6)) {
-    cerr << "Frequencies of " << kmerLen << "-mers in " << py->name << ':' << endl;
+    logger << "Frequencies of " << kmerLen << "-mers in " << py->name << ':' << endl;
     for (const auto& yKmerIndexElt : yKmerIndex) {
-      cerr << kmerToString (yKmerIndexElt.first, kmerLen, dnaAlphabet) << ' ' << yKmerIndexElt.second.size() << endl;
+      logger << kmerToString (yKmerIndexElt.first, kmerLen, dnaAlphabet) << ' ' << yKmerIndexElt.second.size() << endl;
     }
   }
 
@@ -48,9 +48,9 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
     countDistrib[diagKmerCountElt.second].insert (diagKmerCountElt.first);
 
   if (LogThisAt(5)) {
-    cerr << "Distribution of " << kmerLen << "-mer matches per diagonal for " << px->name << " vs " << py->name << ':' << endl;
+    logger << "Distribution of " << kmerLen << "-mer matches per diagonal for " << px->name << " vs " << py->name << ':' << endl;
     for (const auto& countDistribElt : countDistrib)
-      cerr << countDistribElt.second.size() << " diagonals have " << countDistribElt.first << " matches" << endl;
+      logger << countDistribElt.second.size() << " diagonals have " << countDistribElt.first << " matches" << endl;
   }
 
   set<int> diags;
@@ -64,7 +64,7 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
   if (kmerThreshold >= 0)
     threshold = kmerThreshold;
   else if (LogThisAt(3))
-    cerr << "Automatically setting threshold based on memory limit of " << maxSize << " bytes (each diagonal takes " << diagSize << " bytes)" << endl;
+    logger << "Automatically setting threshold based on memory limit of " << maxSize << " bytes (each diagonal takes " << diagSize << " bytes)" << endl;
 
   for (auto countDistribIter = countDistrib.crbegin();
        countDistribIter != countDistrib.crend();
@@ -91,10 +91,10 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
   }
 
   if (LogThisAt(3))
-    cerr << "Threshold # of " << kmerLen << "-mer matches for seeding a diagonal is " << threshold << endl;
+    logger << "Threshold # of " << kmerLen << "-mer matches for seeding a diagonal is " << threshold << endl;
   
   if (LogThisAt(3))
-    cerr << nPastThreshold << " diagonals above threshold; " << diags.size() << " in envelope (band size " << bandSize << "); estimated memory <" << (((diags.size() * diagSize) >> 20) + 1) << "MB" << endl;
+    logger << nPastThreshold << " diagonals above threshold; " << diags.size() << " in envelope (band size " << bandSize << "); estimated memory <" << (((diags.size() * diagSize) >> 20) + 1) << "MB" << endl;
 
   diagonals = vector<int> (diags.begin(), diags.end());
 }

@@ -81,6 +81,6 @@ struct QuaffOverlapTask {
   void run();
   bool hasAlignment() const { return align.rows() > 0; }
 };
-void runQuaffOverlapTask (QuaffOverlapTask& task);
+void runQuaffOverlapTask (QuaffOverlapTask* task);
 
 #endif /* QOVERLAP_INCLUDED */

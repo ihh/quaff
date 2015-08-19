@@ -2,6 +2,7 @@
 #include <fstream>
 #include <regex>
 #include <list>
+#include <thread>
 #include <cmath>
 #include <cstdlib>
 #include <gsl/gsl_randist.h>
@@ -19,7 +20,7 @@
 // useful helper methods
 double logBetaPdf (double prob, double yesCount, double noCount);
 map<string,string> readParamFile (istream& in);
-
+vguard<size_t> indicesByDescendingSequenceLength (const vguard<FastSeq>& seqs);
 
 // main method bodies
 double logBetaPdf (double prob, double yesCount, double noCount) {
@@ -195,6 +196,12 @@ void QuaffParams::write (ostream& out) const {
       match[i][j].write (out, matchContext.matchParamName(i,j));
 }
 
+void QuaffParams::writeToLog() const {
+  logger.lock();
+  write(clog);
+  logger.unlock();
+}
+
 #define QuaffParamRead(X) Require(val.find(#X) != val.end(),"Missing parameter: " #X), X = atof(val[#X].c_str())
 #define QuaffParamReadK(X,KMER) do { const string tmpParamName = indelContext.booleanParamName(#X,KMER); Require(val.find(tmpParamName) != val.end(),"Missing parameter: %s",tmpParamName.c_str()), X[KMER] = atof(val[tmpParamName].c_str()); } while(0)
 void QuaffParams::read (istream& in) {
@@ -296,6 +303,12 @@ void QuaffCounts::write (ostream& out) const {
       match[i][j].write (out, matchContext.matchParamName(i,j));
 }
 
+void QuaffCounts::writeToLog() const {
+  logger.lock();
+  write(clog);
+  logger.unlock();
+}
+
 QuaffParamCounts::QuaffParamCounts (unsigned int matchKmerLen, unsigned int indelKmerLen)
   : matchContext(matchKmerLen),
     indelContext(indelKmerLen),
@@ -377,6 +390,12 @@ void QuaffParamCounts::write (ostream& out) const {
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     for (Kmer j = 0; j < matchContext.numKmers; ++j)
       match[i][j].write (out, matchContext.matchParamName(i,j));
+}
+
+void QuaffParamCounts::writeToLog() const {
+  logger.lock();
+  write(clog);
+  logger.unlock();
 }
 
 void QuaffParamCounts::read (istream& in) {
@@ -485,7 +504,7 @@ FastSeq Alignment::getUngapped (size_t row) const {
   return s;
 }
 
-bool QuaffDPConfig::parseConfigArgs (deque<string>& argvec) {
+bool QuaffDPConfig::parseRefSeqConfigArgs (deque<string>& argvec) {
   if (argvec.size()) {
     const string& arg = argvec[0];
     if (arg == "-global") {
@@ -495,10 +514,10 @@ bool QuaffDPConfig::parseConfigArgs (deque<string>& argvec) {
     }
   }
 
-  return parseOverlapConfigArgs (argvec);
+  return parseGeneralConfigArgs (argvec);
 }
 
-bool QuaffDPConfig::parseOverlapConfigArgs (deque<string>& argvec) {
+bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
   if (argvec.size()) {
     const string& arg = argvec[0];
     if (arg == "-kmatchband") {
@@ -535,6 +554,7 @@ bool QuaffDPConfig::parseOverlapConfigArgs (deque<string>& argvec) {
 	Assert (maxSize > 0, "Can't figure out available system memory; you will need to specify a size");
       }
       kmerThreshold = -1;
+      autoMemSize = false;
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -543,11 +563,30 @@ bool QuaffDPConfig::parseOverlapConfigArgs (deque<string>& argvec) {
       maxSize = getMemorySize();
       Assert (maxSize > 0, "Can't figure out available system memory; you will need to specify a size");
       kmerThreshold = -1;
+      autoMemSize = true;
       argvec.pop_front();
       return true;
 
     } else if (arg == "-kmatchoff") {
       sparse = false;
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-threads") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      const char* val = argvec[1].c_str();
+      threads = atoi (val);
+      Require (threads > 0, "Please specify a non-zero number of threads; use -maxthreads to auto-detect");
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-maxthreads") {
+      threads = std::thread::hardware_concurrency();
+      if (threads == 0) {
+	Warn ("Can't detect number of cores; running in single-threaded mode");
+	threads = 1;
+      }
       argvec.pop_front();
       return true;
 
@@ -560,10 +599,14 @@ bool QuaffDPConfig::parseOverlapConfigArgs (deque<string>& argvec) {
 DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const FastSeq& y, size_t cellSize) const {
   DiagonalEnvelope env (x, y);
   if (sparse)
-    env.initSparse (kmerLen, bandSize, kmerThreshold, cellSize, maxSize);
+    env.initSparse (kmerLen, bandSize, kmerThreshold, cellSize, effectiveMaxSize());
   else
     env.initFull();
   return env;
+}
+
+size_t QuaffDPConfig::effectiveMaxSize() const {
+  return autoMemSize ? (maxSize / threads) : maxSize;
 }
 
 QuaffDPCell::QuaffDPCell()
@@ -657,6 +700,12 @@ void QuaffDPMatrix::write (ostream& out) const {
   out << "result " << result << endl;
 }
 
+void QuaffDPMatrix::writeToLog() const {
+  logger.lock();
+  write(clog);
+  logger.unlock();
+}
+
 QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config)
   : QuaffDPMatrix (env, qp, config)
 {
@@ -698,10 +747,10 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
   result = end;
 
   if (LogThisAt(2))
-    cerr << "Forward score: " << result << endl;
+    logger << "Forward score: " << result << endl;
   
   if (LogWhen("dpmatrix"))
-    write (cerr);
+    writeToLog();
 }
 
 QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
@@ -800,17 +849,17 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
   result = start;
 
   if (LogThisAt(2))
-    cerr << "Backward score: " << result << endl;
+    logger << "Backward score: " << result << endl;
   
   if (LogWhen("dpmatrix"))
-    write (cerr);
+    writeToLog();
 
   if (gsl_root_test_delta (result, fwd.result, 0, MAX_FRACTIONAL_FWDBACK_ERROR) != GSL_SUCCESS)
-    cerr << endl << endl << "Warning: forward score (" << fwd.result << ") does not match backward score (" << result << ")" << endl << endl << endl;
+    logger << endl << endl << "Warning: forward score (" << fwd.result << ") does not match backward score (" << result << ")" << endl << endl << endl;
 
   if (LogThisAt(4)) {
-    cerr << "Forward-backward counts, " << px->name << " vs " << py->name << ':' << endl;
-    qc.write (cerr);
+    logger << "Forward-backward counts, " << px->name << " vs " << py->name << ':' << endl;
+    qc.writeToLog();
   }
 }
 
@@ -862,10 +911,10 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
   result = end;
 
   if (LogThisAt(2))
-    cerr << "Viterbi score: " << result << endl;
+    logger << "Viterbi score: " << result << endl;
   
   if (LogWhen("dpmatrix"))
-    write (cerr);
+    writeToLog();
 }
 
 Alignment QuaffViterbiMatrix::alignment() const {
@@ -887,7 +936,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
   State state = Match;
   while (state != Start) {
     if (LogThisAt(7))
-      cerr << "Traceback: i=" << i << " j=" << j << " state=" << stateToString(state) << " score=" << cellScore(i,j,state) << endl;
+      logger << "Traceback: i=" << i << " j=" << j << " state=" << stateToString(state) << " score=" << cellScore(i,j,state) << endl;
     double srcSc = -numeric_limits<double>::infinity();
     double emitSc = 0;
     switch (state) {
@@ -951,7 +1000,7 @@ Alignment QuaffViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nul
   Alignment a = alignment();
   const double nullLogLike = nullModel.logLikelihood (*py);
   if (LogThisAt(2))
-    cerr << "Null model score: " << nullLogLike << endl;
+    logger << "Null model score: " << nullLogLike << endl;
   a.score -= nullLogLike;
   return a;
 }
@@ -1075,7 +1124,7 @@ QuaffForwardBackwardMatrix::QuaffForwardBackwardMatrix (const DiagonalEnvelope& 
     back (fwd)
 {
   if (LogWhen("postmatrix"))
-    write (cerr);
+    writeToLog();
 }
 
 double QuaffForwardBackwardMatrix::postMatch (SeqIdx i, SeqIdx j) const {
@@ -1096,6 +1145,12 @@ void QuaffForwardBackwardMatrix::write (ostream& out) const {
       out << "i=" << i << ":" << fwd.px->seq[i-1] << " j=" << j << ":" << fwd.py->seq[j-1] << (fwd.py->hasQual() ? string(1,fwd.py->qual[j-1]) : string()) << "\tmat " << postMatch(i,j) << "\tins " << postInsert(i,j) << "\tdel " << postDelete(i,j) << endl;
     out << endl;
   }
+}
+
+void QuaffForwardBackwardMatrix::writeToLog() const {
+  logger.lock();
+  write(clog);
+  logger.unlock();
 }
 
 QuaffNullParams::QuaffNullParams()
@@ -1131,8 +1186,10 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
     fitNegativeBinomial (nullCount[n].qualCount, null[n].qualTrialSuccessProb, null[n].qualNumSuccessfulTrials);
   }
 
-  if (LogThisAt(3))
-    write (cerr << "Null model:" << endl);
+  if (LogThisAt(3)) {
+    logger << "Null model:" << endl;
+    writeToLog();
+  }
 }
 
 void QuaffNullParams::read (istream& in) {
@@ -1171,6 +1228,12 @@ void QuaffNullParams::write (ostream& out) const {
   QuaffParamWrite(nullEmit);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     null[i].write (out, string("null") + dnaAlphabet[i]);
+}
+
+void QuaffNullParams::writeToLog() const {
+  logger.lock();
+  write(clog);
+  logger.unlock();
 }
 
 QuaffTrainer::QuaffTrainer()
@@ -1241,60 +1304,26 @@ vguard<vguard<size_t> > QuaffTrainer::defaultSortOrder (const vguard<FastSeq>& x
   return vguard<vguard<size_t> > (y.size(), initialSortOrder);
 }
 
-void runQuaffCountingTask (QuaffCountingTask& task) {
-  task.run();
-}
-
-QuaffCountingTask::QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams* nullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& yCounts)
-  : x(x), yfs(yfs), params(params), nullModel(nullModel), config(config), sortOrder(sortOrder), yLogLike(yLogLike), yCounts(yCounts)
-{ }
-
-void QuaffCountingTask::run() {
-  const unsigned int matchKmerLen = params.matchContext.kmerLen;
-  const unsigned int indelKmerLen = params.indelContext.kmerLen;
-
-  const double yNullLogLike = nullModel ? nullModel->logLikelihood(yfs) : -numeric_limits<double>::infinity();
-  yLogLike = yNullLogLike;  // this initial value allows null model to "win"
-  if (LogThisAt(2))
-    cerr << "Null model score for " << yfs.name << " is " << yNullLogLike << endl;
-    vguard<double> xyLogLike;
-    vguard<QuaffParamCounts> xyCounts;
-    for (auto nx : sortOrder) {
-      const auto& xfs = x[nx];
-      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, 2*sizeof(QuaffDPCell));
-      const QuaffForwardMatrix fwd (env, params, config);
-      const double ll = fwd.result;
-      QuaffParamCounts qpc(matchKmerLen,indelKmerLen);
-      if (ll >= yLogLike - MAX_TRAINING_LOG_DELTA) {  // don't waste time computing low-weight counts
-	const QuaffBackwardMatrix back (fwd);
-	qpc = back.qc;
-      }
-      xyLogLike.push_back (ll);
-      xyCounts.push_back (qpc);
-      yLogLike = log_sum_exp (yLogLike, ll);
-    }
-    for (size_t nx = 0; nx < x.size(); ++nx) {
-      const double xyPostProb = exp (xyLogLike[nx] - yLogLike);
-      if (LogThisAt(2))
-	cerr << "P(read " << yfs.name << " derived from ref " << x[nx].name << ") = " << xyPostProb << endl;
-      yCounts.addWeighted (xyCounts[nx], xyPostProb);
-    }
-    if (LogThisAt(2))
-      cerr << "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl;
-    const vguard<size_t> ascendingOrder = orderedIndices (xyLogLike);
-    sortOrder = vguard<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
-}
-
 QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike) {
   const unsigned int matchKmerLen = params.matchContext.kmerLen;
   const unsigned int indelKmerLen = params.indelContext.kmerLen;
   const QuaffParamCounts zeroCounts (matchKmerLen, indelKmerLen);
   vguard<QuaffParamCounts> yCounts (y.size(), zeroCounts);
   vguard<double> yLogLike (y.size(), 0.);
-  for (size_t ny = 0; ny < y.size(); ++ny) {
-    const auto& yfs = y[ny];
-    QuaffCountingTask task (x, y[ny], params, allowNullModel ? &nullModel : NULL, config, sortOrder[ny], yLogLike[ny], yCounts[ny]);
-    task.run();
+  const vguard<size_t> yOrder = indicesByDescendingSequenceLength (y);
+  for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
+    const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);
+    list<thread> yThreads;
+    list<QuaffCountingTask> yTasks;
+    for (size_t yOrderN = yOrderBase; yOrderN < yOrderBase + numThreads; ++yOrderN) {
+      const size_t ny = yOrder[yOrderN];
+      yTasks.push_back (QuaffCountingTask (x, y[ny], params, allowNullModel ? &nullModel : NULL, config, sortOrder[ny], yLogLike[ny], yCounts[ny]));
+      yThreads.push_back (thread (&runQuaffCountingTask, &yTasks.back()));
+      logger.assignThreadName (yThreads.back());
+    }
+    for (auto& t : yThreads)
+      t.join();
+    logger.clearThreadNames();
   }
   logLike = accumulate (yLogLike.begin(), yLogLike.end(), 0.);
   return accumulate (yCounts.begin(), yCounts.end(), zeroCounts);
@@ -1321,13 +1350,13 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     const double logPrior = pseudocounts.logPrior (qp);
     const double logLikeWithPrior = logLike + logPrior;
     if (LogThisAt(1))
-      cerr << "EM iteration " << (iter+1) << ": log-likelihood (" << logLike << ") + log-prior (" << logPrior << ") = " << logLikeWithPrior << endl;
+      logger << "EM iteration " << (iter+1) << ": log-likelihood (" << logLike << ") + log-prior (" << logPrior << ") = " << logLikeWithPrior << endl;
     if (iter > 0 && logLikeWithPrior < prevLogLikeWithPrior + abs(prevLogLikeWithPrior)*minFractionalLoglikeIncrement)
       break;
     prevLogLikeWithPrior = logLikeWithPrior;
     if (LogThisAt(3)) {
-      cerr << "Parameter counts computed during E-step:" << endl;
-      counts.write (cerr);
+      logger << "Parameter counts computed during E-step:" << endl;
+      counts.writeToLog();
     }
     countsWithPrior = counts;
     countsWithPrior.addWeighted (pseudocounts, 1.);
@@ -1335,7 +1364,7 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     qp = countsWithPrior.fit();
     const double newExpectedLogLike = countsWithPrior.expectedLogLike (qp);
     if (LogThisAt(2))
-      cerr << "Expected log-likelihood went from " << oldExpectedLogLike << " to " << newExpectedLogLike << " during M-step" << endl;
+      logger << "Expected log-likelihood went from " << oldExpectedLogLike << " to " << newExpectedLogLike << " during M-step" << endl;
   }
   if (rawCountsFilename.size()) {
     ofstream out (rawCountsFilename);
@@ -1347,6 +1376,58 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
   }
   qp.fitRefSeqs(x);
   return qp;
+}
+
+vguard<size_t> indicesByDescendingSequenceLength (const vguard<FastSeq>& seqs) {
+  vguard<size_t> len;
+  for (const auto& s : seqs)
+    len.push_back (s.length());
+  const vguard<size_t> ascending = orderedIndices (len);
+  return vguard<size_t> (ascending.rbegin(), ascending.rend());
+}
+
+void runQuaffCountingTask (QuaffCountingTask* task) {
+  task->run();
+}
+
+QuaffCountingTask::QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams* nullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& yCounts)
+  : x(x), yfs(yfs), params(params), nullModel(nullModel), config(config), sortOrder(sortOrder), yLogLike(yLogLike), yCounts(yCounts)
+{ }
+
+void QuaffCountingTask::run() {
+  const unsigned int matchKmerLen = params.matchContext.kmerLen;
+  const unsigned int indelKmerLen = params.indelContext.kmerLen;
+
+  const double yNullLogLike = nullModel ? nullModel->logLikelihood(yfs) : -numeric_limits<double>::infinity();
+  yLogLike = yNullLogLike;  // this initial value allows null model to "win"
+  if (LogThisAt(2))
+    logger << "Null model score for " << yfs.name << " is " << yNullLogLike << endl;
+    vguard<double> xyLogLike;
+    vguard<QuaffParamCounts> xyCounts;
+    for (auto nx : sortOrder) {
+      const auto& xfs = x[nx];
+      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, 2*sizeof(QuaffDPCell));
+      const QuaffForwardMatrix fwd (env, params, config);
+      const double ll = fwd.result;
+      QuaffParamCounts qpc(matchKmerLen,indelKmerLen);
+      if (ll >= yLogLike - MAX_TRAINING_LOG_DELTA) {  // don't waste time computing low-weight counts
+	const QuaffBackwardMatrix back (fwd);
+	qpc = back.qc;
+      }
+      xyLogLike.push_back (ll);
+      xyCounts.push_back (qpc);
+      yLogLike = log_sum_exp (yLogLike, ll);
+    }
+    for (size_t nx = 0; nx < x.size(); ++nx) {
+      const double xyPostProb = exp (xyLogLike[nx] - yLogLike);
+      if (LogThisAt(2))
+	logger << "P(read " << yfs.name << " derived from ref " << x[nx].name << ") = " << xyPostProb << endl;
+      yCounts.addWeighted (xyCounts[nx], xyPostProb);
+    }
+    if (LogThisAt(2))
+      logger << "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl;
+    const vguard<size_t> ascendingOrder = orderedIndices (xyLogLike);
+    sortOrder = vguard<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
 }
 
 QuaffAlignmentPrinter::QuaffAlignmentPrinter()
@@ -1437,15 +1518,26 @@ bool QuaffAligner::parseAlignmentArgs (deque<string>& argvec) {
 }
 
 void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
-  vguard<list<Alignment> > align;
-  for (const auto& yfs : y) {
-    align.push_back (list<Alignment>());
-    QuaffAlignmentTask task (x, yfs, params, nullModel, config, align.back(), printAllAlignments);
-    task.run();
+  const vguard<size_t> yOrder = indicesByDescendingSequenceLength (y);
+  for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
+    const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);
+    list<list<Alignment> > align;
+    list<thread> yThreads;
+    list<QuaffAlignmentTask> yTasks;
+    for (size_t yOrderN = yOrderBase; yOrderN < yOrderBase + numThreads; ++yOrderN) {
+      const size_t ny = yOrder[yOrderN];
+      align.push_back (list<Alignment>());
+      yTasks.push_back (QuaffAlignmentTask (x, y[ny], params, nullModel, config, align.back(), printAllAlignments));
+      yThreads.push_back (thread (&runQuaffAlignmentTask, &yTasks.back()));
+      logger.assignThreadName (yThreads.back());
+    }
+    for (auto& t : yThreads)
+      t.join();
+    logger.clearThreadNames();
+    for (const auto& l : align)
+      for (const auto& a : l)
+	writeAlignment (out, a);
   }
-  for (const auto& l : align)
-    for (const auto& a : l)
-      writeAlignment (out, a);
 }
 
 QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, list<Alignment>& alignList, bool keepAllAlignments)
@@ -1456,7 +1548,7 @@ void QuaffAlignmentTask::run() {
   for (size_t nx = 0; nx < x.size(); ++nx) {
     const FastSeq& xfs = x[nx];
     if (LogThisAt(1))
-      cerr << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
+      logger << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
     DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, sizeof(QuaffDPCell));
     const QuaffViterbiMatrix viterbi (env, params, config);
     if (viterbi.resultIsFinite()) {
@@ -1471,6 +1563,6 @@ void QuaffAlignmentTask::run() {
   }
 }
 
-void runQuaffAlignmentTask (QuaffAlignmentTask& task) {
-  task.run();
+void runQuaffAlignmentTask (QuaffAlignmentTask* task) {
+  task->run();
 }

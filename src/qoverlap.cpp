@@ -3,6 +3,10 @@
 #include "logsumexp.h"
 #include "logger.h"
 
+// helper functions
+vguard<size_t> indicesByDescendingSequenceLength (const vguard<FastSeq>& seqs, size_t nFirst);
+
+// main method bodies
 QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemented)
   : matchContext (qp.matchContext.kmerLen),
     indelContext (qp.indelContext.kmerLen),
@@ -147,7 +151,7 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
   result = end + xInsertScore + yInsertScore;
 
   if (LogThisAt(2))
-    cerr << "Viterbi score: " << result << endl;
+    logger << "Viterbi score: " << result << endl;
 }
 
 Alignment QuaffOverlapViterbiMatrix::alignment() const {
@@ -177,7 +181,7 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
   State state = Match;
   while (state != Start) {
     if (LogThisAt(7))
-      cerr << "Traceback: i=" << i << " j=" << j << " state=" << stateToString(state) << " score=" << cellScore(i,j,state) << endl;
+      logger << "Traceback: i=" << i << " j=" << j << " state=" << stateToString(state) << " score=" << cellScore(i,j,state) << endl;
     double srcSc = -numeric_limits<double>::infinity();
     double emitSc = 0;
     switch (state) {
@@ -278,13 +282,25 @@ Alignment QuaffOverlapViterbiMatrix::scoreAdjustedAlignment (const QuaffNullPara
   const double xNullLogLike = nullModel.logLikelihood (*px);
   const double yNullLogLike = nullModel.logLikelihood (qos.yComplemented ? py->revcomp() : *py);
   if (LogThisAt(2))
-    cerr << "Null model score: " << (xNullLogLike + yNullLogLike) << endl;
+    logger << "Null model score: " << (xNullLogLike + yNullLogLike) << endl;
   if (LogThisAt(3))
-    cerr << "Null model score for " << px->name << ": " << xNullLogLike << endl
+    logger << "Null model score for " << px->name << ": " << xNullLogLike << endl
 	 << "Null model score for " << py->name << ": " << yNullLogLike << endl;
   a.score -= xNullLogLike;
   a.score -= yNullLogLike;
   return a;
+}
+
+vguard<size_t> indicesByDescendingSequenceLength (const vguard<FastSeq>& seqs, size_t nFirst) {
+  vguard<size_t> len;
+  for (size_t n = nFirst; n < seqs.size(); ++n)
+    len.push_back (seqs[n].length());
+  const vguard<size_t> ascending = orderedIndices (len);
+  vguard<size_t> descending;
+  descending.reserve (seqs.size() - nFirst);
+  for (auto n : ascending)
+    descending.push_back (n + nFirst);
+  return descending;
 }
 
 QuaffOverlapAligner::QuaffOverlapAligner()
@@ -296,13 +312,26 @@ bool QuaffOverlapAligner::parseAlignmentArgs (deque<string>& argvec) {
 }
 
 void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
-  for (size_t nx = 0; nx < nOriginals; ++nx)
-    for (size_t ny = nx + 1; ny < seqs.size(); ++ny) {
-      QuaffOverlapTask task (seqs[nx], seqs[ny], ny >= nOriginals, params, nullModel, config);
-      task.run();
-      if (task.hasAlignment())
-	writeAlignment (out, task.align);
+  for (size_t nx = 0; nx < nOriginals; ++nx) {
+    const vguard<size_t> yOrder = indicesByDescendingSequenceLength (seqs, nx + 1);
+    for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
+      const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);
+      list<thread> yThreads;
+      list<QuaffOverlapTask> yTasks;
+      for (size_t yOrderN = yOrderBase; yOrderN < yOrderBase + numThreads; ++yOrderN) {
+	const size_t ny = yOrder[yOrderN];
+	yTasks.push_back (QuaffOverlapTask (seqs[nx], seqs[ny], ny >= nOriginals, params, nullModel, config));
+	yThreads.push_back (thread (runQuaffOverlapTask, &yTasks.back()));
+	logger.assignThreadName (yThreads.back());
+      }
+      for (auto& thr : yThreads)
+	thr.join();
+      logger.clearThreadNames();
+      for (const auto& task : yTasks)
+	if (task.hasAlignment())
+	  writeAlignment (out, task.align);
     }
+  }
 }
 
 QuaffOverlapTask::QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config)
@@ -311,13 +340,13 @@ QuaffOverlapTask::QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, cons
 
 void QuaffOverlapTask::run() {
   if (LogThisAt(1))
-    cerr << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
+    logger << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
   DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, sizeof(QuaffDPCell));
   const QuaffOverlapViterbiMatrix viterbi (env, params, yComplemented);
   if (viterbi.resultIsFinite())
     align = viterbi.scoreAdjustedAlignment(nullModel);
 }
 
-void runQuaffOverlapTask (QuaffOverlapTask& task) {
-  task.run();
+void runQuaffOverlapTask (QuaffOverlapTask* task) {
+  task->run();
 }

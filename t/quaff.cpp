@@ -120,7 +120,7 @@ int main (int argc, char** argv) {
     config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
     while (logger.parseLogArgs (argvec)
 	   || aligner.parseAlignmentArgs (argvec)
-	   || config.parseConfigArgs (argvec)
+	   || config.parseRefSeqConfigArgs (argvec)
 	   || params.parseParamFilename()
 	   || nullModel.parseNullModelFilename()
 	   || refs.parseSeqFilename()
@@ -147,7 +147,7 @@ int main (int argc, char** argv) {
     config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
     while (logger.parseLogArgs (argvec)
 	   || trainer.parseTrainingArgs (argvec)
-	   || config.parseConfigArgs (argvec)
+	   || config.parseRefSeqConfigArgs (argvec)
 	   || params.parseParamFilename()
 	   || nullModel.parseNullModelFilename()
 	   || prior.parsePriorArgs()
@@ -176,7 +176,7 @@ int main (int argc, char** argv) {
     config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
     while (logger.parseLogArgs (argvec)
 	   || trainer.parseCountingArgs (argvec)
-	   || config.parseConfigArgs (argvec)
+	   || config.parseRefSeqConfigArgs (argvec)
 	   || params.parseParamFilename()
 	   || nullModel.parseNullModelFilename()
 	   || refs.parseSeqFilename()
@@ -202,7 +202,7 @@ int main (int argc, char** argv) {
     usage.unlimitImplicitSwitches = true;
     while (logger.parseLogArgs (argvec)
 	   || aligner.parseAlignmentArgs (argvec)
-	   || config.parseOverlapConfigArgs (argvec)
+	   || config.parseGeneralConfigArgs (argvec)
 	   || params.parseParamFilename()
 	   || nullModel.parseNullModelFilename()
 	   || reads.parseSeqFilename()
@@ -496,6 +496,9 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -kmatchmb <M>   Set kmer threshold to use M megabytes of memory\n"
     + "   -kmatchmax      Set kmer threshold to use all available memory (slow)\n"
     + "   -kmatchoff      No kmer threshold, do full DP (swapfile-heavy, v slow)\n"
+    + "\n"
+    + "   -threads <n>, -maxthreads\n"
+    "                     Specify number of threads, or use all cores available\n"
     + "\n";
 }
 

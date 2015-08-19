@@ -86,6 +86,7 @@ struct QuaffParams {
   vguard<vguard<SymQualDist> > match;  // substitutions from match state (conditional on input)
   QuaffParams (unsigned int matchKmerLen = DefaultMatchKmerContext, unsigned int indelKmerLen = DefaultIndelKmerContext);
   void resize();  // call after changing kmerLen
+  void writeToLog() const;
   void write (ostream& out) const;
   void read (istream& in);
   void fitRefSeqs (const vguard<FastSeq>& refs);
@@ -98,6 +99,7 @@ struct QuaffNullParams {
   QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocount = 1);
   double logLikelihood (const FastSeq& seq) const;
   double logLikelihood (const vguard<FastSeq>& seqs) const;
+  void writeToLog() const;
   void write (ostream& out) const;
   void read (istream& in);
 };
@@ -125,6 +127,7 @@ struct QuaffCounts {
   double d2d, d2m;
   double i2i, i2m;
   QuaffCounts (unsigned int matchKmerLen, unsigned int indelKmerLen);
+  void writeToLog() const;
   void write (ostream& out) const;
 };
 
@@ -140,6 +143,7 @@ struct QuaffParamCounts {
   void resize();  // call after changing kmerLen
   void zeroCounts();
   void initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount, const QuaffNullParams* nullModel = NULL);
+  void writeToLog() const;
   void write (ostream& out) const;
   void read (istream& in);
   void addWeighted (const QuaffParamCounts& counts, double weight);
@@ -167,20 +171,24 @@ struct Alignment {
 
 // DP config
 struct QuaffDPConfig {
-  bool local, sparse;
+  bool local, sparse, autoMemSize;
   int kmerLen, kmerThreshold, bandSize;
   size_t maxSize;
+  unsigned int threads;
   QuaffDPConfig()
     : local(true),
       sparse(true),
+      autoMemSize(false),
       kmerLen(DEFAULT_KMER_LENGTH),
       kmerThreshold(DEFAULT_KMER_THRESHOLD),
       maxSize(0),
-      bandSize(DEFAULT_BAND_SIZE)
+      bandSize(DEFAULT_BAND_SIZE),
+      threads(1)
   { }
-  bool parseConfigArgs (deque<string>& argvec);
-  bool parseOverlapConfigArgs (deque<string>& argvec);
+  bool parseRefSeqConfigArgs (deque<string>& argvec);
+  bool parseGeneralConfigArgs (deque<string>& argvec);
   DiagonalEnvelope makeEnvelope (const FastSeq& x, const FastSeq& y, size_t cellSize) const;
+  size_t effectiveMaxSize() const;  // takes threading into account
 };
 
 // DP matrices
@@ -242,6 +250,7 @@ struct QuaffDPMatrix : QuaffDPMatrixContainer {
     const SymQualScores& sqs = qs.insert[yTok[j-1]];
     return yQual.size() ? sqs.logSymQualProb[yQual[j-1]] : sqs.logSymProb;
   }
+  void writeToLog() const;
   void write (ostream& out) const;
 };
 
@@ -278,6 +287,7 @@ struct QuaffForwardBackwardMatrix {
   double postMatch (SeqIdx i, SeqIdx j) const;
   double postDelete (SeqIdx i, SeqIdx j) const;
   double postInsert (SeqIdx i, SeqIdx j) const;
+  void writeToLog() const;
   void write (ostream& out) const;
 };
   
@@ -317,7 +327,7 @@ struct QuaffCountingTask {
   QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams* nullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& counts);
   void run();
 };
-void runQuaffCountingTask (QuaffCountingTask& task);
+void runQuaffCountingTask (QuaffCountingTask* task);
 
 // config/wrapper structs for Viterbi alignment
 struct QuaffAlignmentPrinter {
@@ -349,6 +359,6 @@ struct QuaffAlignmentTask {
   QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, list<Alignment>& alignList, bool keepAllAlignments);
   void run();
 };
-void runQuaffAlignmentTask (QuaffAlignmentTask& task);
+void runQuaffAlignmentTask (QuaffAlignmentTask* task);
 
 #endif /* QMODEL_INCLUDED */

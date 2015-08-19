@@ -16,6 +16,7 @@ with the following features:
   binomial distribution), and also uses k-mer context for modeling
   substitution and/or gap-opening probabilities
 
+- it's threaded for speed
 
 <pre><code>
 Usage: quaff {help,train,align,overlap} [options]
@@ -73,5 +74,8 @@ General options (for all commands, except where indicated):
    -kmatchmb &lt;M&gt;   Set kmer threshold to use M megabytes of memory
    -kmatchmax      Set kmer threshold to use all available memory (slow)
    -kmatchoff      No kmer threshold, do full DP (swapfile-heavy, v slow)
+
+   -threads &lt;n&gt;, -maxthreads
+                     Set number of threads, or use all cores available
 
 </code></pre>
