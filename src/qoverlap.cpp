@@ -314,18 +314,20 @@ bool QuaffOverlapAligner::parseAlignmentArgs (deque<string>& argvec) {
 
 void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
   const vguard<size_t> seqLengths = QuaffDPMatrixContainer::getFastSeqLengths (seqs);
-  double totalCells = 0;
+  double totalCells = 0, totalSeqPairs = 0;
   for (size_t nx = 0; nx < nOriginals; ++nx)
-    for (size_t ny = nx + 1; ny < seqs.size(); ++ny)
+    for (size_t ny = nx + 1; ny < seqs.size(); ++ny) {
       totalCells += seqLengths[nx] * seqLengths[ny];
-  double cellsDone = 0;
+      ++totalSeqPairs;
+    }
+  double cellsDone = 0, seqPairsDone = 0;
   ProgressLogger plog;
   if (LogThisAt(2))
     plog.initProgress ("Overlap alignment");
 
   for (size_t nx = 0; nx < nOriginals; ++nx) {
     if (LogThisAt(2))
-      plog.logProgress (cellsDone / totalCells, "analyzed %g/%g potential base-pair alignments", cellsDone, totalCells);
+      plog.logProgress (config.kmerThreshold < 0 ? (seqPairsDone / totalSeqPairs) : (cellsDone / totalCells), "analyzed %g/%g potential base-pair alignments", cellsDone, totalCells);
     const vguard<size_t> yOrder = indicesByDescendingSequenceLength (seqs, nx + 1);
     for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
       const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);
@@ -337,6 +339,7 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
 	yThreads.push_back (thread (runQuaffOverlapTask, &yTasks.back()));
 	logger.assignThreadName (yThreads.back());
 	cellsDone += seqs[nx].length() * seqs[ny].length();
+	++seqPairsDone;
       }
       for (auto& thr : yThreads)
 	thr.join();
