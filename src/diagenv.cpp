@@ -60,10 +60,12 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
   const size_t diagSize = min(xLen,yLen) * cellSize;
   unsigned int nPastThreshold = 0;
 
-  unsigned int threshold;
-  if (kmerThreshold >= 0)
+  unsigned int threshold = numeric_limits<unsigned int>::max();
+  bool foundThreshold = false;
+  if (kmerThreshold >= 0) {
     threshold = kmerThreshold;
-  else if (LogThisAt(5))
+    foundThreshold = true;
+  } else if (LogThisAt(5))
     logger << "Automatically setting threshold based on memory limit of " << maxSize << " bytes (each diagonal takes " << diagSize << " bytes)" << endl;
 
   for (auto countDistribIter = countDistrib.crbegin();
@@ -86,15 +88,18 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
       if (moreDiags.size() * diagSize >= maxSize)
 	break;
       threshold = countDistribIter->first;
+      foundThreshold = true;
     }
     swap (diags, moreDiags);
   }
 
-  if (LogThisAt(5))
-    logger << "Threshold # of " << kmerLen << "-mer matches for seeding a diagonal is " << threshold << endl;
-  
-  if (LogThisAt(5))
+  if (LogThisAt(5)) {
+    if (foundThreshold)
+      logger << "Threshold # of " << kmerLen << "-mer matches for seeding a diagonal is " << threshold << endl;
+    else
+      logger << "Couldn't find a suitable threshold that would fit within memory limit" << endl;
     logger << nPastThreshold << " diagonals above threshold; " << diags.size() << " in envelope (band size " << bandSize << "); estimated memory <" << (((diags.size() * diagSize) >> 20) + 1) << "MB" << endl;
+  }
 
   diagonals = vector<int> (diags.begin(), diags.end());
 }
