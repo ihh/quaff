@@ -326,8 +326,12 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
     plog.initProgress ("Overlap alignment");
 
   for (size_t nx = 0; nx < nOriginals; ++nx) {
-    if (LogThisAt(2))
-      plog.logProgress (config.kmerThreshold < 0 ? (seqPairsDone / totalSeqPairs) : (cellsDone / totalCells), "analyzed %g/%g potential base-pair alignments", cellsDone, totalCells);
+    if (LogThisAt(2)) {
+      if (config.fixedMemoryEnvelope())
+	plog.logProgress (seqPairsDone / totalSeqPairs, "analyzed %lu/%lu potential alignments", seqPairsDone, totalSeqPairs);
+      else
+	plog.logProgress (cellsDone / totalCells, "analyzed %g/%g potential base-pair alignments", cellsDone, totalCells);
+    }
     const vguard<size_t> yOrder = indicesByDescendingSequenceLength (seqs, nx + 1);
     for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
       const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);

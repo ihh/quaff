@@ -189,6 +189,7 @@ struct QuaffDPConfig {
   bool parseGeneralConfigArgs (deque<string>& argvec);
   DiagonalEnvelope makeEnvelope (const FastSeq& x, const FastSeq& y, size_t cellSize) const;
   size_t effectiveMaxSize() const;  // takes threading into account
+  bool fixedMemoryEnvelope() const { return kmerThreshold < 0; }
 };
 
 // DP matrices

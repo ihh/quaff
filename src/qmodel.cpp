@@ -1330,8 +1330,12 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
   if (LogThisAt(2))
     plog.initProgress ("Calculating expected counts%s", banner);
   for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
-    if (LogThisAt(2))
-      plog.logProgress (config.kmerThreshold < 0 ? (yOrderBase / (double) yOrder.size()) : (yLengthDone / yTotalLength), "finished %g/%g read bases", yLengthDone, yTotalLength);
+    if (LogThisAt(2)) {
+      if (config.fixedMemoryEnvelope())
+	plog.logProgress (yOrderBase / (double) yOrder.size(), "finished %lu/%lu reads", yOrderBase, yOrder.size());
+      else
+	plog.logProgress (yLengthDone / yTotalLength, "finished %g/%g read bases", yLengthDone, yTotalLength);
+    }
     const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);
     list<thread> yThreads;
     list<QuaffCountingTask> yTasks;
@@ -1545,8 +1549,12 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
   if (LogThisAt(2))
     plog.initProgress ("Alignment");
   for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
-    if (LogThisAt(2))
-      plog.logProgress (config.kmerThreshold < 0 ? (yOrderBase / (double) yOrder.size()) : (yLengthDone / yTotalLength), "aligned %g/%g read bases", yLengthDone, yTotalLength);
+    if (LogThisAt(2)) {
+      if (config.fixedMemoryEnvelope())
+	plog.logProgress (yOrderBase / (double) yOrder.size(), "aligned %lu/%lu reads", yOrderBase, yOrder.size());
+      else
+	plog.logProgress (yLengthDone / yTotalLength, "aligned %g/%g read bases", yLengthDone, yTotalLength);
+    }
     const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);
     list<list<Alignment> > align;
     list<thread> yThreads;
