@@ -173,3 +173,4 @@ void addRevcomps (vguard<FastSeq>& db) {
     revcomps.push_back (fs.revcomp());
   db.insert (db.end(), revcomps.begin(), revcomps.end());
 }
+

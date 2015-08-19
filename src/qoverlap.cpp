@@ -113,14 +113,15 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
     yInsertScore += yQual.size() ? sqs.logSymQualProb[yQual[i]] : sqs.logSymProb;
   }
 
-  if (LogThisAt(2))
-    initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
+  ProgressLogger plog;
+  if (LogThisAt(4))
+    plog.initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
   for (SeqIdx j = 1; j <= yLen; ++j) {
 
-    if (LogThisAt(2))
-      logProgress (j / (double) yLen, "base %d/%d", j, yLen);
+    if (LogThisAt(4))
+      plog.logProgress (j / (double) yLen, "base %d/%d", j, yLen);
 
     for (SeqIdx i : env.forward_i(j)) {
 
@@ -150,7 +151,7 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
 
   result = end + xInsertScore + yInsertScore;
 
-  if (LogThisAt(2))
+  if (LogThisAt(4))
     logger << "Viterbi score: " << result << endl;
 }
 
@@ -180,7 +181,7 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
   deque<char> xRow, yRow, xQual, yQual, xRowDel, xQualDel, yRowIns, yQualIns;
   State state = Match;
   while (state != Start) {
-    if (LogThisAt(7))
+    if (LogThisAt(9))
       logger << "Traceback: i=" << i << " j=" << j << " state=" << stateToString(state) << " score=" << cellScore(i,j,state) << endl;
     double srcSc = -numeric_limits<double>::infinity();
     double emitSc = 0;
@@ -281,9 +282,9 @@ Alignment QuaffOverlapViterbiMatrix::scoreAdjustedAlignment (const QuaffNullPara
   Alignment a = alignment();
   const double xNullLogLike = nullModel.logLikelihood (*px);
   const double yNullLogLike = nullModel.logLikelihood (qos.yComplemented ? py->revcomp() : *py);
-  if (LogThisAt(2))
+  if (LogThisAt(4))
     logger << "Null model score: " << (xNullLogLike + yNullLogLike) << endl;
-  if (LogThisAt(3))
+  if (LogThisAt(5))
     logger << "Null model score for " << px->name << ": " << xNullLogLike << endl
 	 << "Null model score for " << py->name << ": " << yNullLogLike << endl;
   a.score -= xNullLogLike;
@@ -312,7 +313,19 @@ bool QuaffOverlapAligner::parseAlignmentArgs (deque<string>& argvec) {
 }
 
 void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
+  const vguard<size_t> seqLengths = QuaffDPMatrixContainer::getFastSeqLengths (seqs);
+  double totalCells = 0;
+  for (size_t nx = 0; nx < nOriginals; ++nx)
+    for (size_t ny = nx + 1; ny < seqs.size(); ++ny)
+      totalCells += seqLengths[nx] * seqLengths[ny];
+  double cellsDone = 0;
+  ProgressLogger plog;
+  if (LogThisAt(2))
+    plog.initProgress ("Overlap alignment");
+
   for (size_t nx = 0; nx < nOriginals; ++nx) {
+    if (LogThisAt(2))
+      plog.logProgress (cellsDone / totalCells, "analyzed %g/%g potential base-pair alignments", cellsDone, totalCells);
     const vguard<size_t> yOrder = indicesByDescendingSequenceLength (seqs, nx + 1);
     for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
       const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);
@@ -323,6 +336,7 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
 	yTasks.push_back (QuaffOverlapTask (seqs[nx], seqs[ny], ny >= nOriginals, params, nullModel, config));
 	yThreads.push_back (thread (runQuaffOverlapTask, &yTasks.back()));
 	logger.assignThreadName (yThreads.back());
+	cellsDone += seqs[nx].length() * seqs[ny].length();
       }
       for (auto& thr : yThreads)
 	thr.join();
@@ -339,7 +353,7 @@ QuaffOverlapTask::QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, cons
 { }
 
 void QuaffOverlapTask::run() {
-  if (LogThisAt(1))
+  if (LogThisAt(3))
     logger << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
   DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, sizeof(QuaffDPCell));
   const QuaffOverlapViterbiMatrix viterbi (env, params, yComplemented);

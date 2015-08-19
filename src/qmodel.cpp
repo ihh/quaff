@@ -675,6 +675,13 @@ void QuaffDPMatrixContainer::updateMax (double& currentMax, State& currentMaxIdx
   }
 }
 
+vguard<size_t> QuaffDPMatrixContainer::getFastSeqLengths (const vguard<FastSeq>& db) {
+  vguard<size_t> len;
+  for (const auto& s : db)
+    len.push_back (s.length());
+  return len;
+}
+
 QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config)
   : QuaffDPMatrixContainer (env),
     pconfig (&config),
@@ -711,14 +718,16 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
 {
   const FastSeq& x (*px);
   const FastSeq& y (*py);
-  if (LogThisAt(2))
-    initProgress ("Forward algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
+
+  ProgressLogger plog;
+  if (LogThisAt(4))
+    plog.initProgress ("Forward algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
   for (SeqIdx j = 1; j <= yLen; ++j) {
 
-    if (LogThisAt(2))
-      logProgress (j / (double) yLen, "base %d/%d", j, yLen);
+    if (LogThisAt(4))
+      plog.logProgress (j / (double) yLen, "base %d/%d", j, yLen);
 
     for (SeqIdx i : env.forward_i(j)) {
 
@@ -746,7 +755,7 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
 
   result = end;
 
-  if (LogThisAt(2))
+  if (LogThisAt(4))
     logger << "Forward score: " << result << endl;
   
   if (LogWhen("dpmatrix"))
@@ -760,14 +769,15 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 {
   Require (py->hasQual(), "Forward-Backward algorithm requires quality scores to fit model, but sequence %s lacks quality scores", py->name.c_str());
 
-  if (LogThisAt(2))
-    initProgress ("Backward algorithm (%s vs %s)", px->name.c_str(), py->name.c_str());
+  ProgressLogger plog;
+  if (LogThisAt(4))
+    plog.initProgress ("Backward algorithm (%s vs %s)", px->name.c_str(), py->name.c_str());
 
   end = 0;
   for (SeqIdx j = yLen; j > 0; --j) {
 
-    if (LogThisAt(2))
-      logProgress ((yLen - j) / (double) yLen, "base %d/%d", j, yLen);
+    if (LogThisAt(4))
+      plog.logProgress ((yLen - j) / (double) yLen, "base %d/%d", j, yLen);
 
     for (SeqIdx i : penv->reverse_i(j)) {
 
@@ -848,7 +858,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 
   result = start;
 
-  if (LogThisAt(2))
+  if (LogThisAt(4))
     logger << "Backward score: " << result << endl;
   
   if (LogWhen("dpmatrix"))
@@ -857,7 +867,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
   if (gsl_root_test_delta (result, fwd.result, 0, MAX_FRACTIONAL_FWDBACK_ERROR) != GSL_SUCCESS)
     logger << endl << endl << "Warning: forward score (" << fwd.result << ") does not match backward score (" << result << ")" << endl << endl << endl;
 
-  if (LogThisAt(4)) {
+  if (LogThisAt(6)) {
     logger << "Forward-backward counts, " << px->name << " vs " << py->name << ':' << endl;
     qc.writeToLog();
   }
@@ -875,14 +885,16 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
 {
   const FastSeq& x (*px);
   const FastSeq& y (*py);
-  if (LogThisAt(2))
-    initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
+
+  ProgressLogger plog;
+  if (LogThisAt(4))
+    plog.initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
   for (SeqIdx j = 1; j <= yLen; ++j) {
 
-    if (LogThisAt(2))
-      logProgress (j / (double) yLen, "base %d/%d", j, yLen);
+    if (LogThisAt(4))
+      plog.logProgress (j / (double) yLen, "base %d/%d", j, yLen);
 
     for (SeqIdx i : env.forward_i(j)) {
 
@@ -910,7 +922,7 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
 
   result = end;
 
-  if (LogThisAt(2))
+  if (LogThisAt(4))
     logger << "Viterbi score: " << result << endl;
   
   if (LogWhen("dpmatrix"))
@@ -935,7 +947,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
   list<char> xRow, yRow, yQual;
   State state = Match;
   while (state != Start) {
-    if (LogThisAt(7))
+    if (LogThisAt(9))
       logger << "Traceback: i=" << i << " j=" << j << " state=" << stateToString(state) << " score=" << cellScore(i,j,state) << endl;
     double srcSc = -numeric_limits<double>::infinity();
     double emitSc = 0;
@@ -999,7 +1011,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
 Alignment QuaffViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nullModel) const {
   Alignment a = alignment();
   const double nullLogLike = nullModel.logLikelihood (*py);
-  if (LogThisAt(2))
+  if (LogThisAt(4))
     logger << "Null model score: " << nullLogLike << endl;
   a.score -= nullLogLike;
   return a;
@@ -1186,7 +1198,7 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
     fitNegativeBinomial (nullCount[n].qualCount, null[n].qualTrialSuccessProb, null[n].qualNumSuccessfulTrials);
   }
 
-  if (LogThisAt(3)) {
+  if (LogThisAt(5)) {
     logger << "Null model:" << endl;
     writeToLog();
   }
@@ -1304,14 +1316,22 @@ vguard<vguard<size_t> > QuaffTrainer::defaultSortOrder (const vguard<FastSeq>& x
   return vguard<vguard<size_t> > (y.size(), initialSortOrder);
 }
 
-QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike) {
+QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner) {
   const unsigned int matchKmerLen = params.matchContext.kmerLen;
   const unsigned int indelKmerLen = params.indelContext.kmerLen;
   const QuaffParamCounts zeroCounts (matchKmerLen, indelKmerLen);
   vguard<QuaffParamCounts> yCounts (y.size(), zeroCounts);
   vguard<double> yLogLike (y.size(), 0.);
   const vguard<size_t> yOrder = indicesByDescendingSequenceLength (y);
+  const vguard<size_t> ySeqLengths = QuaffDPMatrixContainer::getFastSeqLengths (y);
+  const double yTotalLength = (double) accumulate (ySeqLengths.begin(), ySeqLengths.end(), 0);
+  double yLengthDone = 0;
+  ProgressLogger plog;
+  if (LogThisAt(2))
+    plog.initProgress ("Calculating expected counts%s", banner);
   for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
+    if (LogThisAt(2))
+      plog.logProgress (yLengthDone / yTotalLength, "finished %g/%g read bases", yLengthDone, yTotalLength);
     const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);
     list<thread> yThreads;
     list<QuaffCountingTask> yTasks;
@@ -1320,6 +1340,7 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
       yTasks.push_back (QuaffCountingTask (x, y[ny], params, allowNullModel ? &nullModel : NULL, config, sortOrder[ny], yLogLike[ny], yCounts[ny]));
       yThreads.push_back (thread (&runQuaffCountingTask, &yTasks.back()));
       logger.assignThreadName (yThreads.back());
+      yLengthDone += y[ny].length();
     }
     for (auto& t : yThreads)
       t.join();
@@ -1332,7 +1353,7 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
 QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
   double logLike;
   vguard<vguard<size_t> > sortOrder = defaultSortOrder (x, y);
-  return getCounts (x, y, params, nullModel, config, sortOrder, logLike);
+  return getCounts (x, y, params, nullModel, config, sortOrder, logLike, "");
 }
 
 QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config) {
@@ -1345,8 +1366,9 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
   double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
   vguard<vguard<size_t> > sortOrder = defaultSortOrder (x, y);
   for (int iter = 0; iter < maxIterations; ++iter) {
+    const string banner = string(" (E-step #") + to_string(iter+1) + ")";
     double logLike = 0;
-    counts = getCounts (x, y, qp, nullModel, config, sortOrder, logLike);
+    counts = getCounts (x, y, qp, nullModel, config, sortOrder, logLike, banner.c_str());
     const double logPrior = pseudocounts.logPrior (qp);
     const double logLikeWithPrior = logLike + logPrior;
     if (LogThisAt(1))
@@ -1379,10 +1401,7 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
 }
 
 vguard<size_t> indicesByDescendingSequenceLength (const vguard<FastSeq>& seqs) {
-  vguard<size_t> len;
-  for (const auto& s : seqs)
-    len.push_back (s.length());
-  const vguard<size_t> ascending = orderedIndices (len);
+  const vguard<size_t> ascending = orderedIndices (QuaffDPMatrixContainer::getFastSeqLengths (seqs));
   return vguard<size_t> (ascending.rbegin(), ascending.rend());
 }
 
@@ -1400,7 +1419,7 @@ void QuaffCountingTask::run() {
 
   const double yNullLogLike = nullModel ? nullModel->logLikelihood(yfs) : -numeric_limits<double>::infinity();
   yLogLike = yNullLogLike;  // this initial value allows null model to "win"
-  if (LogThisAt(2))
+  if (LogThisAt(4))
     logger << "Null model score for " << yfs.name << " is " << yNullLogLike << endl;
     vguard<double> xyLogLike;
     vguard<QuaffParamCounts> xyCounts;
@@ -1420,11 +1439,11 @@ void QuaffCountingTask::run() {
     }
     for (size_t nx = 0; nx < x.size(); ++nx) {
       const double xyPostProb = exp (xyLogLike[nx] - yLogLike);
-      if (LogThisAt(2))
+      if (LogThisAt(3))
 	logger << "P(read " << yfs.name << " derived from ref " << x[nx].name << ") = " << xyPostProb << endl;
       yCounts.addWeighted (xyCounts[nx], xyPostProb);
     }
-    if (LogThisAt(2))
+    if (LogThisAt(3))
       logger << "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl;
     const vguard<size_t> ascendingOrder = orderedIndices (xyLogLike);
     sortOrder = vguard<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
@@ -1519,7 +1538,15 @@ bool QuaffAligner::parseAlignmentArgs (deque<string>& argvec) {
 
 void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
   const vguard<size_t> yOrder = indicesByDescendingSequenceLength (y);
+  const vguard<size_t> ySeqLengths = QuaffDPMatrixContainer::getFastSeqLengths (y);
+  const double yTotalLength = (double) accumulate (ySeqLengths.begin(), ySeqLengths.end(), 0);
+  double yLengthDone = 0;
+  ProgressLogger plog;
+  if (LogThisAt(2))
+    plog.initProgress ("Alignment");
   for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
+    if (LogThisAt(2))
+      plog.logProgress (yLengthDone / yTotalLength, "aligned %g/%g read bases", yLengthDone, yTotalLength);
     const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);
     list<list<Alignment> > align;
     list<thread> yThreads;
@@ -1530,6 +1557,7 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
       yTasks.push_back (QuaffAlignmentTask (x, y[ny], params, nullModel, config, align.back(), printAllAlignments));
       yThreads.push_back (thread (&runQuaffAlignmentTask, &yTasks.back()));
       logger.assignThreadName (yThreads.back());
+      yLengthDone += y[ny].length();
     }
     for (auto& t : yThreads)
       t.join();
@@ -1547,7 +1575,7 @@ QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq&
 void QuaffAlignmentTask::run() {
   for (size_t nx = 0; nx < x.size(); ++nx) {
     const FastSeq& xfs = x[nx];
-    if (LogThisAt(1))
+    if (LogThisAt(3))
       logger << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
     DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, sizeof(QuaffDPCell));
     const QuaffViterbiMatrix viterbi (env, params, config);

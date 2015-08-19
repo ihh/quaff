@@ -70,13 +70,13 @@ std::string plural (long n, const char* singular) {
   return s;
 }
 
-clock_t progress_startTime;
-double progress_lastElapsedSeconds, progress_reportInterval;
-char* progress_desc = NULL;
-void initProgress (const char* desc, ...) {
-  progress_startTime = clock();
-  progress_lastElapsedSeconds = 0;
-  progress_reportInterval = 2;
+ProgressLogger::ProgressLogger() : msg(NULL)
+{ }
+
+void ProgressLogger::initProgress (const char* desc, ...) {
+  startTime = clock();
+  lastElapsedSeconds = 0;
+  reportInterval = 2;
 
   time_t rawtime;
   struct tm * timeinfo;
@@ -84,26 +84,26 @@ void initProgress (const char* desc, ...) {
   time (&rawtime);
   timeinfo = localtime (&rawtime);
   
-  if (progress_desc)
-    free (progress_desc);
-
-  logger.lock();
-  
   va_list argptr;
   va_start (argptr, desc);
-  vasprintf (&progress_desc, desc, argptr);
+  vasprintf (&msg, desc, argptr);
   va_end (argptr);
-  fprintf (stderr, "%s: started at %s", progress_desc, asctime(timeinfo));
 
+  logger << msg << ": started at " << asctime(timeinfo);
   logger.unlock();
 }
 
-void logProgress (double completedFraction, const char* desc, ...) {
+ProgressLogger::~ProgressLogger() {
+  if (msg)
+    free (msg);
+}
+
+void ProgressLogger::logProgress (double completedFraction, const char* desc, ...) {
   va_list argptr;
   const clock_t currentTime = clock();
-  const double elapsedSeconds = ((double) (currentTime - progress_startTime)) / CLOCKS_PER_SEC;
+  const double elapsedSeconds = ((double) (currentTime - startTime)) / CLOCKS_PER_SEC;
   const double estimatedTotalSeconds = elapsedSeconds / completedFraction;
-  if (elapsedSeconds > progress_lastElapsedSeconds + progress_reportInterval) {
+  if (elapsedSeconds > lastElapsedSeconds + reportInterval) {
     const double estimatedSecondsLeft = estimatedTotalSeconds - elapsedSeconds;
     const double estimatedMinutesLeft = estimatedSecondsLeft / 60;
     const double estimatedHoursLeft = estimatedMinutesLeft / 60;
@@ -111,7 +111,7 @@ void logProgress (double completedFraction, const char* desc, ...) {
 
     logger.lock();
 
-    fprintf (stderr, "%s: ", progress_desc);
+    fprintf (stderr, "%s: ", msg);
     va_start (argptr, desc);
     vfprintf (stderr, desc, argptr);
     va_end (argptr);
@@ -128,7 +128,7 @@ void logProgress (double completedFraction, const char* desc, ...) {
 
     logger.unlock();
     
-    progress_lastElapsedSeconds = elapsedSeconds;
-    progress_reportInterval = fmin (10., 2*progress_reportInterval);
+    lastElapsedSeconds = elapsedSeconds;
+    reportInterval = fmin (10., 2*reportInterval);
   }
 }

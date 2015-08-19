@@ -23,8 +23,15 @@ void Fail(const char* error, ...);
 void Require(int assertion, const char* error, ...);
 
 /* progress logging */
-void initProgress (const char* desc, ...);
-void logProgress (double completedFraction, const char* desc, ...);
+struct ProgressLogger {
+  clock_t startTime;
+  double lastElapsedSeconds, reportInterval;
+  char* msg;
+  ProgressLogger();
+  ~ProgressLogger();
+  void initProgress (const char* desc, ...);
+  void logProgress (double completedFraction, const char* desc, ...);
+};
 
 /* singular or plural? */
 std::string plural (long n, const char* singular);

@@ -222,6 +222,7 @@ public:
   inline const double& del (SeqIdx i, SeqIdx j) const { return getCell(i,j).del; }
   double cellScore (SeqIdx i, SeqIdx j, State state) const;
   static const char* stateToString (State state);
+  static vguard<size_t> getFastSeqLengths (const vguard<FastSeq>& db);
 protected:
   static void updateMax (double& currentMax, State& currentMaxIdx, double candidateMax, State candidateMaxIdx);
 };
@@ -309,7 +310,7 @@ struct QuaffTrainer {
   bool parseTrainingArgs (deque<string>& argvec);
   bool parseCountingArgs (deque<string>& argvec);
   QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config);
-  QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike);
+  QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner);
   QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
   static vguard<vguard<size_t> > defaultSortOrder (const vguard<FastSeq>& x, const vguard<FastSeq>& y);
 };

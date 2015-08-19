@@ -28,7 +28,7 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
   for (SeqIdx j = 0; j <= yLen - kmerLen; ++j)
     yKmerIndex[makeKmer (kmerLen, yTok.begin() + j, dnaAlphabetSize)].insert (j);
 
-  if (LogThisAt(6)) {
+  if (LogThisAt(8)) {
     logger << "Frequencies of " << kmerLen << "-mers in " << py->name << ':' << endl;
     for (const auto& yKmerIndexElt : yKmerIndex) {
       logger << kmerToString (yKmerIndexElt.first, kmerLen, dnaAlphabet) << ' ' << yKmerIndexElt.second.size() << endl;
@@ -47,7 +47,7 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
   for (const auto& diagKmerCountElt : diagKmerCount)
     countDistrib[diagKmerCountElt.second].insert (diagKmerCountElt.first);
 
-  if (LogThisAt(5)) {
+  if (LogThisAt(7)) {
     logger << "Distribution of " << kmerLen << "-mer matches per diagonal for " << px->name << " vs " << py->name << ':' << endl;
     for (const auto& countDistribElt : countDistrib)
       logger << countDistribElt.second.size() << " diagonals have " << countDistribElt.first << " matches" << endl;
@@ -63,7 +63,7 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
   unsigned int threshold;
   if (kmerThreshold >= 0)
     threshold = kmerThreshold;
-  else if (LogThisAt(3))
+  else if (LogThisAt(5))
     logger << "Automatically setting threshold based on memory limit of " << maxSize << " bytes (each diagonal takes " << diagSize << " bytes)" << endl;
 
   for (auto countDistribIter = countDistrib.crbegin();
@@ -90,10 +90,10 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
     swap (diags, moreDiags);
   }
 
-  if (LogThisAt(3))
+  if (LogThisAt(5))
     logger << "Threshold # of " << kmerLen << "-mer matches for seeding a diagonal is " << threshold << endl;
   
-  if (LogThisAt(3))
+  if (LogThisAt(5))
     logger << nPastThreshold << " diagonals above threshold; " << diags.size() << " in envelope (band size " << bandSize << "); estimated memory <" << (((diags.size() * diagSize) >> 20) + 1) << "MB" << endl;
 
   diagonals = vector<int> (diags.begin(), diags.end());

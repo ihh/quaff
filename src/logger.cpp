@@ -53,7 +53,7 @@ Logger& Logger::lock() {
   thread::id myId = this_thread::get_id();
   if (!(mxLocked && mxOwner == myId)) {
     if (mx.try_lock_for (std::chrono::milliseconds(1000))) {
-      if (mxOwner != myId)
+      if (mxOwner != myId && threadNum.size() > 1)
 	clog << "(" << threadName(myId) << ") ";
       mxOwner = myId;
       mxLocked = true;
