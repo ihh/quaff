@@ -4,12 +4,17 @@
 #include <map>
 #include <numeric>
 #include <deque>
+#include <list>
 #include "fastseq.h"
 #include "diagenv.h"
 
 // EM convergence parameters
 #define QuaffMaxEMIterations 100
 #define QuaffMinEMLogLikeInc .01
+
+// Default contexts
+#define DefaultMatchKmerContext 1
+#define DefaultIndelKmerContext 0
 
 // struct describing the probability of a given FASTA symbol,
 // and a negative binomial distribution over the associated quality score
@@ -79,7 +84,7 @@ struct QuaffParams {
   double extendInsert, extendDelete;
   vguard<SymQualDist> insert;  // emissions from insert state
   vguard<vguard<SymQualDist> > match;  // substitutions from match state (conditional on input)
-  QuaffParams (unsigned int matchKmerLen = 1, unsigned int indelKmerLen = 0);
+  QuaffParams (unsigned int matchKmerLen = DefaultMatchKmerContext, unsigned int indelKmerLen = DefaultIndelKmerContext);
   void resize();  // call after changing kmerLen
   void write (ostream& out) const;
   void read (istream& in);
@@ -130,7 +135,7 @@ struct QuaffParamCounts {
   vguard<vguard<SymQualCounts> > match;
   vguard<double> beginInsertNo, beginInsertYes, beginDeleteNo, beginDeleteYes;
   double extendInsertNo, extendInsertYes, extendDeleteNo, extendDeleteYes;
-  QuaffParamCounts (unsigned int matchKmerLen, unsigned int indelKmerLen);
+  QuaffParamCounts (unsigned int matchKmerLen = DefaultMatchKmerContext, unsigned int indelKmerLen = DefaultIndelKmerContext);
   QuaffParamCounts (const QuaffCounts& counts);
   void resize();  // call after changing kmerLen
   void zeroCounts();
@@ -138,6 +143,7 @@ struct QuaffParamCounts {
   void write (ostream& out) const;
   void read (istream& in);
   void addWeighted (const QuaffParamCounts& counts, double weight);
+  QuaffParamCounts operator+ (const QuaffParamCounts& counts) const;
   QuaffParams fit() const;  // maximum-likelihood fit
   double logPrior (const QuaffParams& qp) const;  // uses counts as hyperparameters to define a prior over params
   double expectedLogLike (const QuaffParams& qp) const;  // as logPrior, but unnormalized
@@ -149,7 +155,7 @@ struct Alignment {
   vguard<FastSeq> gappedSeq;
   double score;
   Alignment (size_t numRows = 0)
-    : gappedSeq(numRows), score(0)
+    : gappedSeq(numRows), score(-numeric_limits<double>::infinity())
   { }
   const size_t rows() const { return gappedSeq.size(); }
   const size_t columns() const { return rows() ? gappedSeq[0].length() : 0; }
@@ -298,6 +304,21 @@ struct QuaffTrainer {
   static vguard<vguard<size_t> > defaultSortOrder (const vguard<FastSeq>& x, const vguard<FastSeq>& y);
 };
 
+// struct encapsulating a single training thread
+struct QuaffCountingTask {
+  const vguard<FastSeq>& x;
+  const FastSeq& yfs;
+  const QuaffParams& params;
+  const QuaffDPConfig& config;
+  const QuaffNullParams* nullModel;
+  vguard<size_t>& sortOrder;
+  double& yLogLike;
+  QuaffParamCounts& yCounts;
+  QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams* nullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& counts);
+  void run();
+};
+void runQuaffCountingTask (QuaffCountingTask& task);
+
 // config/wrapper structs for Viterbi alignment
 struct QuaffAlignmentPrinter {
   enum OutputFormat { GappedFastaAlignment, StockholmAlignment, UngappedFastaRef } format;
@@ -315,5 +336,19 @@ struct QuaffAligner : QuaffAlignmentPrinter {
   bool parseAlignmentArgs (deque<string>& argvec);
   void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
 };
+
+// struct encapsulating a single alignment thread
+struct QuaffAlignmentTask {
+  const vguard<FastSeq>& x;
+  const FastSeq& yfs;
+  const QuaffParams& params;
+  const QuaffDPConfig& config;
+  const QuaffNullParams& nullModel;
+  list<Alignment>& alignList;
+  bool keepAllAlignments;
+  QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, list<Alignment>& alignList, bool keepAllAlignments);
+  void run();
+};
+void runQuaffAlignmentTask (QuaffAlignmentTask& task);
 
 #endif /* QMODEL_INCLUDED */

@@ -67,4 +67,20 @@ struct QuaffOverlapAligner : QuaffAlignmentPrinter {
   void align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
 };
 
+// struct encapsulating a single overlapper thread
+struct QuaffOverlapTask {
+  const FastSeq& xfs;
+  const FastSeq& yfs;
+  const bool yComplemented;
+  const QuaffParams& params;
+  const QuaffNullParams& nullModel;
+  const QuaffDPConfig& config;
+  Alignment align;
+
+  QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
+  void run();
+  bool hasAlignment() const { return align.rows() > 0; }
+};
+void runQuaffOverlapTask (QuaffOverlapTask& task);
+
 #endif /* QOVERLAP_INCLUDED */

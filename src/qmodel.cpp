@@ -17,6 +17,11 @@
 #define MAX_TRAINING_LOG_DELTA 20
 
 // useful helper methods
+double logBetaPdf (double prob, double yesCount, double noCount);
+map<string,string> readParamFile (istream& in);
+
+
+// main method bodies
 double logBetaPdf (double prob, double yesCount, double noCount) {
   return log (gsl_ran_beta_pdf (prob, yesCount + 1, noCount + 1));
 }
@@ -37,7 +42,6 @@ map<string,string> readParamFile (istream& in) {
   return val;
 }
 
-// main method bodies
 SymQualDist::SymQualDist()
   : symProb(1. / dnaAlphabetSize),
     qualTrialSuccessProb(.5),
@@ -971,6 +975,12 @@ void QuaffParamCounts::addWeighted (const QuaffParamCounts& counts, double weigh
   extendDeleteYes += weight * counts.extendDeleteYes;
 }
 
+QuaffParamCounts QuaffParamCounts::operator+ (const QuaffParamCounts& counts) const {
+  QuaffParamCounts qpc (*this);
+  qpc.addWeighted (counts, 1);
+  return qpc;
+}
+
 double QuaffParamCounts::logPrior (const QuaffParams& qp) const {
   double lp = 0;
   for (Kmer j = 0; j < indelContext.numKmers; ++j) {
@@ -1231,20 +1241,25 @@ vguard<vguard<size_t> > QuaffTrainer::defaultSortOrder (const vguard<FastSeq>& x
   return vguard<vguard<size_t> > (y.size(), initialSortOrder);
 }
 
-QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike) {
+void runQuaffCountingTask (QuaffCountingTask& task) {
+  task.run();
+}
+
+QuaffCountingTask::QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams* nullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& yCounts)
+  : x(x), yfs(yfs), params(params), nullModel(nullModel), config(config), sortOrder(sortOrder), yLogLike(yLogLike), yCounts(yCounts)
+{ }
+
+void QuaffCountingTask::run() {
   const unsigned int matchKmerLen = params.matchContext.kmerLen;
   const unsigned int indelKmerLen = params.indelContext.kmerLen;
-  QuaffParamCounts counts (matchKmerLen, indelKmerLen);
-  logLike = 0;
-  for (size_t ny = 0; ny < y.size(); ++ny) {
-    const auto& yfs = y[ny];
-    const double yNullLogLike = allowNullModel ? nullModel.logLikelihood(yfs) : -numeric_limits<double>::infinity();
-    double yLogLike = yNullLogLike;  // this initial value allows null model to "win"
-    if (LogThisAt(2))
-      cerr << "Null model score for " << yfs.name << " is " << yNullLogLike << endl;
+
+  const double yNullLogLike = nullModel ? nullModel->logLikelihood(yfs) : -numeric_limits<double>::infinity();
+  yLogLike = yNullLogLike;  // this initial value allows null model to "win"
+  if (LogThisAt(2))
+    cerr << "Null model score for " << yfs.name << " is " << yNullLogLike << endl;
     vguard<double> xyLogLike;
     vguard<QuaffParamCounts> xyCounts;
-    for (auto nx : sortOrder[ny]) {
+    for (auto nx : sortOrder) {
       const auto& xfs = x[nx];
       DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, 2*sizeof(QuaffDPCell));
       const QuaffForwardMatrix fwd (env, params, config);
@@ -1262,15 +1277,27 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
       const double xyPostProb = exp (xyLogLike[nx] - yLogLike);
       if (LogThisAt(2))
 	cerr << "P(read " << yfs.name << " derived from ref " << x[nx].name << ") = " << xyPostProb << endl;
-      counts.addWeighted (xyCounts[nx], xyPostProb);
+      yCounts.addWeighted (xyCounts[nx], xyPostProb);
     }
     if (LogThisAt(2))
       cerr << "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl;
-    logLike += yLogLike;
     const vguard<size_t> ascendingOrder = orderedIndices (xyLogLike);
-    sortOrder[ny] = vguard<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
+    sortOrder = vguard<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
+}
+
+QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike) {
+  const unsigned int matchKmerLen = params.matchContext.kmerLen;
+  const unsigned int indelKmerLen = params.indelContext.kmerLen;
+  const QuaffParamCounts zeroCounts (matchKmerLen, indelKmerLen);
+  vguard<QuaffParamCounts> yCounts (y.size(), zeroCounts);
+  vguard<double> yLogLike (y.size(), 0.);
+  for (size_t ny = 0; ny < y.size(); ++ny) {
+    const auto& yfs = y[ny];
+    QuaffCountingTask task (x, y[ny], params, allowNullModel ? &nullModel : NULL, config, sortOrder[ny], yLogLike[ny], yCounts[ny]);
+    task.run();
   }
-  return counts;
+  logLike = accumulate (yLogLike.begin(), yLogLike.end(), 0.);
+  return accumulate (yCounts.begin(), yCounts.end(), zeroCounts);
 }
 
 QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
@@ -1410,25 +1437,40 @@ bool QuaffAligner::parseAlignmentArgs (deque<string>& argvec) {
 }
 
 void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
+  vguard<list<Alignment> > align;
   for (const auto& yfs : y) {
-    size_t nBestAlign = 0;
-    vguard<Alignment> xyAlign;
-    for (const auto& xfs : x) {
-      if (LogThisAt(1))
-	cerr << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
-      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, sizeof(QuaffDPCell));
-      const QuaffViterbiMatrix viterbi (env, params, config);
-      if (viterbi.resultIsFinite()) {
-	const Alignment align = viterbi.scoreAdjustedAlignment(nullModel);
-	if (xyAlign.empty() || align.score > xyAlign[nBestAlign].score)
-	  nBestAlign = xyAlign.size();
-	xyAlign.push_back (align);
+    align.push_back (list<Alignment>());
+    QuaffAlignmentTask task (x, yfs, params, nullModel, config, align.back(), printAllAlignments);
+    task.run();
+  }
+  for (const auto& l : align)
+    for (const auto& a : l)
+      writeAlignment (out, a);
+}
+
+QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, list<Alignment>& alignList, bool keepAllAlignments)
+  : x(x), yfs(yfs), params(params), nullModel(nullModel), config(config), alignList(alignList), keepAllAlignments(keepAllAlignments)
+{ }
+
+void QuaffAlignmentTask::run() {
+  for (size_t nx = 0; nx < x.size(); ++nx) {
+    const FastSeq& xfs = x[nx];
+    if (LogThisAt(1))
+      cerr << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
+    DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, sizeof(QuaffDPCell));
+    const QuaffViterbiMatrix viterbi (env, params, config);
+    if (viterbi.resultIsFinite()) {
+      const Alignment a = viterbi.scoreAdjustedAlignment (nullModel);
+      if (keepAllAlignments || alignList.empty())
+	alignList.push_back (a);
+      else if (a.score > alignList.front().score) {
+	alignList.pop_front();
+	alignList.push_back (a);
       }
     }
-    if (printAllAlignments)
-      for (const auto& a : xyAlign)
-	writeAlignment (out, a);
-    else if (xyAlign.size())
-      writeAlignment (out, xyAlign[nBestAlign]);
   }
+}
+
+void runQuaffAlignmentTask (QuaffAlignmentTask& task) {
+  task.run();
 }
