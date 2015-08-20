@@ -13,7 +13,7 @@ all: quaff test
 clean:
 	rm -rf bin/*
 
-test: testfast testquaffio testlogsumexp testnegbinom
+test: testfast testquaffio testlogsumexp testnegbinom testdiagenv
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
