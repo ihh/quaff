@@ -76,6 +76,6 @@ General options (for all commands, except where indicated):
    -kmatchoff      No kmer threshold, do full DP (swapfile-heavy, v slow)
 
    -threads &lt;n&gt;, -maxthreads
-                     Set number of threads, or use all cores available
+                   Specify number of threads, or use all cores available
 
 </code></pre>

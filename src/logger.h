@@ -14,11 +14,18 @@
 
 using namespace std;
 
+// This class implements a quick-and-dirty threadsafe logger.
+// EITHER explicitly call lock() and unlock(),
+// OR use operator<< to stream objects to the log,
+// terminated by a stream manipulator (e.g. endl or flush).
+// The stream manipulator is IMPORTANT: without it,
+// you will get delays, and (if you are lucky) you will notice
+// "ignoring lock by..." messages appearing in the log.
 struct Logger {
   int verbosity;
   set<string> logTags;
 
-  timed_mutex mx;
+  recursive_timed_mutex mx;
   bool mxLocked;
   thread::id mxOwner;
   map<thread::id,unsigned int> threadNum;

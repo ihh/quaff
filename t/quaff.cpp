@@ -498,7 +498,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -kmatchoff      No kmer threshold, do full DP (swapfile-heavy, v slow)\n"
     + "\n"
     + "   -threads <n>, -maxthreads\n"
-    "                     Specify number of threads, or use all cores available\n"
+    + "                   Specify number of threads, or use all cores available\n"
     + "\n";
 }
 
