@@ -247,8 +247,11 @@ bool QuaffParamsIn::parseParamFilename() {
 }
 
 void QuaffParamsIn::requireParamsOrUseDefaults() {
-  if (!initialized)
+  if (!initialized) {
+    if (LogThisAt(1))
+      cerr << "Using default model parameters" << endl;
     (QuaffParams&) *this = defaultQuaffParams();
+  }
 }
 
 void QuaffParamsIn::requireParamsOrUsePrior (const QuaffParamCounts& prior) {

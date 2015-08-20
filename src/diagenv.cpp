@@ -21,8 +21,8 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
     return;
   }
 
-  const vector<AlphTok> xTok = px->tokens (dnaAlphabet);
-  const vector<AlphTok> yTok = py->tokens (dnaAlphabet);
+  const vguard<AlphTok> xTok = px->tokens (dnaAlphabet);
+  const vguard<AlphTok> yTok = py->tokens (dnaAlphabet);
 
   map<Kmer,set<SeqIdx> > yKmerIndex;
   for (SeqIdx j = 0; j <= yLen - kmerLen; ++j)
@@ -101,11 +101,11 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
     logger << plural((long) diags.size(),"diagonal") << " in envelope (band size " << bandSize << "); estimated memory <" << (((diags.size() * diagSize) >> 20) + 1) << "MB" << endl;
   }
 
-  diagonals = vector<int> (diags.begin(), diags.end());
+  diagonals = vguard<int> (diags.begin(), diags.end());
 }
 
-vector<SeqIdx> DiagonalEnvelope::forward_i (SeqIdx j) const {
-  vector<SeqIdx> i_vec;
+vguard<SeqIdx> DiagonalEnvelope::forward_i (SeqIdx j) const {
+  vguard<SeqIdx> i_vec;
   i_vec.reserve (diagonals.size());
   for (auto d : diagonals)
     if (intersects (j, d))
@@ -113,7 +113,7 @@ vector<SeqIdx> DiagonalEnvelope::forward_i (SeqIdx j) const {
   return i_vec;
 }
 
-vector<SeqIdx> DiagonalEnvelope::reverse_i (SeqIdx j) const {
-  const vector<SeqIdx> f = forward_i (j);
-  return vector<SeqIdx> (f.rbegin(), f.rend());
+vguard<SeqIdx> DiagonalEnvelope::reverse_i (SeqIdx j) const {
+  const vguard<SeqIdx> f = forward_i (j);
+  return vguard<SeqIdx> (f.rbegin(), f.rend());
 }

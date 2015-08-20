@@ -127,7 +127,11 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
     if (LogThisAt(4))
       plog.logProgress (j / (double) yLen, "base %d/%d", j, yLen);
 
-    for (SeqIdx i : env.forward_i(j)) {
+    for (DiagonalEnvelope::iterator pi = env.begin(j);
+	 !pi.finished();
+	 ++pi) {
+
+      const SeqIdx i = *pi;
 
       mat(i,j) = max (max (mat(i-1,j-1) + m2mScore(i-1,j-1),
 			   del(i-1,j-1) + d2mScore()),

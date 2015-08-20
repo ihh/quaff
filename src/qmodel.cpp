@@ -701,8 +701,10 @@ QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp
 
 void QuaffDPMatrix::write (ostream& out) const {
   for (SeqIdx j = 1; j <= yLen; ++j) {
-    for (SeqIdx i : penv->forward_i(j))
-      out << "i=" << i << ":" << px->seq[i-1] << " j=" << j << ":" << py->seq[j-1] << (py->hasQual() ? string(1,py->qual[j-1]) : string()) << "\tmat " << mat(i,j) << "\tins " << ins(i,j) << "\tdel " << del(i,j) << endl;
+    for (DiagonalEnvelope::iterator pi = penv->begin(j);
+	 !pi.finished();
+	 ++pi)
+      out << "i=" << *pi << ":" << px->seq[*pi-1] << " j=" << j << ":" << py->seq[j-1] << (py->hasQual() ? string(1,py->qual[j-1]) : string()) << "\tmat " << mat(*pi,j) << "\tins " << ins(*pi,j) << "\tdel " << del(*pi,j) << endl;
     out << endl;
   }
   out << "result " << result << endl;
@@ -730,7 +732,11 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
     if (LogThisAt(4))
       plog.logProgress (j / (double) yLen, "base %d/%d", j, yLen);
 
-    for (SeqIdx i : env.forward_i(j)) {
+    for (DiagonalEnvelope::iterator pi = env.begin(j);
+	 !pi.finished();
+	 ++pi) {
+
+      const SeqIdx i = *pi;
 
       mat(i,j) = log_sum_exp (mat(i-1,j-1) + m2mScore(j-1),
 			      del(i-1,j-1) + d2mScore(),
@@ -780,7 +786,11 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
     if (LogThisAt(4))
       plog.logProgress ((yLen - j) / (double) yLen, "base %d/%d", j, yLen);
 
-    for (SeqIdx i : penv->reverse_i(j)) {
+    for (DiagonalEnvelope::reverse_iterator pi = penv->rbegin(j);
+	 !pi.finished();
+	 ++pi) {
+
+      const SeqIdx i = *pi;
 
       if (j == yLen && (i == xLen || pconfig->local)) {
 	const double m2e = transCount (mat(i,yLen),
@@ -897,7 +907,11 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
     if (LogThisAt(4))
       plog.logProgress (j / (double) yLen, "base %d/%d", j, yLen);
 
-    for (SeqIdx i : env.forward_i(j)) {
+    for (DiagonalEnvelope::iterator pi = env.begin(j);
+	 !pi.finished();
+	 ++pi) {
+
+      const SeqIdx i = *pi;
 
       mat(i,j) = max (max (mat(i-1,j-1) + m2mScore(j-1),
 			   del(i-1,j-1) + d2mScore()),
@@ -1154,8 +1168,11 @@ double QuaffForwardBackwardMatrix::postInsert (SeqIdx i, SeqIdx j) const {
 
 void QuaffForwardBackwardMatrix::write (ostream& out) const {
   for (SeqIdx j = 1; j <= fwd.yLen; ++j) {
+    for (DiagonalEnvelope::iterator pi = fwd.penv->begin(j);
+	 !pi.finished();
+	 ++pi)
     for (SeqIdx i : fwd.penv->forward_i(j))
-      out << "i=" << i << ":" << fwd.px->seq[i-1] << " j=" << j << ":" << fwd.py->seq[j-1] << (fwd.py->hasQual() ? string(1,fwd.py->qual[j-1]) : string()) << "\tmat " << postMatch(i,j) << "\tins " << postInsert(i,j) << "\tdel " << postDelete(i,j) << endl;
+      out << "i=" << *pi << ":" << fwd.px->seq[*pi-1] << " j=" << j << ":" << fwd.py->seq[j-1] << (fwd.py->hasQual() ? string(1,fwd.py->qual[j-1]) : string()) << "\tmat " << postMatch(*pi,j) << "\tins " << postInsert(*pi,j) << "\tdel " << postDelete(*pi,j) << endl;
     out << endl;
   }
 }

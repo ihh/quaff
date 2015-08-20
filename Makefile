@@ -37,6 +37,8 @@ testlogsumexp: bin/testlogsumexp
 testnegbinom: bin/testnegbinom
 	bin/testnegbinom .1 5 10000 .1
 
+testdiagenv: bin/testdiagenv
+	bin/testdiagenv data/c8f30.fastq.gz data/c8f30.fastq.gz 6 14 64
 
 quaff: bin/quaff
 
