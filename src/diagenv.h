@@ -3,6 +3,7 @@
 
 #include <map>
 #include "fastseq.h"
+#include "util.h"
 
 using namespace std;
 
@@ -16,10 +17,18 @@ using namespace std;
 // Default band size
 #define DEFAULT_BAND_SIZE 64
 
+// uncomment to add extra guards to storage indexing
+// #define USE_DIAGONAL_ENVELOPE_GUARDS
+
 struct DiagonalEnvelope {
   const FastSeq *px, *py;
   const SeqIdx xLen, yLen;
-  vguard<int> diagonals;   // Sorted ascending. (i,j) is on diagonal d if i-j=d
+  vguard<int> diagonals, storageDiagonals;   // Sorted ascending. (i,j) is on diagonal d if i-j=d
+  vguard<int> storageIndex;  // storageIndex[yLen + storageDiagonals[n]] = n, or -1 if outside envelope
+  vguard<int> storageOffset;  // storageOffset[j] = storageIndex of first diagonal intersecting j
+  vguard<size_t> storageSize;  // storageSize[j] = number of diagonals intersecting j
+  vguard<size_t> cumulStorageSize;  // cumulStorageSize[j] = sum_{j'=0}^{j-1} storageSize[j]
+  size_t totalStorageSize;  // sum_{j=0}^{yLen} storageSize[j]
   DiagonalEnvelope (const FastSeq& x, const FastSeq& y)
     : px(&x), py(&y), xLen(px->length()), yLen(py->length()) { }
   void initFull();
@@ -28,8 +37,27 @@ struct DiagonalEnvelope {
 		   int kmerThreshold = DEFAULT_KMER_THRESHOLD,  // negative => use memory guides
 		   size_t cellSize = sizeof(double),
 		   size_t maxSize = 0);
+  void initStorage();
+  inline int getStorageIndexSafe (SeqIdx i, SeqIdx j) const {
+    const int idx = storageIndex[yLen + i - j];
+    const int offsetIdx = idx - storageOffset[j];
+    return (idx < 0 || offsetIdx < 0 || offsetIdx >= (int) storageSize[j]) ? -1 : (offsetIdx + (int) cumulStorageSize[j]);
+  }
+  inline int getStorageIndexUnsafe (SeqIdx i, SeqIdx j) const {
+#ifdef USE_DIAGONAL_ENVELOPE_GUARDS
+    const int idx = getStorageIndexSafe (i, j);
+    if (idx < 0)
+      Abort ("Access error at (i=%u,j=%u) storageIndex=%d storageOffset=%d storageSize=%lu", i, j, storageIndex[yLen+i-j], storageOffset[j], storageSize[j]);
+#else /* USE_DIAGONAL_ENVELOPE_GUARDS */
+    const int idx = storageIndex[yLen + i - j] - storageOffset[j] + (int) cumulStorageSize[j];
+#endif /* USE_DIAGONAL_ENVELOPE_GUARDS */
+    return idx;
+  }
+  inline static int getDiagonal (SeqIdx i, SeqIdx j) { return i - j; }
   inline int minDiagonal() const { return 1 - (int) yLen; }
   inline int maxDiagonal() const { return xLen - 1; }
+  inline int minStorageDiagonal() const { return - (int) yLen; }
+  inline int maxStorageDiagonal() const { return xLen; }
   inline bool contains (SeqIdx i, SeqIdx j) const {
     const int diag = i - j;
     const vguard<int>::const_iterator iter = lower_bound (diagonals.begin(), diagonals.end(), diag);
@@ -54,6 +82,17 @@ struct DiagonalEnvelope {
   inline vguard<int>::const_iterator endIntersecting (SeqIdx j) const {
     // see comment in beginIntersecting()
     return upper_bound (diagonals.begin(), diagonals.end(), xLen - (int)j);
+  }
+
+  inline vguard<int>::const_iterator storageBeginIntersecting (SeqIdx j) const {
+    // i = diag + j
+    // want i >= 0 (for storage, as opposed to iterator)
+    // so diag > -j-1 && diag <= xLen - j
+    return upper_bound (storageDiagonals.begin(), storageDiagonals.end(), -1 - (int)j);
+  }
+
+  inline vguard<int>::const_iterator storageEndIntersecting (SeqIdx j) const {
+    return upper_bound (storageDiagonals.begin(), storageDiagonals.end(), xLen - (int)j);
   }
 
   class DiagonalEnvelopeIterator : public iterator<forward_iterator_tag,SeqIdx> {

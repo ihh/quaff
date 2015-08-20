@@ -193,38 +193,34 @@ struct QuaffDPConfig {
   size_t effectiveMaxSize() const;  // takes threading into account
 };
 
-// DP matrices
-struct QuaffDPCell {
-  double mat, ins, del;
-  QuaffDPCell();
-};
-
-typedef map<SeqIdx,QuaffDPCell> QuaffDPColumn;
-
 class QuaffDPMatrixContainer {
 public:
   enum State { Start, Match, Insert, Delete };
   const DiagonalEnvelope* penv;
   const FastSeq *px, *py;
   SeqIdx xLen, yLen;
-  vguard<QuaffDPColumn> cell;
+  vguard<double> cell;
   double start, end, result;
-  static QuaffDPCell dummy;
+  static double dummy;
   QuaffDPMatrixContainer (const DiagonalEnvelope& env);
-  inline const QuaffDPCell& getCell (SeqIdx i, SeqIdx j) const {
-    const QuaffDPColumn& col = cell[j];
-    auto c = col.find (i);
-    return c == col.end() ? dummy : c->second;
+  inline double& getCell (SeqIdx i, SeqIdx j, unsigned int offset) {
+    const int storageIndex = penv->getStorageIndexUnsafe (i, j);
+    return cell[storageIndex*3 + offset];
   }
-  inline double& mat (SeqIdx i, SeqIdx j) { return cell[j][i].mat; }
-  inline double& ins (SeqIdx i, SeqIdx j) { return cell[j][i].ins; }
-  inline double& del (SeqIdx i, SeqIdx j) { return cell[j][i].del; }
-  inline const double& mat (SeqIdx i, SeqIdx j) const { return getCell(i,j).mat; }
-  inline const double& ins (SeqIdx i, SeqIdx j) const { return getCell(i,j).ins; }
-  inline const double& del (SeqIdx i, SeqIdx j) const { return getCell(i,j).del; }
+  inline const double& getCell (SeqIdx i, SeqIdx j, unsigned int offset) const {
+    const int storageIndex = penv->getStorageIndexSafe (i, j);
+    return storageIndex < 0 ? dummy : cell[storageIndex*3 + offset];
+  }
+  inline double& mat (SeqIdx i, SeqIdx j) { return getCell(i,j,0); }
+  inline double& ins (SeqIdx i, SeqIdx j) { return getCell(i,j,1); }
+  inline double& del (SeqIdx i, SeqIdx j) { return getCell(i,j,2); }
+  inline const double& mat (SeqIdx i, SeqIdx j) const { return getCell(i,j,0); }
+  inline const double& ins (SeqIdx i, SeqIdx j) const { return getCell(i,j,1); }
+  inline const double& del (SeqIdx i, SeqIdx j) const { return getCell(i,j,2); }
   double cellScore (SeqIdx i, SeqIdx j, State state) const;
   static const char* stateToString (State state);
   static vguard<size_t> getFastSeqLengths (const vguard<FastSeq>& db);
+  static size_t cellSize() { return 3*sizeof(double); }
 protected:
   static void updateMax (double& currentMax, State& currentMaxIdx, double candidateMax, State candidateMaxIdx);
 };

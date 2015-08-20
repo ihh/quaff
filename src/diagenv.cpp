@@ -5,20 +5,26 @@
 #include "diagenv.h"
 #include "logger.h"
 
-// require at least this many bases per sequence for sparse envelope
-#define MIN_SEQLEN_FOR_SPARSE_ENVELOPE 1024
+// require at least this ratio of sequenceLength/(kmerLen + kmerThreshold) for sparse envelope
+#define MIN_KMERS_FOR_SPARSE_ENVELOPE 2
 
 void DiagonalEnvelope::initFull() {
+  if (LogThisAt(5))
+    logger << "Initializing full " << xLen << "*" << yLen << " envelope (no kmer-matching heuristic)" << endl;
   diagonals.clear();
   diagonals.reserve (xLen + yLen - 1);
   for (int d = minDiagonal(); d <= maxDiagonal(); ++d)
     diagonals.push_back (d);
+  initStorage();
 }
 
 void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, int kmerThreshold, size_t cellSize, size_t maxSize) {
-  if (px->length() < MIN_SEQLEN_FOR_SPARSE_ENVELOPE || py->length() < MIN_SEQLEN_FOR_SPARSE_ENVELOPE) {
-    initFull();
-    return;
+  if (kmerThreshold >= 0) {
+    const SeqIdx minLenForSparse = MIN_KMERS_FOR_SPARSE_ENVELOPE * (kmerLen + kmerThreshold);
+    if (px->length() < minLenForSparse || py->length() < minLenForSparse) {
+      initFull();
+      return;
+    }
   }
 
   const vguard<AlphTok> xTok = px->tokens (dnaAlphabet);
@@ -53,8 +59,9 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
       logger << countDistribElt.second.size() << " diagonals have " << countDistribElt.first << " matches" << endl;
   }
 
-  set<int> diags;
+  set<int> diags, storageDiags;
   diags.insert(0);  // always add the zeroth diagonal to ensure at least one path exists
+  storageDiags.insert(0);
 
   const unsigned int halfBandSize = bandSize / 2;
   const size_t diagSize = min(xLen,yLen) * cellSize;
@@ -75,22 +82,27 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
     if (kmerThreshold >= 0 && countDistribIter->first < kmerThreshold)
       break;
 
-    set<int> moreDiags = diags;
+    set<int> moreDiags = diags, moreStorageDiags = storageDiags;
+    unsigned int moreNPastThreshold = nPastThreshold;
     for (auto seedDiag : countDistribIter->second) {
-      ++nPastThreshold;
-      for (int d = seedDiag - (int) halfBandSize;
-	   d <= seedDiag + (int) halfBandSize;
-	   ++d)
+      ++moreNPastThreshold;
+      const int dMin = max (minDiagonal(), (int) seedDiag - (int) halfBandSize);
+      const int dMax = min (maxDiagonal(), (int) seedDiag + (int) halfBandSize);
+      for (int d = dMin; d <= dMax; ++d)
 	moreDiags.insert (d);
+      for (int d = dMin - 1; d <= dMax + 1; ++d)
+	moreStorageDiags.insert (d);
     }
 
     if (kmerThreshold < 0) {
-      if (moreDiags.size() * diagSize >= maxSize)
+      if (moreStorageDiags.size() * diagSize >= maxSize)
 	break;
       threshold = countDistribIter->first;
       foundThreshold = true;
     }
     swap (diags, moreDiags);
+    swap (storageDiags, moreStorageDiags);
+    nPastThreshold = moreNPastThreshold;
   }
 
   if (LogThisAt(5)) {
@@ -98,10 +110,39 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
       logger << "Threshold # of " << kmerLen << "-mer matches for seeding a diagonal is " << threshold << "; " << plural((long) nPastThreshold,"diagonal") << " past this threshold" << endl;
     else
       logger << "Couldn't find a suitable threshold that would fit within memory limit" << endl;
-    logger << plural((long) diags.size(),"diagonal") << " in envelope (band size " << bandSize << "); estimated memory <" << (((diags.size() * diagSize) >> 20) + 1) << "MB" << endl;
+    logger << plural((long) diags.size(),"diagonal") << " in envelope (band size " << bandSize << "); estimated memory <" << (((storageDiags.size() * diagSize) >> 20) + 1) << "MB" << endl;
   }
 
   diagonals = vguard<int> (diags.begin(), diags.end());
+  initStorage();
+}
+
+void DiagonalEnvelope::initStorage() {
+  set<int> storageDiags;
+  for (auto d : diagonals) {
+    storageDiags.insert (d);
+    storageDiags.insert (d - 1);
+    storageDiags.insert (d + 1);
+  }
+  storageDiagonals = vguard<int> (storageDiags.begin(), storageDiags.end());
+  storageIndex = vguard<int> (xLen + yLen + 1, -1);
+  for (size_t n = 0; n < storageDiagonals.size(); ++n)
+    storageIndex[yLen + storageDiagonals[n]] = (int) n;
+  storageOffset = vguard<int> (yLen + 1, -1);
+  storageSize = vguard<size_t> (yLen + 1);
+  cumulStorageSize = vguard<size_t> (yLen + 1);
+  totalStorageSize = 0;
+  for (SeqIdx j = 0; j <= yLen; ++j) {
+    const vguard<int>::const_iterator b = storageBeginIntersecting(j);
+    const vguard<int>::const_iterator e = storageEndIntersecting(j);
+    storageSize[j] = e - b;
+    cumulStorageSize[j] = totalStorageSize;
+    totalStorageSize += storageSize[j];
+    if (b != e)
+      storageOffset[j] = storageIndex[yLen + *b];
+  }
+  if (LogThisAt(6))
+    logger << "Envelope for " << px->name << " vs " << py->name << " has " << totalStorageSize << " cells" << endl;
 }
 
 vguard<SeqIdx> DiagonalEnvelope::forward_i (SeqIdx j) const {

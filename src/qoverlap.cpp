@@ -340,7 +340,7 @@ QuaffOverlapTask::QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, cons
 void QuaffOverlapTask::run() {
   if (LogThisAt(3))
     logger << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
-  DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, sizeof(QuaffDPCell));
+  DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, QuaffDPMatrixContainer::cellSize());
   const QuaffOverlapViterbiMatrix viterbi (env, params, yComplemented);
   if (viterbi.resultIsFinite())
     alignList.push_back (viterbi.scoreAdjustedAlignment(nullModel));

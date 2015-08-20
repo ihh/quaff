@@ -608,11 +608,7 @@ size_t QuaffDPConfig::effectiveMaxSize() const {
   return autoMemSize ? (maxSize / threads) : maxSize;
 }
 
-QuaffDPCell::QuaffDPCell()
-  : mat (-numeric_limits<double>::infinity()),
-    ins (-numeric_limits<double>::infinity()),
-    del (-numeric_limits<double>::infinity())
-{ }
+double QuaffDPMatrixContainer::dummy = -numeric_limits<double>::infinity();
 
 QuaffDPMatrixContainer::QuaffDPMatrixContainer (const DiagonalEnvelope& env)
   : penv (&env),
@@ -620,13 +616,11 @@ QuaffDPMatrixContainer::QuaffDPMatrixContainer (const DiagonalEnvelope& env)
     py (env.py),
     xLen (px->length()),
     yLen (py->length()),
-    cell (py->length() + 1),
+    cell (env.totalStorageSize * 3, -numeric_limits<double>::infinity()),
     start (-numeric_limits<double>::infinity()),
     end (-numeric_limits<double>::infinity()),
     result (-numeric_limits<double>::infinity())
 { }
-
-QuaffDPCell QuaffDPMatrixContainer::dummy;
 
 double QuaffDPMatrixContainer::cellScore (SeqIdx i, SeqIdx j, State state) const {
   double cs = numeric_limits<double>::quiet_NaN();
@@ -1415,7 +1409,7 @@ void QuaffCountingTask::run() {
   vguard<QuaffParamCounts> xyCounts (x.size(), QuaffParamCounts(matchKmerLen,indelKmerLen));
   for (auto nx : sortOrder) {
     const auto& xfs = x[nx];
-    DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, 2*sizeof(QuaffDPCell));
+    DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, 2*QuaffDPMatrixContainer::cellSize());
     const QuaffForwardMatrix fwd (env, params, config);
     xyLogLike[nx] = fwd.result;
     if (xyLogLike[nx] >= yLogLike - MAX_TRAINING_LOG_DELTA) {  // don't waste time computing low-weight counts
@@ -1597,7 +1591,7 @@ void QuaffAlignmentTask::run() {
     const FastSeq& xfs = x[nx];
     if (LogThisAt(3))
       logger << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
-    DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, sizeof(QuaffDPCell));
+    DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, QuaffDPMatrixContainer::cellSize());
     const QuaffViterbiMatrix viterbi (env, params, config);
     if (viterbi.resultIsFinite()) {
       const Alignment a = viterbi.scoreAdjustedAlignment (nullModel);
