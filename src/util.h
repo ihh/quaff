@@ -6,6 +6,7 @@
 #include <string>
 #include <algorithm>
 #include <functional>
+#include <chrono>
 #include <cassert>
 
 /* uncomment to enable NaN checks */
@@ -24,7 +25,7 @@ void Require(int assertion, const char* error, ...);
 
 /* progress logging */
 struct ProgressLogger {
-  clock_t startTime;
+  std::chrono::system_clock::time_point startTime;
   double lastElapsedSeconds, reportInterval;
   char* msg;
   ProgressLogger();

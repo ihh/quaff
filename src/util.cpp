@@ -4,7 +4,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
-#include <time.h>
 #include <unistd.h>
 #include "util.h"
 #include "stacktrace.h"
@@ -74,7 +73,7 @@ ProgressLogger::ProgressLogger() : msg(NULL)
 { }
 
 void ProgressLogger::initProgress (const char* desc, ...) {
-  startTime = clock();
+  startTime = std::chrono::system_clock::now();
   lastElapsedSeconds = 0;
   reportInterval = 2;
 
@@ -100,8 +99,8 @@ ProgressLogger::~ProgressLogger() {
 
 void ProgressLogger::logProgress (double completedFraction, const char* desc, ...) {
   va_list argptr;
-  const clock_t currentTime = clock();
-  const double elapsedSeconds = ((double) (currentTime - startTime)) / CLOCKS_PER_SEC;
+  const std::chrono::system_clock::time_point currentTime = std::chrono::system_clock::now();
+  const auto elapsedSeconds = std::chrono::duration_cast<std::chrono::seconds> (currentTime - startTime).count();
   const double estimatedTotalSeconds = elapsedSeconds / completedFraction;
   if (elapsedSeconds > lastElapsedSeconds + reportInterval) {
     const double estimatedSecondsLeft = estimatedTotalSeconds - elapsedSeconds;
