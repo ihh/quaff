@@ -49,7 +49,7 @@ struct DiagonalEnvelope {
     if (idx < 0)
       Abort ("Access error at (i=%u,j=%u) storageIndex=%d storageOffset=%d storageSize=%lu", i, j, storageIndex[yLen+i-j], storageOffset[j], storageSize[j]);
 #else /* USE_DIAGONAL_ENVELOPE_GUARDS */
-    const int idx = storageIndex[yLen + i - j] - storageOffset[j] + (int) cumulStorageSize[j];
+    const int idx = storageIndex[(int) yLen + i - j] - storageOffset[j] + (int) cumulStorageSize[j];
 #endif /* USE_DIAGONAL_ENVELOPE_GUARDS */
     return idx;
   }
@@ -81,7 +81,7 @@ struct DiagonalEnvelope {
 
   inline vguard<int>::const_iterator endIntersecting (SeqIdx j) const {
     // see comment in beginIntersecting()
-    return upper_bound (diagonals.begin(), diagonals.end(), xLen - (int)j);
+    return upper_bound (diagonals.begin(), diagonals.end(), (int) xLen - (int) j);
   }
 
   inline vguard<int>::const_iterator storageBeginIntersecting (SeqIdx j) const {
@@ -92,7 +92,7 @@ struct DiagonalEnvelope {
   }
 
   inline vguard<int>::const_iterator storageEndIntersecting (SeqIdx j) const {
-    return upper_bound (storageDiagonals.begin(), storageDiagonals.end(), xLen - (int)j);
+    return upper_bound (storageDiagonals.begin(), storageDiagonals.end(), (int) xLen - (int) j);
   }
 
   class DiagonalEnvelopeIterator : public iterator<forward_iterator_tag,SeqIdx> {
