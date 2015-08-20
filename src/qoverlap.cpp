@@ -103,6 +103,10 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
     yIndelKmer = y.kmers(dnaAlphabet,qp.indelContext.kmerLen);
   }
 
+  // pad xIndelKmer & yIndelKmer with an extra dummy entry at the beginning, to avoid having to test inside DP loop
+  xIndelKmer.insert (xIndelKmer.begin(), 0);
+  yIndelKmer.insert (yIndelKmer.begin(), 0);
+
   for (SeqIdx i = 0; i < xLen; ++i) {
     const SymQualScores& sqs = qos.xInsert[xTok[i]];
     xInsertScore += xQual.size() ? sqs.logSymQualProb[xQual[i]] : sqs.logSymProb;

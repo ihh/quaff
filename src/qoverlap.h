@@ -32,14 +32,16 @@ struct QuaffOverlapScores {
 struct QuaffOverlapViterbiMatrix : QuaffDPMatrixContainer {
   QuaffOverlapScores qos;
   vguard<AlphTok> xTok, yTok;
+  // xIndelKmer and yIndelKmer are padded with a dummy entry at the start
+  // this avoids the need for a bounds test in m2*Score(i,j) methods
   vguard<Kmer> xMatchKmer, yMatchKmer, xIndelKmer, yIndelKmer;
   vguard<QualScore> xQual, yQual;
   double xInsertScore, yInsertScore;
   QuaffOverlapViterbiMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, bool yComplemented);
   bool resultIsFinite() const { return result > -numeric_limits<double>::infinity(); }
-  inline double m2mScore (SeqIdx i, SeqIdx j) const { return i > 0 && j > 0 ? qos.m2m[xIndelKmer[i-1]][yIndelKmer[j-1]] : 0; }
-  inline double m2iScore (SeqIdx i, SeqIdx j) const { return i > 0 && j > 0 ? qos.m2i[xIndelKmer[i-1]][yIndelKmer[j-1]] : 0; }
-  inline double m2dScore (SeqIdx i, SeqIdx j) const { return i > 0 && j > 0 ? qos.m2d[xIndelKmer[i-1]][yIndelKmer[j-1]] : 0; }
+  inline double m2mScore (SeqIdx i, SeqIdx j) const { return qos.m2m[xIndelKmer[i]][yIndelKmer[j]]; }
+  inline double m2iScore (SeqIdx i, SeqIdx j) const { return qos.m2i[xIndelKmer[i]][yIndelKmer[j]]; }
+  inline double m2dScore (SeqIdx i, SeqIdx j) const { return qos.m2d[xIndelKmer[i]][yIndelKmer[j]]; }
   inline double i2mScore() const { return qos.i2i; }
   inline double i2iScore() const { return qos.i2m; }
   inline double i2dScore() const { return qos.i2d; }
@@ -84,6 +86,7 @@ struct QuaffOverlapScheduler : QuaffAlignmentPrintingScheduler {
   QuaffOverlapTask nextOverlapTask();
 };
 
+// thread entry point
 void runQuaffOverlapTasks (QuaffOverlapScheduler* qos);
 
 #endif /* QOVERLAP_INCLUDED */

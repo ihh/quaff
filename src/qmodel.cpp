@@ -695,6 +695,9 @@ QuaffDPMatrix::QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp
   Require (py->hasQual(), "Read sequences must have quality scores (FASTQ, not FASTA)");
   for (SeqIdx j = 1; j <= py->length(); ++j)
     cachedInsertEmitScore[j] = insertEmitScore(j);
+
+  // pad yIndelKmer with an extra dummy entry at the beginning, to avoid having to test inside DP loop
+  yIndelKmer.insert (yIndelKmer.begin(), 0);
 }
 
 void QuaffDPMatrix::write (ostream& out) const {

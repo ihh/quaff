@@ -233,14 +233,16 @@ struct QuaffDPMatrix : QuaffDPMatrixContainer {
   const QuaffDPConfig* pconfig;
   QuaffScores qs;
   vguard<AlphTok> xTok, yTok;
+  // yIndelKmer is padded with a dummy entry at the start
+  // this avoids the need for a bounds test in m2*Score(j) methods
   vector<Kmer> yMatchKmer, yIndelKmer;
   vguard<QualScore> yQual;
   vguard<double> cachedInsertEmitScore;
   QuaffDPMatrix (const DiagonalEnvelope& env, const QuaffParams& qp, const QuaffDPConfig& config);
-  inline double m2mScore (SeqIdx j) const { return j > 0 ? qs.m2m[yIndelKmer[j-1]] : 0; }
-  inline double m2iScore (SeqIdx j) const { return j > 0 ? qs.m2i[yIndelKmer[j-1]] : 0; }
-  inline double m2dScore (SeqIdx j) const { return j > 0 ? qs.m2d[yIndelKmer[j-1]] : 0; }
-  inline double m2eScore (SeqIdx j) const { return j > 0 ? qs.m2e[yIndelKmer[j-1]] : 0; }
+  inline double m2mScore (SeqIdx j) const { return qs.m2m[yIndelKmer[j]]; }
+  inline double m2iScore (SeqIdx j) const { return qs.m2i[yIndelKmer[j]]; }
+  inline double m2dScore (SeqIdx j) const { return qs.m2d[yIndelKmer[j]]; }
+  inline double m2eScore (SeqIdx j) const { return qs.m2e[yIndelKmer[j]]; }
   inline double i2iScore() const { return qs.i2i; }
   inline double i2mScore() const { return qs.i2m; }
   inline double d2dScore() const { return qs.d2d; }
@@ -266,11 +268,10 @@ struct QuaffBackwardMatrix : QuaffDPMatrix {
   QuaffCounts qc;
   QuaffBackwardMatrix (const QuaffForwardMatrix& fwd);
   double transCount (double& backSrc, double fwdSrc, double trans, double backDest) const;
-  double dummyCount;
-  inline double& m2mCount (SeqIdx j) { return j > 0 ? qc.m2m[yIndelKmer[j-1]] : dummyCount; }
-  inline double& m2iCount (SeqIdx j) { return j > 0 ? qc.m2i[yIndelKmer[j-1]] : dummyCount; }
-  inline double& m2dCount (SeqIdx j) { return j > 0 ? qc.m2d[yIndelKmer[j-1]] : dummyCount; }
-  inline double& m2eCount (SeqIdx j) { return j > 0 ? qc.m2e[yIndelKmer[j-1]] : dummyCount; }
+  inline double& m2mCount (SeqIdx j) { return qc.m2m[yIndelKmer[j]]; }
+  inline double& m2iCount (SeqIdx j) { return qc.m2i[yIndelKmer[j]]; }
+  inline double& m2dCount (SeqIdx j) { return qc.m2d[yIndelKmer[j]]; }
+  inline double& m2eCount (SeqIdx j) { return qc.m2e[yIndelKmer[j]]; }
   inline double& i2iCount() { return qc.i2i; }
   inline double& i2mCount() { return qc.i2m; }
   inline double& d2dCount() { return qc.d2d; }
@@ -370,6 +371,7 @@ struct QuaffCountingScheduler : QuaffScheduler {
   double finalLogLike() const;
 };
 
+// thread entry point
 void runQuaffCountingTasks (QuaffCountingScheduler* qcs);
 
 // config/wrapper structs for Viterbi alignment
@@ -414,6 +416,7 @@ struct QuaffAlignmentScheduler : QuaffAlignmentPrintingScheduler {
   QuaffAlignmentTask nextAlignmentTask();
 };
 
+// thread entry point
 void runQuaffAlignmentTasks (QuaffAlignmentScheduler* qas);
 
 #endif /* QMODEL_INCLUDED */
