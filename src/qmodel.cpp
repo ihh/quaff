@@ -1165,7 +1165,6 @@ void QuaffForwardBackwardMatrix::write (ostream& out) const {
     for (DiagonalEnvelope::iterator pi = fwd.penv->begin(j);
 	 !pi.finished();
 	 ++pi)
-    for (SeqIdx i : fwd.penv->forward_i(j))
       out << "i=" << *pi << ":" << fwd.px->seq[*pi-1] << " j=" << j << ":" << fwd.py->seq[j-1] << (fwd.py->hasQual() ? string(1,fwd.py->qual[j-1]) : string()) << "\tmat " << postMatch(*pi,j) << "\tins " << postInsert(*pi,j) << "\tdel " << postDelete(*pi,j) << endl;
     out << endl;
   }

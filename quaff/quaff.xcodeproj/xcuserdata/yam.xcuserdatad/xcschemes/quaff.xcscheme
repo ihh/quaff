@@ -98,6 +98,10 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "overlap c8f30.fastq.gz c8f30.fastq.gz"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "train /Users/yam/nanopore/ecoli-k12-mg1655/NC_000913.fasta /Users/yam/nanopore/MA_286_R7.3_MARC_K12_03_27_15.2D.fastq.gz -maxthreads -kmatchmb 50 -v6"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
