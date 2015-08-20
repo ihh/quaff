@@ -67,20 +67,23 @@ struct QuaffOverlapAligner : QuaffAlignmentPrinter {
   void align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
 };
 
-// struct encapsulating a single overlapper thread
-struct QuaffOverlapTask {
+// structs for scheduling overlap tasks
+struct QuaffOverlapTask : QuaffTask {
   const FastSeq& xfs;
-  const FastSeq& yfs;
   const bool yComplemented;
-  const QuaffParams& params;
-  const QuaffNullParams& nullModel;
-  const QuaffDPConfig& config;
-  Alignment align;
+  list<Alignment> alignList;
 
   QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
   void run();
-  bool hasAlignment() const { return align.rows() > 0; }
 };
-void runQuaffOverlapTask (QuaffOverlapTask* task);
+
+struct QuaffOverlapScheduler : QuaffAlignmentPrintingScheduler {
+  size_t nx, nOriginals;
+  QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, bool plogging);
+  bool finished() const;
+  QuaffOverlapTask nextOverlapTask();
+};
+
+void runQuaffOverlapTasks (QuaffOverlapScheduler* qos);
 
 #endif /* QOVERLAP_INCLUDED */

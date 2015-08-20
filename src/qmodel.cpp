@@ -20,7 +20,6 @@
 // useful helper methods
 double logBetaPdf (double prob, double yesCount, double noCount);
 map<string,string> readParamFile (istream& in);
-vguard<size_t> indicesByDescendingSequenceLength (const vguard<FastSeq>& seqs);
 
 // main method bodies
 double logBetaPdf (double prob, double yesCount, double noCount) {
@@ -1317,41 +1316,17 @@ vguard<vguard<size_t> > QuaffTrainer::defaultSortOrder (const vguard<FastSeq>& x
 }
 
 QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner) {
-  const unsigned int matchKmerLen = params.matchContext.kmerLen;
-  const unsigned int indelKmerLen = params.indelContext.kmerLen;
-  const QuaffParamCounts zeroCounts (matchKmerLen, indelKmerLen);
-  vguard<QuaffParamCounts> yCounts (y.size(), zeroCounts);
-  vguard<double> yLogLike (y.size(), 0.);
-  const vguard<size_t> yOrder = indicesByDescendingSequenceLength (y);
-  const vguard<size_t> ySeqLengths = QuaffDPMatrixContainer::getFastSeqLengths (y);
-  const double yTotalLength = (double) accumulate (ySeqLengths.begin(), ySeqLengths.end(), 0);
-  double yLengthDone = 0;
-  ProgressLogger plog;
-  if (LogThisAt(2))
-    plog.initProgress ("Calculating expected counts%s", banner);
-  for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
-    if (LogThisAt(2)) {
-      if (config.fixedMemoryEnvelope())
-	plog.logProgress (yOrderBase / (double) yOrder.size(), "finished %lu/%lu reads", yOrderBase, yOrder.size());
-      else
-	plog.logProgress (yLengthDone / yTotalLength, "finished %g/%g read bases", yLengthDone, yTotalLength);
-    }
-    const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);
-    list<thread> yThreads;
-    list<QuaffCountingTask> yTasks;
-    for (size_t yOrderN = yOrderBase; yOrderN < yOrderBase + numThreads; ++yOrderN) {
-      const size_t ny = yOrder[yOrderN];
-      yTasks.push_back (QuaffCountingTask (x, y[ny], params, allowNullModel ? &nullModel : NULL, config, sortOrder[ny], yLogLike[ny], yCounts[ny]));
-      yThreads.push_back (thread (&runQuaffCountingTask, &yTasks.back()));
+  QuaffCountingScheduler qcs (x, y, params, nullModel, allowNullModel, config, sortOrder, banner, LogThisAt(2));
+  list<thread> yThreads;
+  for (unsigned int n = 0; n < config.threads; ++n) {
+    yThreads.push_back (thread (&runQuaffCountingTasks, &qcs));
       logger.assignThreadName (yThreads.back());
-      yLengthDone += y[ny].length();
-    }
-    for (auto& t : yThreads)
-      t.join();
-    logger.clearThreadNames();
   }
-  logLike = accumulate (yLogLike.begin(), yLogLike.end(), 0.);
-  return accumulate (yCounts.begin(), yCounts.end(), zeroCounts);
+  for (auto& t : yThreads)
+    t.join();
+  logger.clearThreadNames();
+  logLike = qcs.finalLogLike();
+  return qcs.finalCounts();
 }
 
 QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
@@ -1404,53 +1379,94 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
   return qp;
 }
 
-vguard<size_t> indicesByDescendingSequenceLength (const vguard<FastSeq>& seqs) {
-  const vguard<size_t> ascending = orderedIndices (QuaffDPMatrixContainer::getFastSeqLengths (seqs));
-  return vguard<size_t> (ascending.rbegin(), ascending.rend());
-}
-
-void runQuaffCountingTask (QuaffCountingTask* task) {
-  task->run();
-}
-
-QuaffCountingTask::QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams* nullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& yCounts)
-  : x(x), yfs(yfs), params(params), nullModel(nullModel), config(config), sortOrder(sortOrder), yLogLike(yLogLike), yCounts(yCounts)
+QuaffCountingTask::QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& yCounts)
+  : QuaffTask (yfs, params, nullModel, config),
+    x(x), useNullModel(useNullModel), sortOrder(sortOrder), yLogLike(yLogLike), yCounts(yCounts)
 { }
 
 void QuaffCountingTask::run() {
   const unsigned int matchKmerLen = params.matchContext.kmerLen;
   const unsigned int indelKmerLen = params.indelContext.kmerLen;
 
-  const double yNullLogLike = nullModel ? nullModel->logLikelihood(yfs) : -numeric_limits<double>::infinity();
+  const double yNullLogLike = useNullModel ? nullModel.logLikelihood(yfs) : -numeric_limits<double>::infinity();
   yLogLike = yNullLogLike;  // this initial value allows null model to "win"
   if (LogThisAt(4))
     logger << "Null model score for " << yfs.name << " is " << yNullLogLike << endl;
-    vguard<double> xyLogLike;
-    vguard<QuaffParamCounts> xyCounts;
-    for (auto nx : sortOrder) {
-      const auto& xfs = x[nx];
-      DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, 2*sizeof(QuaffDPCell));
-      const QuaffForwardMatrix fwd (env, params, config);
-      const double ll = fwd.result;
-      QuaffParamCounts qpc(matchKmerLen,indelKmerLen);
-      if (ll >= yLogLike - MAX_TRAINING_LOG_DELTA) {  // don't waste time computing low-weight counts
-	const QuaffBackwardMatrix back (fwd);
-	qpc = back.qc;
-      }
-      xyLogLike.push_back (ll);
-      xyCounts.push_back (qpc);
-      yLogLike = log_sum_exp (yLogLike, ll);
+  vguard<double> xyLogLike (x.size(), -numeric_limits<double>::infinity());
+  vguard<QuaffParamCounts> xyCounts (x.size(), QuaffParamCounts(matchKmerLen,indelKmerLen));
+  for (auto nx : sortOrder) {
+    const auto& xfs = x[nx];
+    DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, 2*sizeof(QuaffDPCell));
+    const QuaffForwardMatrix fwd (env, params, config);
+    xyLogLike[nx] = fwd.result;
+    if (xyLogLike[nx] >= yLogLike - MAX_TRAINING_LOG_DELTA) {  // don't waste time computing low-weight counts
+      const QuaffBackwardMatrix back (fwd);
+      xyCounts[nx] = back.qc;
     }
-    for (size_t nx = 0; nx < x.size(); ++nx) {
-      const double xyPostProb = exp (xyLogLike[nx] - yLogLike);
-      if (LogThisAt(3))
-	logger << "P(read " << yfs.name << " derived from ref " << x[nx].name << ") = " << xyPostProb << endl;
-      yCounts.addWeighted (xyCounts[nx], xyPostProb);
-    }
+    yLogLike = log_sum_exp (yLogLike, xyLogLike[nx]);
+  }
+  for (size_t nx = 0; nx < x.size(); ++nx) {
+    const double xyPostProb = exp (xyLogLike[nx] - yLogLike);
     if (LogThisAt(3))
-      logger << "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl;
-    const vguard<size_t> ascendingOrder = orderedIndices (xyLogLike);
-    sortOrder = vguard<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
+      logger << "P(read " << yfs.name << " derived from ref " << x[nx].name << ") = " << xyPostProb << endl;
+    yCounts.addWeighted (xyCounts[nx], xyPostProb);
+  }
+  if (LogThisAt(3))
+    logger << "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl;
+  const vguard<size_t> ascendingOrder = orderedIndices (xyLogLike);
+  sortOrder = vguard<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
+  auto sortOrderCutoff = sortOrder.begin();
+  for (; sortOrderCutoff != sortOrder.end(); ++sortOrderCutoff)
+    if (xyLogLike[*sortOrderCutoff] < yLogLike - MAX_TRAINING_LOG_DELTA)
+      break;
+  sortOrder.erase (sortOrderCutoff, sortOrder.end());  // bye bye unproductive refseqs
+}
+
+QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, bool plogging)
+  : QuaffScheduler (x, y, params, nullModel, config, plogging),
+    useNullModel(useNullModel),
+    sortOrder(sortOrder),
+    banner(banner),
+    matchKmerLen (params.matchContext.kmerLen),
+    indelKmerLen (params.indelContext.kmerLen),
+    zeroCounts (matchKmerLen, indelKmerLen),
+    yCounts (y.size(), zeroCounts),
+    yLogLike (y.size(), 0.)
+{
+  if (plogging)
+    plog.initProgress ("Calculating expected counts%s", banner);
+}
+
+bool QuaffCountingScheduler::finished() const {
+  return ny == y.size();
+}
+
+QuaffCountingTask QuaffCountingScheduler::nextCountingTask() {
+  const size_t n = ny++;
+  if (plogging)
+    plog.logProgress (n / (double) y.size(), "finished %lu/%lu reads", n, y.size());
+  return QuaffCountingTask (x, y[n], params, nullModel, useNullModel, config, sortOrder[n], yLogLike[n], yCounts[n]);
+}
+
+QuaffParamCounts QuaffCountingScheduler::finalCounts() const {
+  return accumulate (yCounts.begin(), yCounts.end(), zeroCounts);
+}
+
+double QuaffCountingScheduler::finalLogLike() const {
+  return accumulate (yLogLike.begin(), yLogLike.end(), 0.);
+}
+
+void runQuaffCountingTasks (QuaffCountingScheduler* qcs) {
+  while (true) {
+    qcs->lock();
+    if (qcs->finished()) {
+      qcs->unlock();
+      break;
+    }
+    QuaffCountingTask task = qcs->nextCountingTask();
+    qcs->unlock();
+    task.run();
+  }
 }
 
 QuaffAlignmentPrinter::QuaffAlignmentPrinter()
@@ -1541,43 +1557,20 @@ bool QuaffAligner::parseAlignmentArgs (deque<string>& argvec) {
 }
 
 void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
-  const vguard<size_t> yOrder = indicesByDescendingSequenceLength (y);
-  const vguard<size_t> ySeqLengths = QuaffDPMatrixContainer::getFastSeqLengths (y);
-  const double yTotalLength = (double) accumulate (ySeqLengths.begin(), ySeqLengths.end(), 0);
-  double yLengthDone = 0;
-  ProgressLogger plog;
-  if (LogThisAt(2))
-    plog.initProgress ("Alignment");
-  for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
-    if (LogThisAt(2)) {
-      if (config.fixedMemoryEnvelope())
-	plog.logProgress (yOrderBase / (double) yOrder.size(), "aligned %lu/%lu reads", yOrderBase, yOrder.size());
-      else
-	plog.logProgress (yLengthDone / yTotalLength, "aligned %g/%g read bases", yLengthDone, yTotalLength);
-    }
-    const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);
-    list<list<Alignment> > align;
-    list<thread> yThreads;
-    list<QuaffAlignmentTask> yTasks;
-    for (size_t yOrderN = yOrderBase; yOrderN < yOrderBase + numThreads; ++yOrderN) {
-      const size_t ny = yOrder[yOrderN];
-      align.push_back (list<Alignment>());
-      yTasks.push_back (QuaffAlignmentTask (x, y[ny], params, nullModel, config, align.back(), printAllAlignments));
-      yThreads.push_back (thread (&runQuaffAlignmentTask, &yTasks.back()));
-      logger.assignThreadName (yThreads.back());
-      yLengthDone += y[ny].length();
-    }
-    for (auto& t : yThreads)
-      t.join();
-    logger.clearThreadNames();
-    for (const auto& l : align)
-      for (const auto& a : l)
-	writeAlignment (out, a);
+  QuaffAlignmentScheduler qas (x, y, params, nullModel, config, printAllAlignments, out, *this, LogThisAt(2));
+  list<thread> yThreads;
+  for (unsigned int n = 0; n < config.threads; ++n) {
+    yThreads.push_back (thread (&runQuaffAlignmentTasks, &qas));
+    logger.assignThreadName (yThreads.back());
   }
+  for (auto& t : yThreads)
+    t.join();
+  logger.clearThreadNames();
 }
 
-QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, list<Alignment>& alignList, bool keepAllAlignments)
-  : x(x), yfs(yfs), params(params), nullModel(nullModel), config(config), alignList(alignList), keepAllAlignments(keepAllAlignments)
+QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments)
+  : QuaffTask(yfs,params,nullModel,config),
+    x(x), keepAllAlignments(keepAllAlignments)
 { }
 
 void QuaffAlignmentTask::run() {
@@ -1599,6 +1592,48 @@ void QuaffAlignmentTask::run() {
   }
 }
 
-void runQuaffAlignmentTask (QuaffAlignmentTask* task) {
-  task->run();
+QuaffAlignmentPrintingScheduler::QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, bool plogging)
+  : QuaffScheduler (x, y, params, nullModel, config, plogging),
+    out(out),
+    printer(printer)
+{ }
+
+void QuaffAlignmentPrintingScheduler::printAlignments (const list<Alignment>& alignList) {
+  outMx.lock();
+  for (const auto& a : alignList)
+    printer.writeAlignment (out, a);
+  outMx.unlock();
+}
+
+QuaffAlignmentScheduler::QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, bool plogging)
+  : QuaffAlignmentPrintingScheduler (x, y, params, nullModel, config, out, printer, plogging),
+    keepAllAlignments(keepAllAlignments)
+{
+  if (plogging)
+    plog.initProgress ("Alignment");
+}
+
+bool QuaffAlignmentScheduler::finished() const {
+  return ny == y.size();
+}
+
+QuaffAlignmentTask QuaffAlignmentScheduler::nextAlignmentTask() {
+  const size_t n = ny++;
+  if (plogging)
+    plog.logProgress (n / (double) y.size(), "aligned %lu/%lu reads", n, y.size());
+  return QuaffAlignmentTask (x, y[n], params, nullModel, config, keepAllAlignments);
+}
+
+void runQuaffAlignmentTasks (QuaffAlignmentScheduler* qas) {
+  while (true) {
+    qas->lock();
+    if (qas->finished()) {
+      qas->unlock();
+      break;
+    }
+    QuaffAlignmentTask task = qas->nextAlignmentTask();
+    qas->unlock();
+    task.run();
+    qas->printAlignments (task.alignList);
+  }
 }

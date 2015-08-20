@@ -313,50 +313,20 @@ bool QuaffOverlapAligner::parseAlignmentArgs (deque<string>& argvec) {
 }
 
 void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
-  const vguard<size_t> seqLengths = QuaffDPMatrixContainer::getFastSeqLengths (seqs);
-  double totalCells = 0, totalSeqPairs = 0;
-  for (size_t nx = 0; nx < nOriginals; ++nx)
-    for (size_t ny = nx + 1; ny < seqs.size(); ++ny) {
-      totalCells += seqLengths[nx] * seqLengths[ny];
-      ++totalSeqPairs;
-    }
-  double cellsDone = 0, seqPairsDone = 0;
-  ProgressLogger plog;
-  if (LogThisAt(2))
-    plog.initProgress ("Overlap alignment");
-
-  for (size_t nx = 0; nx < nOriginals; ++nx) {
-    if (LogThisAt(2)) {
-      if (config.fixedMemoryEnvelope())
-	plog.logProgress (seqPairsDone / totalSeqPairs, "analyzed %lu/%lu potential alignments", seqPairsDone, totalSeqPairs);
-      else
-	plog.logProgress (cellsDone / totalCells, "analyzed %g/%g potential base-pair alignments", cellsDone, totalCells);
-    }
-    const vguard<size_t> yOrder = indicesByDescendingSequenceLength (seqs, nx + 1);
-    for (size_t yOrderBase = 0; yOrderBase < yOrder.size(); yOrderBase += config.threads) {
-      const unsigned int numThreads = min ((unsigned int) (yOrder.size() - yOrderBase), config.threads);
-      list<thread> yThreads;
-      list<QuaffOverlapTask> yTasks;
-      for (size_t yOrderN = yOrderBase; yOrderN < yOrderBase + numThreads; ++yOrderN) {
-	const size_t ny = yOrder[yOrderN];
-	yTasks.push_back (QuaffOverlapTask (seqs[nx], seqs[ny], ny >= nOriginals, params, nullModel, config));
-	yThreads.push_back (thread (runQuaffOverlapTask, &yTasks.back()));
-	logger.assignThreadName (yThreads.back());
-	cellsDone += seqs[nx].length() * seqs[ny].length();
-	++seqPairsDone;
-      }
-      for (auto& thr : yThreads)
-	thr.join();
-      logger.clearThreadNames();
-      for (const auto& task : yTasks)
-	if (task.hasAlignment())
-	  writeAlignment (out, task.align);
-    }
+  QuaffOverlapScheduler qos (seqs, nOriginals, params, nullModel, config, out, *this, LogThisAt(2));
+  list<thread> yThreads;
+  for (unsigned int n = 0; n < config.threads; ++n) {
+    yThreads.push_back (thread (&runQuaffOverlapTasks, &qos));
+    logger.assignThreadName (yThreads.back());
   }
+  for (auto& thr : yThreads)
+    thr.join();
+  logger.clearThreadNames();
 }
 
 QuaffOverlapTask::QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config)
-  : xfs(xfs), yfs(yfs), yComplemented(yComplemented), params(params), nullModel(nullModel), config(config)
+  : QuaffTask(yfs,params,nullModel,config),
+    xfs(xfs), yComplemented(yComplemented)
 { }
 
 void QuaffOverlapTask::run() {
@@ -365,9 +335,43 @@ void QuaffOverlapTask::run() {
   DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, sizeof(QuaffDPCell));
   const QuaffOverlapViterbiMatrix viterbi (env, params, yComplemented);
   if (viterbi.resultIsFinite())
-    align = viterbi.scoreAdjustedAlignment(nullModel);
+    alignList.push_back (viterbi.scoreAdjustedAlignment(nullModel));
 }
 
-void runQuaffOverlapTask (QuaffOverlapTask* task) {
-  task->run();
+QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, bool plogging)
+  : QuaffAlignmentPrintingScheduler (seqs, seqs, params, nullModel, config, out, printer, plogging),
+    nx(0),
+    nOriginals(nOriginals)
+{
+  if (++ny == y.size())  // handle the annoying case of being given a single sequence
+    ++nx;
+  if (plogging)
+    plog.initProgress ("Overlap alignment");
+}
+
+bool QuaffOverlapScheduler::finished() const {
+  return nx == nOriginals;
+}
+
+QuaffOverlapTask QuaffOverlapScheduler::nextOverlapTask() {
+  const size_t oldNx = nx, oldNy = ny;
+  if (++ny == y.size()) {
+    ++nx;
+    ny = nx + 1;
+  }
+  return QuaffOverlapTask (x[oldNx], y[oldNy], ny >= nOriginals, params, nullModel, config);
+}
+
+void runQuaffOverlapTasks (QuaffOverlapScheduler* qos) {
+  while (true) {
+    qos->lock();
+    if (qos->finished()) {
+      qos->unlock();
+      break;
+    }
+    QuaffOverlapTask task = qos->nextOverlapTask();
+    qos->unlock();
+    task.run();
+    qos->printAlignments (task.alignList);
+  }
 }

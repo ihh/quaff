@@ -5,8 +5,10 @@
 #include <numeric>
 #include <deque>
 #include <list>
+#include <mutex>
 #include "fastseq.h"
 #include "diagenv.h"
+#include "util.h"
 
 // EM convergence parameters
 #define QuaffMaxEMIterations 100
@@ -189,7 +191,6 @@ struct QuaffDPConfig {
   bool parseGeneralConfigArgs (deque<string>& argvec);
   DiagonalEnvelope makeEnvelope (const FastSeq& x, const FastSeq& y, size_t cellSize) const;
   size_t effectiveMaxSize() const;  // takes threading into account
-  bool fixedMemoryEnvelope() const { return kmerThreshold < 0; }
 };
 
 // DP matrices
@@ -316,20 +317,60 @@ struct QuaffTrainer {
   static vguard<vguard<size_t> > defaultSortOrder (const vguard<FastSeq>& x, const vguard<FastSeq>& y);
 };
 
-// struct encapsulating a single training thread
-struct QuaffCountingTask {
-  const vguard<FastSeq>& x;
+// structs for scheduling training tasks
+struct QuaffTask {
   const FastSeq& yfs;
   const QuaffParams& params;
   const QuaffDPConfig& config;
-  const QuaffNullParams* nullModel;
+  const QuaffNullParams& nullModel;
+  QuaffTask (const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config)
+    : yfs(yfs), params(params), nullModel(nullModel), config(config)
+  { }
+};
+
+struct QuaffCountingTask : QuaffTask {
+  const vguard<FastSeq>& x;
   vguard<size_t>& sortOrder;
   double& yLogLike;
   QuaffParamCounts& yCounts;
-  QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams* nullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& counts);
+  const bool useNullModel;
+  QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& counts);
   void run();
 };
-void runQuaffCountingTask (QuaffCountingTask* task);
+
+struct QuaffScheduler {
+  const vguard<FastSeq>& x;
+  const vguard<FastSeq>& y;
+  const QuaffParams& params;
+  const QuaffDPConfig& config;
+  const QuaffNullParams& nullModel;
+  size_t ny;
+  mutex mx;
+  ProgressLogger plog;
+  const bool plogging;
+  QuaffScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool plogging)
+    : x(x), y(y), params(params), nullModel(nullModel), config(config), ny(0), plogging(plogging)
+  { }
+  void lock() { mx.lock(); }
+  void unlock() { mx.unlock(); }
+};
+
+struct QuaffCountingScheduler : QuaffScheduler {
+  const bool useNullModel;
+  vguard<vguard<size_t> >& sortOrder;
+  vguard<double> yLogLike;
+  const char* banner;
+  const unsigned int matchKmerLen, indelKmerLen;
+  const QuaffParamCounts zeroCounts;
+  vguard<QuaffParamCounts> yCounts;
+  QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, bool plogging);
+  bool finished() const;
+  QuaffCountingTask nextCountingTask();
+  QuaffParamCounts finalCounts() const;
+  double finalLogLike() const;
+};
+
+void runQuaffCountingTasks (QuaffCountingScheduler* qcs);
 
 // config/wrapper structs for Viterbi alignment
 struct QuaffAlignmentPrinter {
@@ -349,18 +390,30 @@ struct QuaffAligner : QuaffAlignmentPrinter {
   void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
 };
 
-// struct encapsulating a single alignment thread
-struct QuaffAlignmentTask {
+// structs for scheduling alignment tasks
+struct QuaffAlignmentTask : QuaffTask {
   const vguard<FastSeq>& x;
-  const FastSeq& yfs;
-  const QuaffParams& params;
-  const QuaffDPConfig& config;
-  const QuaffNullParams& nullModel;
-  list<Alignment>& alignList;
+  list<Alignment> alignList;
   bool keepAllAlignments;
-  QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, list<Alignment>& alignList, bool keepAllAlignments);
+  QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments);
   void run();
 };
-void runQuaffAlignmentTask (QuaffAlignmentTask* task);
+
+struct QuaffAlignmentPrintingScheduler : QuaffScheduler {
+  ostream& out;
+  QuaffAlignmentPrinter& printer;
+  mutex outMx;
+  QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, bool plogging);
+  void printAlignments (const list<Alignment>& alignList);
+};
+
+struct QuaffAlignmentScheduler : QuaffAlignmentPrintingScheduler {
+  const bool keepAllAlignments;
+  QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, bool plogging);
+  bool finished() const;
+  QuaffAlignmentTask nextAlignmentTask();
+};
+
+void runQuaffAlignmentTasks (QuaffAlignmentScheduler* qas);
 
 #endif /* QMODEL_INCLUDED */
