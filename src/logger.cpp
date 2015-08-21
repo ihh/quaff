@@ -1,9 +1,24 @@
-#include <stdlib.h>
 #include <regex>
 #include <sstream>
+#include <stdlib.h>
+#include <math.h>
 #include "logger.h"
 
 Logger logger;
+
+string ansiEscape (int code) {
+  return string("\x1b[") + to_string(code) + "m";
+}
+
+Logger::Logger()
+  : verbosity(0), lastTestedVerbosity(-1), lastColor(-1), mxLocked(false), useAnsiColor(false)
+{
+  for (int col = 1; col <= 6; ++col)
+    logAnsiColor.push_back (ansiEscape(30 + col));
+  logAnsiColorOff = ansiEscape(37);
+  threadAnsiColor = ansiEscape(41);
+  threadAnsiColorOff = ansiEscape(40);
+}
 
 void Logger::addTag (const char* tag) {
   addTag (string (tag));
@@ -44,6 +59,11 @@ bool Logger::parseLogArgs (deque<string>& argvec) {
       setVerbose (atoi (sm.str(1).c_str()));
       argvec.pop_front();
       return true;
+
+    } else if (arg == "-colorize") {
+      useAnsiColor = true;
+      argvec.pop_front();
+      return true;
     }
   }
   return false;
@@ -54,11 +74,21 @@ Logger& Logger::lock() {
   if (!(mxLocked && mxOwner == myId)) {
     if (mx.try_lock_for (std::chrono::milliseconds(1000))) {
       if (mxOwner != myId && threadNum.size() > 1)
-	clog << "(" << threadName(myId) << ") ";
+	clog << (useAnsiColor ? threadAnsiColor.c_str() : "")
+	     << '(' << threadName(myId) << ')'
+	     << (useAnsiColor ? threadAnsiColorOff.c_str() : "") << ' ';
       mxOwner = myId;
       mxLocked = true;
     } else
-      clog << "(" << threadName(myId) << ", ignoring lock by " << threadName(mxOwner) << ") ";
+      clog << (useAnsiColor ? threadAnsiColor.c_str() : "")
+	   << '(' << threadName(myId) << ", ignoring lock by " << threadName(mxOwner) << ')'
+	   << (useAnsiColor ? threadAnsiColorOff.c_str() : "") << ' ';
+  }
+  if (useAnsiColor && lastTestedVerbosity != lastColor) {
+    lastColor = lastTestedVerbosity;
+    clog << (lastTestedVerbosity < 0 || lastTestedVerbosity >= (int) logAnsiColor.size()
+	     ? logAnsiColor.back()
+	     : logAnsiColor[lastTestedVerbosity]);
   }
   return *this;
 }
@@ -67,6 +97,10 @@ Logger& Logger::unlock() {
   thread::id myId = this_thread::get_id();
   if (mxLocked && mxOwner == myId) {
     mxLocked = false;
+    if (useAnsiColor) {
+      clog << logAnsiColorOff;
+      lastColor = -1;
+    }
     mx.unlock();
   }
   return *this;
@@ -90,4 +124,70 @@ void Logger::assignThreadName (const thread& thr) {
 
 void Logger::clearThreadNames() {
   threadNum.clear();
+}
+
+ProgressLogger::ProgressLogger (int verbosity, const char* function, const char* file)
+  : msg(NULL), verbosity(verbosity), function(function), file(file)
+{ }
+
+void ProgressLogger::initProgress (const char* desc, ...) {
+  startTime = std::chrono::system_clock::now();
+  lastElapsedSeconds = 0;
+  reportInterval = 2;
+
+  time_t rawtime;
+  struct tm * timeinfo;
+
+  time (&rawtime);
+  timeinfo = localtime (&rawtime);
+  
+  va_list argptr;
+  va_start (argptr, desc);
+  vasprintf (&msg, desc, argptr);
+  va_end (argptr);
+
+  if (logger.testVerbosityOrLogTagsWithLock (verbosity, function, file))
+    logger << msg << ": started at " << asctime(timeinfo)
+	   << flush;  // asctime has a newline, so no endl, but we need a manipulator to unlock
+}
+
+ProgressLogger::~ProgressLogger() {
+  if (msg)
+    free (msg);
+}
+
+void ProgressLogger::logProgress (double completedFraction, const char* desc, ...) {
+  va_list argptr;
+  const std::chrono::system_clock::time_point currentTime = std::chrono::system_clock::now();
+  const auto elapsedSeconds = std::chrono::duration_cast<std::chrono::seconds> (currentTime - startTime).count();
+  const double estimatedTotalSeconds = elapsedSeconds / completedFraction;
+  if (elapsedSeconds > lastElapsedSeconds + reportInterval) {
+    const double estimatedSecondsLeft = estimatedTotalSeconds - elapsedSeconds;
+    const double estimatedMinutesLeft = estimatedSecondsLeft / 60;
+    const double estimatedHoursLeft = estimatedMinutesLeft / 60;
+    const double estimatedDaysLeft = estimatedHoursLeft / 24;
+
+    if (logger.testVerbosityOrLogTagsWithLock (verbosity, function, file)) {
+      char *progMsg;
+      va_start (argptr, desc);
+      vasprintf (&progMsg, desc, argptr);
+      va_end (argptr);
+
+      logger << msg << ": " << progMsg << ". Estimated time left: ";
+      if (estimatedDaysLeft > 2)
+	logger << estimatedDaysLeft << " days";
+      else if (estimatedHoursLeft > 2)
+	logger << estimatedHoursLeft << " hrs";
+      else if (estimatedMinutesLeft > 2)
+	logger << estimatedMinutesLeft << " mins";
+      else
+	logger << estimatedSecondsLeft << " secs";
+      logger << ' ' << (100*completedFraction) << '%' << endl;
+
+      free(progMsg);
+    }
+    
+    lastElapsedSeconds = elapsedSeconds;
+    reportInterval = fmin (10., 2*reportInterval);
+  }
 }

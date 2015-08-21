@@ -57,8 +57,8 @@ Alignment options (for align/overlap commands):
    -noquals        Ignore read quality scores during alignment
 
 General options (for all commands, except where indicated):
-   -verbose, -vv, -vvv, -v4, etc.
-                   Various levels of logging
+   -verbose, -vv, -vvv, -v4, -v5, etc.
+                   Various levels of logging (color with -colorize)
    -params &lt;file&gt;  Load model parameters from file
    -ref &lt;file&gt;     Load additional FASTA reference sequences
    -read &lt;file&gt;    Load additional FASTQ read sequences

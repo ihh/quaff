@@ -81,7 +81,7 @@ struct QuaffOverlapTask : QuaffTask {
 
 struct QuaffOverlapScheduler : QuaffAlignmentPrintingScheduler {
   size_t nx, nOriginals;
-  QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, bool plogging);
+  QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file);
   bool finished() const;
   QuaffOverlapTask nextOverlapTask();
 };

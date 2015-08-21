@@ -141,7 +141,7 @@ vguard<FastSeq> readFastSeqs (const char* filename) {
   gzclose (fp);
 
   if (LogThisAt(3))
-    cerr << "Read " << plural(seqs.size(),"sequence") << " from " << filename << endl;
+    logger << "Read " << plural(seqs.size(),"sequence") << " from " << filename << endl;
   
   if (seqs.empty())
     Warn ("Couldn't read any sequences from %s", filename);

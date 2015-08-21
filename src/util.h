@@ -6,7 +6,6 @@
 #include <string>
 #include <algorithm>
 #include <functional>
-#include <chrono>
 #include <cassert>
 
 /* uncomment to enable NaN checks */
@@ -22,17 +21,6 @@ void Assert(int assertion, const char* error, ...);
 void Warn(const char* warning, ...);
 void Fail(const char* error, ...);
 void Require(int assertion, const char* error, ...);
-
-/* progress logging */
-struct ProgressLogger {
-  std::chrono::system_clock::time_point startTime;
-  double lastElapsedSeconds, reportInterval;
-  char* msg;
-  ProgressLogger();
-  ~ProgressLogger();
-  void initProgress (const char* desc, ...);
-  void logProgress (double completedFraction, const char* desc, ...);
-};
 
 /* singular or plural? */
 std::string plural (long n, const char* singular);

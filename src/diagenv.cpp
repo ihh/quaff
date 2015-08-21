@@ -29,11 +29,12 @@ void DiagonalEnvelope::initSparse (const KmerIndex& yKmerIndex, unsigned int ban
     }
   }
 
-  const vguard<AlphTok> xTok = px->tokens (dnaAlphabet);
-
+  const vguard<AlphTok> xTok = px->tokens (yKmerIndex.alphabet);
+  const AlphTok alphabetSize = yKmerIndex.alphabet.size();
+  
   map<int,unsigned int> diagKmerCount;
   for (SeqIdx i = 0; i <= xLen - kmerLen; ++i) {
-    const auto yKmerIndexIter = yKmerIndex.kmerLocations.find (makeKmer (kmerLen, xTok.begin() + i, dnaAlphabetSize));
+    const auto yKmerIndexIter = yKmerIndex.kmerLocations.find (makeKmer (kmerLen, xTok.begin() + i, alphabetSize));
     if (yKmerIndexIter != yKmerIndex.kmerLocations.end())
       for (auto j : yKmerIndexIter->second)
 	++diagKmerCount[get_diag(i,j)];

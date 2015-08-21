@@ -249,7 +249,7 @@ bool QuaffParamsIn::parseParamFilename() {
 void QuaffParamsIn::requireParamsOrUseDefaults() {
   if (!initialized) {
     if (LogThisAt(1))
-      cerr << "Using default model parameters" << endl;
+      logger << "Using default model parameters" << endl;
     (QuaffParams&) *this = defaultQuaffParams();
   }
 }
@@ -257,7 +257,7 @@ void QuaffParamsIn::requireParamsOrUseDefaults() {
 void QuaffParamsIn::requireParamsOrUsePrior (const QuaffParamCounts& prior) {
   if (!initialized) {
     if (LogThisAt(1))
-      cerr << "Auto-initializing model parameters from prior" << endl;
+      logger << "Auto-initializing model parameters from prior" << endl;
     (QuaffParams&) *this = prior.fit();
   }
 }
@@ -289,7 +289,7 @@ bool QuaffNullParamsIn::parseNullModelFilename() {
 void QuaffNullParamsIn::requireNullModelOrFit (const SeqList& seqList) {
   if (!initialized) {
     if (LogThisAt(1))
-      cerr << "Auto-optimizing null model for read sequences" << endl;
+      logger << "Auto-optimizing null model for read sequences" << endl;
     (QuaffNullParams&) *this = QuaffNullParams (seqList.seqs);
   }
   if (saveFilename.size()) {
@@ -349,7 +349,7 @@ void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffNullParams& nullModel,
     }
   } else {
     if (LogThisAt(1))
-      cerr << "Auto-setting prior from null model" << endl;
+      logger << "Auto-setting prior from null model" << endl;
     if (params.initialized) {
       if (kmerLenSpecified) {
 	Require (matchContext.kmerLen == params.matchContext.kmerLen, "Order of match dependence specified on command line (%d) does not match order in parameter file (%d)", matchContext.kmerLen, params.matchContext.kmerLen);
@@ -480,10 +480,10 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -noquals        Ignore read quality scores during alignment\n"
     + "\n"
     + "General options (for all commands, except where indicated):\n"
-    + "   -verbose, -vv, -vvv, -v4, etc.\n"
+    + "   -verbose, -vv, -vvv, -v4, -v5, etc.\n"
     // uncomment to document debug logging:
     //    + "   -log <function_name>\n"
-    + "                   Various levels of logging\n"
+    + "                   Various levels of logging (color with -colorize)\n"
     + "   -params <file>  Load model parameters from file\n"
     + "   -ref <file>     Load additional FASTA reference sequences\n"
     + "   -read <file>    Load additional FASTQ read sequences\n"

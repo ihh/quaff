@@ -21,21 +21,61 @@ using namespace std;
 // The stream manipulator is IMPORTANT: without it,
 // you will get delays, and (if you are lucky) you will notice
 // "ignoring lock by..." messages appearing in the log.
-struct Logger {
-  int verbosity;
+class Logger {
+private:
+  int verbosity, lastTestedVerbosity, lastColor;
   set<string> logTags;
-
+  bool useAnsiColor;
+  vector<string> logAnsiColor;
+  string threadAnsiColor, threadAnsiColorOff, logAnsiColorOff;
+  
   recursive_timed_mutex mx;
   bool mxLocked;
   thread::id mxOwner;
   map<thread::id,unsigned int> threadNum;
-  
-  Logger() : verbosity(0), mxLocked(false) { }
+
+  inline bool testLogTag (const char* tag) {
+    return logTags.find(tag) != logTags.end();
+  }
+
+  inline bool testVerbosityOrLogTags (int v, const char* tag1, const char* tag2) {
+    return verbosity >= v || testLogTag(tag1) || testLogTag(tag2);
+  }
+
+public:
+  Logger();
   void addTag (const char* tag);
   void addTag (const string& tag);
   void setVerbose (int v);
   bool parseLogArgs (deque<string>& argvec);
 
+  inline bool testVerbosityWithLock (int v) {
+    if (verbosity >= v) {
+      lock();
+      lastTestedVerbosity = v;
+      return true;
+    }
+    return false;
+  }
+
+  inline bool testVerbosityOrLogTagsWithLock (int v, const char* tag1, const char* tag2) {
+    if (testVerbosityOrLogTags (v, tag1, tag2)) {
+      lock();
+      lastTestedVerbosity = v;
+      return true;
+    }
+    return false;
+  }
+
+  inline bool testLogTagWithLock (const char* tag) {
+    if (testLogTag(tag)) {
+      lock();
+      lastTestedVerbosity = -1;
+      return true;
+    }
+    return false;
+  }
+  
   Logger& lock();
   Logger& unlock();
 
@@ -59,10 +99,27 @@ struct Logger {
 
 extern Logger logger;
 
-#define LogAt(V)     (logger.verbosity >= (V))
-#define LogWhen(TAG) (logger.logTags.find(TAG) != logger.logTags.end())
-#define LogThis      (LogWhen(__FUNCTION__) || LogWhen(__FILE__))
-#define LogThisAt(V) (LogAt(V) || LogThis)
+#define VFUNCFILE(V) V,__FUNCTION__,__FILE__
+
+#define LogAt(V)     (logger.testVerbosityWithLock(V))
+#define LogWhen(TAG) (logger.testLogTagWithLock(TAG))
+#define LogThisAt(V) (logger.testVerbosityOrLogTagsWithLock(VFUNCFILE(V)))
+
+
+/* progress logging */
+struct ProgressLogger {
+  std::chrono::system_clock::time_point startTime;
+  double lastElapsedSeconds, reportInterval;
+  char* msg;
+  int verbosity;
+  const char *function, *file;
+  ProgressLogger (int verbosity, const char* function, const char* file);
+  ~ProgressLogger();
+  void initProgress (const char* desc, ...);
+  void logProgress (double completedFraction, const char* desc, ...);
+};
+
+#define PROGRESS_LOGGER(PLOG,V) ProgressLogger PLOG (VFUNCFILE(V))
 
 #endif /* LOGGER_INCLUDED */
 

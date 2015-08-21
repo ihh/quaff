@@ -114,15 +114,13 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
     yInsertScore += yQual.size() ? sqs.logSymQualProb[yQual[i]] : sqs.logSymProb;
   }
 
-  ProgressLogger plog;
-  if (LogThisAt(4))
-    plog.initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
+  PROGRESS_LOGGER(plog,4);
+  plog.initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
   for (SeqIdx j = 1; j <= yLen; ++j) {
 
-    if (LogThisAt(4))
-      plog.logProgress (j / (double) yLen, "base %d/%d", j, yLen);
+    plog.logProgress (j / (double) yLen, "base %d/%d", j, yLen);
 
     for (DiagonalEnvelope::iterator pi = env.begin(j);
 	 !pi.finished();
@@ -306,7 +304,7 @@ bool QuaffOverlapAligner::parseAlignmentArgs (deque<string>& argvec) {
 }
 
 void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
-  QuaffOverlapScheduler qos (seqs, nOriginals, params, nullModel, config, out, *this, LogThisAt(2));
+  QuaffOverlapScheduler qos (seqs, nOriginals, params, nullModel, config, out, *this, VFUNCFILE(2));
   list<thread> yThreads;
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffOverlapTasks, &qos));
@@ -333,15 +331,14 @@ void QuaffOverlapTask::run() {
     alignList.push_back (viterbi.scoreAdjustedAlignment(nullModel));
 }
 
-QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, bool plogging)
-  : QuaffAlignmentPrintingScheduler (seqs, seqs, params, nullModel, config, out, printer, plogging),
+QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file)
+  : QuaffAlignmentPrintingScheduler (seqs, seqs, params, nullModel, config, out, printer, verbosity, function, file),
     nx(0),
     nOriginals(nOriginals)
 {
   if (++ny == y.size())  // handle annoying edge case of being given a single sequence
     ++nx;
-  if (plogging)
-    plog.initProgress ("Overlap alignment");
+  plog.initProgress ("Overlap alignment");
 }
 
 bool QuaffOverlapScheduler::finished() const {

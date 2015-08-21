@@ -716,15 +716,13 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
   const FastSeq& x (*px);
   const FastSeq& y (*py);
 
-  ProgressLogger plog;
-  if (LogThisAt(4))
-    plog.initProgress ("Forward algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
+  PROGRESS_LOGGER (plog, 4);
+  plog.initProgress ("Forward algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
   for (SeqIdx j = 1; j <= yLen; ++j) {
 
-    if (LogThisAt(4))
-      plog.logProgress (j / (double) yLen, "base %d/%d", j, yLen);
+    plog.logProgress (j / (double) yLen, "base %d/%d", j, yLen);
 
     for (DiagonalEnvelope::iterator pi = env.begin(j);
 	 !pi.finished();
@@ -770,15 +768,13 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 {
   Require (py->hasQual(), "Forward-Backward algorithm requires quality scores to fit model, but sequence %s lacks quality scores", py->name.c_str());
 
-  ProgressLogger plog;
-  if (LogThisAt(4))
-    plog.initProgress ("Backward algorithm (%s vs %s)", px->name.c_str(), py->name.c_str());
+  PROGRESS_LOGGER (plog, 4);
+  plog.initProgress ("Backward algorithm (%s vs %s)", px->name.c_str(), py->name.c_str());
 
   end = 0;
   for (SeqIdx j = yLen; j > 0; --j) {
 
-    if (LogThisAt(4))
-      plog.logProgress ((yLen - j) / (double) yLen, "base %d/%d", j, yLen);
+    plog.logProgress ((yLen - j) / (double) yLen, "base %d/%d", j, yLen);
 
     for (DiagonalEnvelope::reverse_iterator pi = penv->rbegin(j);
 	 !pi.finished();
@@ -891,15 +887,13 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
   const FastSeq& x (*px);
   const FastSeq& y (*py);
 
-  ProgressLogger plog;
-  if (LogThisAt(4))
-    plog.initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
+  PROGRESS_LOGGER (plog, 4);
+  plog.initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
   for (SeqIdx j = 1; j <= yLen; ++j) {
 
-    if (LogThisAt(4))
-      plog.logProgress (j / (double) yLen, "base %d/%d", j, yLen);
+    plog.logProgress (j / (double) yLen, "base %d/%d", j, yLen);
 
     for (DiagonalEnvelope::iterator pi = env.begin(j);
 	 !pi.finished();
@@ -1328,7 +1322,7 @@ vguard<vguard<size_t> > QuaffTrainer::defaultSortOrder (const vguard<FastSeq>& x
 }
 
 QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner) {
-  QuaffCountingScheduler qcs (x, y, params, nullModel, allowNullModel, config, sortOrder, banner, LogThisAt(2));
+  QuaffCountingScheduler qcs (x, y, params, nullModel, allowNullModel, config, sortOrder, banner, VFUNCFILE(2));
   list<thread> yThreads;
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffCountingTasks, &qcs));
@@ -1434,8 +1428,8 @@ void QuaffCountingTask::run() {
   sortOrder.erase (sortOrderCutoff, sortOrder.end());  // bye bye unproductive refseqs
 }
 
-QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, bool plogging)
-  : QuaffScheduler (x, y, params, nullModel, config, plogging),
+QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file)
+  : QuaffScheduler (x, y, params, nullModel, config, verbosity, function, file),
     useNullModel(useNullModel),
     sortOrder(sortOrder),
     banner(banner),
@@ -1445,8 +1439,7 @@ QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const 
     yCounts (y.size(), zeroCounts),
     yLogLike (y.size(), 0.)
 {
-  if (plogging)
-    plog.initProgress ("Calculating expected counts%s", banner);
+  plog.initProgress ("Calculating expected counts%s", banner);
 }
 
 bool QuaffCountingScheduler::finished() const {
@@ -1455,8 +1448,7 @@ bool QuaffCountingScheduler::finished() const {
 
 QuaffCountingTask QuaffCountingScheduler::nextCountingTask() {
   const size_t n = ny++;
-  if (plogging)
-    plog.logProgress (n / (double) y.size(), "finished %lu/%lu reads", n, y.size());
+  plog.logProgress (n / (double) y.size(), "finished %lu/%lu reads", n, y.size());
   return QuaffCountingTask (x, y[n], params, nullModel, useNullModel, config, sortOrder[n], yLogLike[n], yCounts[n]);
 }
 
@@ -1569,7 +1561,7 @@ bool QuaffAligner::parseAlignmentArgs (deque<string>& argvec) {
 }
 
 void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
-  QuaffAlignmentScheduler qas (x, y, params, nullModel, config, printAllAlignments, out, *this, LogThisAt(2));
+  QuaffAlignmentScheduler qas (x, y, params, nullModel, config, printAllAlignments, out, *this, VFUNCFILE(2));
   list<thread> yThreads;
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffAlignmentTasks, &qas));
@@ -1606,8 +1598,8 @@ void QuaffAlignmentTask::run() {
   }
 }
 
-QuaffAlignmentPrintingScheduler::QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, bool plogging)
-  : QuaffScheduler (x, y, params, nullModel, config, plogging),
+QuaffAlignmentPrintingScheduler::QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file)
+  : QuaffScheduler (x, y, params, nullModel, config, verbosity, function, file),
     out(out),
     printer(printer)
 { }
@@ -1619,12 +1611,11 @@ void QuaffAlignmentPrintingScheduler::printAlignments (const list<Alignment>& al
   outMx.unlock();
 }
 
-QuaffAlignmentScheduler::QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, bool plogging)
-  : QuaffAlignmentPrintingScheduler (x, y, params, nullModel, config, out, printer, plogging),
+QuaffAlignmentScheduler::QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file)
+  : QuaffAlignmentPrintingScheduler (x, y, params, nullModel, config, out, printer, verbosity, function, file),
     keepAllAlignments(keepAllAlignments)
 {
-  if (plogging)
-    plog.initProgress ("Alignment");
+  plog.initProgress ("Alignment");
 }
 
 bool QuaffAlignmentScheduler::finished() const {
@@ -1633,8 +1624,7 @@ bool QuaffAlignmentScheduler::finished() const {
 
 QuaffAlignmentTask QuaffAlignmentScheduler::nextAlignmentTask() {
   const size_t n = ny++;
-  if (plogging)
-    plog.logProgress (n / (double) y.size(), "aligned %lu/%lu reads", n, y.size());
+  plog.logProgress (n / (double) y.size(), "aligned %lu/%lu reads", n, y.size());
   return QuaffAlignmentTask (x, y[n], params, nullModel, config, keepAllAlignments);
 }
 

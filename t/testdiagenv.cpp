@@ -21,6 +21,7 @@ void testEnvelope (const DiagonalEnvelope& env) {
   cerr << "diagonals:"; int d = 0; for (auto i : env.diagonals) cerr << ' ' << d++ << ':' << i; cerr << endl;
   cerr << "xLen: " << env.xLen << endl;
 #endif
+
   for (SeqIdx j = 1; j <= env.yLen; ++j) {
     vguard<SeqIdx> dumb_i;
     for (SeqIdx i = 1; i <= env.xLen; ++i)
@@ -45,6 +46,39 @@ void testEnvelope (const DiagonalEnvelope& env) {
     TESTVECS (rev_i, dumb_rev_i);
     TESTVECS (riter_i, dumb_rev_i);
   }
+  cerr << "(iterators consistent)" << endl;
+  
+  // first test iterator cells
+  vector<size_t> storageTest (env.totalStorageSize);
+  size_t n = 0;
+  for (SeqIdx j = 1; j <= env.yLen; ++j)
+    for (auto pi = env.begin(j); !pi.finished(); ++pi)
+      storageTest.at(env.getStorageIndexSafe(*pi,j)) = n++;
+  size_t nTest = 0;
+  for (SeqIdx j = 1; j <= env.yLen; ++j)
+    for (auto pi = env.begin(j); !pi.finished(); ++pi)
+      if (storageTest.at(env.getStorageIndexSafe(*pi,j)) != nTest++)
+	Abort ("Data corruption at cell (%u,%u)", *pi, j);
+  cerr << "(storage consistent for iterator-accessible cells)" << endl;
+
+  // now test all (storage) cells
+  n = nTest = 0;
+  for (SeqIdx j = 0; j <= env.yLen; ++j) {
+    auto di_end = env.storageEndIntersecting(j);
+    for (auto di = env.storageBeginIntersecting(j); di != di_end; ++di) {
+      const SeqIdx i = env.get_i(j,*di);
+      storageTest.at(env.getStorageIndexSafe(i,j)) = n++;
+    }
+  }
+  for (SeqIdx j = 0; j <= env.yLen; ++j) {
+    auto di_end = env.storageEndIntersecting(j);
+    for (auto di = env.storageBeginIntersecting(j); di != di_end; ++di) {
+      const SeqIdx i = env.get_i(j,*di);
+      if (storageTest.at(env.getStorageIndexSafe(i,j)) != nTest++)
+	Abort ("Data corruption at cell (%u,%u)", i, j);
+    }
+  }
+  cerr << "(storage consistent for all cells)" << endl;
 }
 
 int main (int argc, char **argv) {
@@ -62,8 +96,9 @@ int main (int argc, char **argv) {
   
   Assert (fs1.size() == 1 && fs2.size() == 1, "Each Fastq file must have exactly 1 sequence");
 
+  KmerIndex kmerIndex (fs2[0], dnaAlphabet, K);
   DiagonalEnvelope env (fs1[0], fs2[0]);
-  env.initSparse (K, B, N);
+  env.initSparse (kmerIndex, B, N);
   testEnvelope (env);
 
   cout << "ok" << endl;
