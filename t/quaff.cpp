@@ -483,7 +483,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -verbose, -vv, -vvv, -v4, -v5, etc.\n"
     // uncomment to document debug logging:
     //    + "   -log <function_name>\n"
-    + "                   Various levels of logging (color with -colorize)\n"
+    + "                   Various levels of logging (-nocolor for monochrome)\n"
     + "   -params <file>  Load model parameters from file\n"
     + "   -ref <file>     Load additional FASTA reference sequences\n"
     + "   -read <file>    Load additional FASTQ read sequences\n"

@@ -11,7 +11,7 @@ string ansiEscape (int code) {
 }
 
 Logger::Logger()
-  : verbosity(0), lastTestedVerbosity(-1), lastColor(-1), mxLocked(false), useAnsiColor(false)
+  : verbosity(0), lastTestedVerbosity(-1), lastColor(-1), mxLocked(false), useAnsiColor(true)
 {
   for (int col : { 7, 2, 3, 5, 6, 1, 4 })  // roughly, brighter colors then darker ones
     logAnsiColor.push_back (ansiEscape(30 + col) + ansiEscape(40));
@@ -29,6 +29,10 @@ void Logger::addTag (const string& tag) {
 
 void Logger::setVerbose (int v) {
   verbosity = max (verbosity, v);
+}
+
+void Logger::colorOff() {
+  useAnsiColor = false;
 }
 
 bool Logger::parseLogArgs (deque<string>& argvec) {
@@ -59,8 +63,8 @@ bool Logger::parseLogArgs (deque<string>& argvec) {
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-colorize") {
-      useAnsiColor = true;
+    } else if (arg == "-nocolor") {
+      useAnsiColor = false;
       argvec.pop_front();
       return true;
     }
@@ -68,22 +72,22 @@ bool Logger::parseLogArgs (deque<string>& argvec) {
   return false;
 }
 
-Logger& Logger::lock() {
+Logger& Logger::lockAndPrint (bool showHeader) {
   thread::id myId = this_thread::get_id();
   if (!(mxLocked && mxOwner == myId)) {
     if (mx.try_lock_for (std::chrono::milliseconds(1000))) {
-      if (mxOwner != myId && threadNum.size() > 1)
+      if (showHeader && mxOwner != myId && threadNum.size() > 1)
 	clog << (useAnsiColor ? threadAnsiColor.c_str() : "")
 	     << '(' << threadName(myId) << ')'
 	     << (useAnsiColor ? ansiColorOff.c_str() : "") << ' ';
       mxOwner = myId;
       mxLocked = true;
-    } else
+    } else if (showHeader)
       clog << (useAnsiColor ? threadAnsiColor.c_str() : "")
 	   << '(' << threadName(myId) << ", ignoring lock by " << threadName(mxOwner) << ')'
 	   << (useAnsiColor ? ansiColorOff.c_str() : "") << ' ';
   }
-  if (useAnsiColor && lastTestedVerbosity != lastColor) {
+  if (showHeader && useAnsiColor && lastTestedVerbosity != lastColor) {
     lastColor = lastTestedVerbosity;
     clog << (lastTestedVerbosity < 0
 	     ? logAnsiColor.front()
@@ -94,18 +98,24 @@ Logger& Logger::lock() {
   return *this;
 }
 
-Logger& Logger::unlock() {
+Logger& Logger::unlockAndPrint() {
   thread::id myId = this_thread::get_id();
   if (mxLocked && mxOwner == myId) {
     mxLocked = false;
-    if (useAnsiColor) {
-      clog << ansiColorOff;
-      lastColor = -1;
-    }
     mx.unlock();
+  }
+  if (useAnsiColor) {
+    clog << ansiColorOff;
+    lastColor = -1;
   }
   return *this;
 }
+
+Logger& Logger::lock() { return lockAndPrint(true); }
+Logger& Logger::unlock() { return unlockAndPrint(); }
+
+Logger& Logger::lockSilently() { return lockAndPrint(false); }
+Logger& Logger::unlockSilently() { return unlockAndPrint(); }
 
 string Logger::threadName (thread::id id) {
   string s;
@@ -183,7 +193,7 @@ void ProgressLogger::logProgress (double completedFraction, const char* desc, ..
 	logger << estimatedMinutesLeft << " mins";
       else
 	logger << estimatedSecondsLeft << " secs";
-      logger << ' ' << (100*completedFraction) << '%' << endl;
+      logger << " (" << (100*completedFraction) << "%)" << endl;
 
       free(progMsg);
     }

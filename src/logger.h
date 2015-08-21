@@ -42,11 +42,15 @@ private:
     return verbosity >= v || testLogTag(tag1) || testLogTag(tag2);
   }
 
+  Logger& lockAndPrint (bool showHeader);
+  Logger& unlockAndPrint();
+
 public:
   Logger();
   void addTag (const char* tag);
   void addTag (const string& tag);
   void setVerbose (int v);
+  void colorOff();
   bool parseLogArgs (deque<string>& argvec);
 
   inline bool testVerbosityWithLock (int v) {
@@ -75,9 +79,11 @@ public:
     }
     return false;
   }
-  
+
   Logger& lock();
   Logger& unlock();
+  Logger& lockSilently();
+  Logger& unlockSilently();
 
   string threadName (thread::id id);
   void assignThreadName (const thread& thr);
@@ -119,7 +125,7 @@ struct ProgressLogger {
   void logProgress (double completedFraction, const char* desc, ...);
 };
 
-#define PROGRESS_LOGGER(PLOG,V) ProgressLogger PLOG (VFUNCFILE(V))
+#define ProgressLog(PLOG,V) ProgressLogger PLOG (VFUNCFILE(V))
 
 #endif /* LOGGER_INCLUDED */
 

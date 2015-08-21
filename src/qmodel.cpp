@@ -716,7 +716,7 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
   const FastSeq& x (*px);
   const FastSeq& y (*py);
 
-  PROGRESS_LOGGER (plog, 4);
+  ProgressLog (plog, 4);
   plog.initProgress ("Forward algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
@@ -768,7 +768,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 {
   Require (py->hasQual(), "Forward-Backward algorithm requires quality scores to fit model, but sequence %s lacks quality scores", py->name.c_str());
 
-  PROGRESS_LOGGER (plog, 4);
+  ProgressLog (plog, 4);
   plog.initProgress ("Backward algorithm (%s vs %s)", px->name.c_str(), py->name.c_str());
 
   end = 0;
@@ -887,7 +887,7 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
   const FastSeq& x (*px);
   const FastSeq& y (*py);
 
-  PROGRESS_LOGGER (plog, 4);
+  ProgressLog (plog, 4);
   plog.initProgress ("Viterbi algorithm (%s vs %s)", x.name.c_str(), y.name.c_str());
 
   start = 0;
@@ -1606,8 +1606,10 @@ QuaffAlignmentPrintingScheduler::QuaffAlignmentPrintingScheduler (const vguard<F
 
 void QuaffAlignmentPrintingScheduler::printAlignments (const list<Alignment>& alignList) {
   outMx.lock();
+  logger.lockSilently();  // to avoid interleaving clog & cout
   for (const auto& a : alignList)
     printer.writeAlignment (out, a);
+  logger.unlockSilently();
   outMx.unlock();
 }
 

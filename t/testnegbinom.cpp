@@ -49,6 +49,7 @@ int main (int argc, char **argv) {
   
   double pFit, rFit;
   logger.setVerbose (100);  // set verbosity high enough to log everything
+  logger.colorOff();
   const int status = fitNegativeBinomial (kFreq, pFit, rFit);
 
   if (status != GSL_SUCCESS)
