@@ -1397,6 +1397,7 @@ QuaffCountingTask::QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& y
 { }
 
 void QuaffCountingTask::run() {
+  const KmerIndex yKmerIndex (yfs, dnaAlphabet, config.kmerLen);
   const unsigned int matchKmerLen = params.matchContext.kmerLen;
   const unsigned int indelKmerLen = params.indelContext.kmerLen;
   const double yNullLogLike = useNullModel ? nullModel.logLikelihood(yfs) : -numeric_limits<double>::infinity();
@@ -1407,7 +1408,7 @@ void QuaffCountingTask::run() {
   vguard<QuaffParamCounts> xyCounts (x.size(), QuaffParamCounts(matchKmerLen,indelKmerLen));
   for (auto nx : sortOrder) {
     const auto& xfs = x[nx];
-    DiagonalEnvelope env = config.makeEnvelope (xfs, yKmerIndex, 2*QuaffDPMatrixContainer::cellSize());
+    const DiagonalEnvelope env = config.makeEnvelope (xfs, yKmerIndex, 2*QuaffDPMatrixContainer::cellSize());
     const QuaffForwardMatrix fwd (env, params, config);
     xyLogLike[nx] = fwd.result;
     if (xyLogLike[nx] >= yLogLike - MAX_TRAINING_LOG_DELTA) {  // don't waste time computing low-weight counts
@@ -1586,11 +1587,12 @@ QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq&
 { }
 
 void QuaffAlignmentTask::run() {
+  const KmerIndex yKmerIndex (yfs, dnaAlphabet, config.kmerLen);
   for (size_t nx = 0; nx < x.size(); ++nx) {
     const FastSeq& xfs = x[nx];
     if (LogThisAt(3))
       logger << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
-    DiagonalEnvelope env = config.makeEnvelope (xfs, yKmerIndex, QuaffDPMatrixContainer::cellSize());
+    const DiagonalEnvelope env = config.makeEnvelope (xfs, yKmerIndex, QuaffDPMatrixContainer::cellSize());
     const QuaffViterbiMatrix viterbi (env, params, config);
     if (viterbi.resultIsFinite()) {
       const Alignment a = viterbi.scoreAdjustedAlignment (nullModel);

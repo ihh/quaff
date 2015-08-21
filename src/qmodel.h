@@ -317,12 +317,11 @@ struct QuaffTrainer {
 // structs for scheduling training tasks
 struct QuaffTask {
   const FastSeq& yfs;
-  const KmerIndex yKmerIndex;
   const QuaffParams& params;
   const QuaffDPConfig& config;
   const QuaffNullParams& nullModel;
   QuaffTask (const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config)
-    : yfs(yfs), yKmerIndex(yfs,dnaAlphabet,config.kmerLen), params(params), nullModel(nullModel), config(config)
+    : yfs(yfs), params(params), nullModel(nullModel), config(config)
   { }
 };
 
