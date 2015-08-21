@@ -13,7 +13,7 @@ string ansiEscape (int code) {
 Logger::Logger()
   : verbosity(0), lastTestedVerbosity(-1), lastColor(-1), mxLocked(false), useAnsiColor(true)
 {
-  for (int col : { 7, 2, 3, 5, 6, 1, 4 })  // roughly, brighter colors then darker ones
+  for (int col : { 7, 2, 3, 5, 6, 1, 2, 3, 5, 6 })  // no blue, it's invisible
     logAnsiColor.push_back (ansiEscape(30 + col) + ansiEscape(40));
   threadAnsiColor = ansiEscape(37) + ansiEscape(41);  // white on red
   ansiColorOff = ansiEscape(0);
