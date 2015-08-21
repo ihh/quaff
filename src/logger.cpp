@@ -13,11 +13,10 @@ string ansiEscape (int code) {
 Logger::Logger()
   : verbosity(0), lastTestedVerbosity(-1), lastColor(-1), mxLocked(false), useAnsiColor(false)
 {
-  for (int col = 1; col <= 6; ++col)
-    logAnsiColor.push_back (ansiEscape(30 + col));
-  logAnsiColorOff = ansiEscape(37);
-  threadAnsiColor = ansiEscape(41);
-  threadAnsiColorOff = ansiEscape(40);
+  for (int col : { 7, 2, 3, 5, 6, 1, 4 })  // roughly, brighter colors then darker ones
+    logAnsiColor.push_back (ansiEscape(30 + col) + ansiEscape(40));
+  threadAnsiColor = ansiEscape(37) + ansiEscape(41);  // white on red
+  ansiColorOff = ansiEscape(0);
 }
 
 void Logger::addTag (const char* tag) {
@@ -76,19 +75,21 @@ Logger& Logger::lock() {
       if (mxOwner != myId && threadNum.size() > 1)
 	clog << (useAnsiColor ? threadAnsiColor.c_str() : "")
 	     << '(' << threadName(myId) << ')'
-	     << (useAnsiColor ? threadAnsiColorOff.c_str() : "") << ' ';
+	     << (useAnsiColor ? ansiColorOff.c_str() : "") << ' ';
       mxOwner = myId;
       mxLocked = true;
     } else
       clog << (useAnsiColor ? threadAnsiColor.c_str() : "")
 	   << '(' << threadName(myId) << ", ignoring lock by " << threadName(mxOwner) << ')'
-	   << (useAnsiColor ? threadAnsiColorOff.c_str() : "") << ' ';
+	   << (useAnsiColor ? ansiColorOff.c_str() : "") << ' ';
   }
   if (useAnsiColor && lastTestedVerbosity != lastColor) {
     lastColor = lastTestedVerbosity;
-    clog << (lastTestedVerbosity < 0 || lastTestedVerbosity >= (int) logAnsiColor.size()
-	     ? logAnsiColor.back()
-	     : logAnsiColor[lastTestedVerbosity]);
+    clog << (lastTestedVerbosity < 0
+	     ? logAnsiColor.front()
+	     : (lastTestedVerbosity >= (int) logAnsiColor.size()
+		? logAnsiColor.back()
+		: logAnsiColor[lastTestedVerbosity]));
   }
   return *this;
 }
@@ -98,7 +99,7 @@ Logger& Logger::unlock() {
   if (mxLocked && mxOwner == myId) {
     mxLocked = false;
     if (useAnsiColor) {
-      clog << logAnsiColorOff;
+      clog << ansiColorOff;
       lastColor = -1;
     }
     mx.unlock();

@@ -27,7 +27,7 @@ private:
   set<string> logTags;
   bool useAnsiColor;
   vector<string> logAnsiColor;
-  string threadAnsiColor, threadAnsiColorOff, logAnsiColorOff;
+  string threadAnsiColor, ansiColorOff;
   
   recursive_timed_mutex mx;
   bool mxLocked;
