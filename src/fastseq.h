@@ -3,6 +3,7 @@
 
 #include <string>
 #include <algorithm>
+#include <map>
 #include "vguard.h"
 #include "../kseq/kseq.h"
 
@@ -51,5 +52,13 @@ void writeFastqSeqs (ostream& out, const vguard<FastSeq>& fastSeqs);
 
 string revcomp (const string& dnaSeq);
 void addRevcomps (vguard<FastSeq>& db);
+
+struct KmerIndex {
+  const FastSeq& seq;
+  const string& alphabet;
+  const SeqIdx kmerLen;
+  map <Kmer, vector<SeqIdx> > kmerLocations;
+  KmerIndex (const FastSeq& seq, const string& alphabet, SeqIdx kmerLen);
+};
 
 #endif /* KSEQCONTAINER_INCLUDED */

@@ -595,10 +595,10 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
   return false;
 }
 
-DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const FastSeq& y, size_t cellSize) const {
-  DiagonalEnvelope env (x, y);
+DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const KmerIndex& yKmerIndex, size_t cellSize) const {
+  DiagonalEnvelope env (x, yKmerIndex.seq);
   if (sparse)
-    env.initSparse (kmerLen, bandSize, kmerThreshold, cellSize, effectiveMaxSize());
+    env.initSparse (yKmerIndex, bandSize, kmerThreshold, cellSize, effectiveMaxSize());
   else
     env.initFull();
   return env;
@@ -1342,8 +1342,8 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
 }
 
 QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
-  double logLike;
   vguard<vguard<size_t> > sortOrder = defaultSortOrder (x, y);
+  double logLike;
   return getCounts (x, y, params, nullModel, config, sortOrder, logLike, "");
 }
 
@@ -1399,7 +1399,6 @@ QuaffCountingTask::QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& y
 void QuaffCountingTask::run() {
   const unsigned int matchKmerLen = params.matchContext.kmerLen;
   const unsigned int indelKmerLen = params.indelContext.kmerLen;
-
   const double yNullLogLike = useNullModel ? nullModel.logLikelihood(yfs) : -numeric_limits<double>::infinity();
   yLogLike = yNullLogLike;  // this initial value allows null model to "win"
   if (LogThisAt(4))
@@ -1408,7 +1407,7 @@ void QuaffCountingTask::run() {
   vguard<QuaffParamCounts> xyCounts (x.size(), QuaffParamCounts(matchKmerLen,indelKmerLen));
   for (auto nx : sortOrder) {
     const auto& xfs = x[nx];
-    DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, 2*QuaffDPMatrixContainer::cellSize());
+    DiagonalEnvelope env = config.makeEnvelope (xfs, yKmerIndex, 2*QuaffDPMatrixContainer::cellSize());
     const QuaffForwardMatrix fwd (env, params, config);
     xyLogLike[nx] = fwd.result;
     if (xyLogLike[nx] >= yLogLike - MAX_TRAINING_LOG_DELTA) {  // don't waste time computing low-weight counts
@@ -1582,7 +1581,8 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
 
 QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments)
   : QuaffTask(yfs,params,nullModel,config),
-    x(x), keepAllAlignments(keepAllAlignments)
+    x(x),
+    keepAllAlignments(keepAllAlignments)
 { }
 
 void QuaffAlignmentTask::run() {
@@ -1590,7 +1590,7 @@ void QuaffAlignmentTask::run() {
     const FastSeq& xfs = x[nx];
     if (LogThisAt(3))
       logger << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
-    DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, QuaffDPMatrixContainer::cellSize());
+    DiagonalEnvelope env = config.makeEnvelope (xfs, yKmerIndex, QuaffDPMatrixContainer::cellSize());
     const QuaffViterbiMatrix viterbi (env, params, config);
     if (viterbi.resultIsFinite()) {
       const Alignment a = viterbi.scoreAdjustedAlignment (nullModel);

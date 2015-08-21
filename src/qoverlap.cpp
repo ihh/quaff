@@ -3,9 +3,6 @@
 #include "logsumexp.h"
 #include "logger.h"
 
-// helper functions
-vguard<size_t> indicesByDescendingSequenceLength (const vguard<FastSeq>& seqs, size_t nFirst);
-
 // main method bodies
 QuaffOverlapScores::QuaffOverlapScores (const QuaffParams &qp, bool yComplemented)
   : matchContext (qp.matchContext.kmerLen),
@@ -300,18 +297,6 @@ Alignment QuaffOverlapViterbiMatrix::scoreAdjustedAlignment (const QuaffNullPara
   return a;
 }
 
-vguard<size_t> indicesByDescendingSequenceLength (const vguard<FastSeq>& seqs, size_t nFirst) {
-  vguard<size_t> len;
-  for (size_t n = nFirst; n < seqs.size(); ++n)
-    len.push_back (seqs[n].length());
-  const vguard<size_t> ascending = orderedIndices (len);
-  vguard<size_t> descending;
-  descending.reserve (seqs.size() - nFirst);
-  for (auto n : ascending)
-    descending.push_back (n + nFirst);
-  return descending;
-}
-
 QuaffOverlapAligner::QuaffOverlapAligner()
   : QuaffAlignmentPrinter()
 { }
@@ -334,13 +319,14 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
 
 QuaffOverlapTask::QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config)
   : QuaffTask(yfs,params,nullModel,config),
-    xfs(xfs), yComplemented(yComplemented)
+    xfs(xfs),
+    yComplemented(yComplemented)
 { }
 
 void QuaffOverlapTask::run() {
   if (LogThisAt(3))
-    logger << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
-  DiagonalEnvelope env = config.makeEnvelope (xfs, yfs, QuaffDPMatrixContainer::cellSize());
+    logger << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yKmerIndex.seq.name << " (length " << yKmerIndex.seq.length() << ")" << endl;
+  DiagonalEnvelope env = config.makeEnvelope (xfs, yKmerIndex, QuaffDPMatrixContainer::cellSize());
   const QuaffOverlapViterbiMatrix viterbi (env, params, yComplemented);
   if (viterbi.resultIsFinite())
     alignList.push_back (viterbi.scoreAdjustedAlignment(nullModel));
@@ -351,7 +337,7 @@ QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_
     nx(0),
     nOriginals(nOriginals)
 {
-  if (++ny == y.size())  // handle the annoying case of being given a single sequence
+  if (++ny == y.size())  // handle annoying edge case of being given a single sequence
     ++nx;
   if (plogging)
     plog.initProgress ("Overlap alignment");

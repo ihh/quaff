@@ -18,7 +18,9 @@ void DiagonalEnvelope::initFull() {
   initStorage();
 }
 
-void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, int kmerThreshold, size_t cellSize, size_t maxSize) {
+void DiagonalEnvelope::initSparse (const KmerIndex& yKmerIndex, unsigned int bandSize, int kmerThreshold, size_t cellSize, size_t maxSize) {
+  const unsigned int kmerLen = yKmerIndex.kmerLen;
+  
   if (kmerThreshold >= 0) {
     const SeqIdx minLenForSparse = MIN_KMERS_FOR_SPARSE_ENVELOPE * (kmerLen + kmerThreshold);
     if (px->length() < minLenForSparse || py->length() < minLenForSparse) {
@@ -28,23 +30,11 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
   }
 
   const vguard<AlphTok> xTok = px->tokens (dnaAlphabet);
-  const vguard<AlphTok> yTok = py->tokens (dnaAlphabet);
-
-  map<Kmer,set<SeqIdx> > yKmerIndex;
-  for (SeqIdx j = 0; j <= yLen - kmerLen; ++j)
-    yKmerIndex[makeKmer (kmerLen, yTok.begin() + j, dnaAlphabetSize)].insert (j);
-
-  if (LogThisAt(8)) {
-    logger << "Frequencies of " << kmerLen << "-mers in " << py->name << ':' << endl;
-    for (const auto& yKmerIndexElt : yKmerIndex) {
-      logger << kmerToString (yKmerIndexElt.first, kmerLen, dnaAlphabet) << ' ' << yKmerIndexElt.second.size() << endl;
-    }
-  }
 
   map<int,unsigned int> diagKmerCount;
   for (SeqIdx i = 0; i <= xLen - kmerLen; ++i) {
-    const auto yKmerIndexIter = yKmerIndex.find (makeKmer (kmerLen, xTok.begin() + i, dnaAlphabetSize));
-    if (yKmerIndexIter != yKmerIndex.end())
+    const auto yKmerIndexIter = yKmerIndex.kmerLocations.find (makeKmer (kmerLen, xTok.begin() + i, dnaAlphabetSize));
+    if (yKmerIndexIter != yKmerIndex.kmerLocations.end())
       for (auto j : yKmerIndexIter->second)
 	++diagKmerCount[get_diag(i,j)];
   }
@@ -107,7 +97,7 @@ void DiagonalEnvelope::initSparse (unsigned int kmerLen, unsigned int bandSize, 
 
   if (LogThisAt(5)) {
     if (foundThreshold)
-      logger << "Threshold # of " << kmerLen << "-mer matches for seeding a diagonal is " << threshold << "; " << plural((long) nPastThreshold,"diagonal") << " past this threshold" << endl;
+      logger << "Threshold # of " << kmerLen << "-mer matches for seeding a diagonal is " << threshold << "; " << plural((long) nPastThreshold,"diagonal") << " over this threshold" << endl;
     else
       logger << "Couldn't find a suitable threshold that would fit within memory limit" << endl;
     logger << plural((long) diags.size(),"diagonal") << " in envelope (band size " << bandSize << "); estimated memory <" << (((storageDiags.size() * diagSize) >> 20) + 1) << "MB" << endl;

@@ -189,7 +189,7 @@ struct QuaffDPConfig {
   { }
   bool parseRefSeqConfigArgs (deque<string>& argvec);
   bool parseGeneralConfigArgs (deque<string>& argvec);
-  DiagonalEnvelope makeEnvelope (const FastSeq& x, const FastSeq& y, size_t cellSize) const;
+  DiagonalEnvelope makeEnvelope (const FastSeq& x, const KmerIndex& yKmerIndex, size_t cellSize) const;
   size_t effectiveMaxSize() const;  // takes threading into account
 };
 
@@ -317,11 +317,12 @@ struct QuaffTrainer {
 // structs for scheduling training tasks
 struct QuaffTask {
   const FastSeq& yfs;
+  const KmerIndex yKmerIndex;
   const QuaffParams& params;
   const QuaffDPConfig& config;
   const QuaffNullParams& nullModel;
   QuaffTask (const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config)
-    : yfs(yfs), params(params), nullModel(nullModel), config(config)
+    : yfs(yfs), yKmerIndex(yfs,dnaAlphabet,config.kmerLen), params(params), nullModel(nullModel), config(config)
   { }
 };
 

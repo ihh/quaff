@@ -32,7 +32,7 @@ struct DiagonalEnvelope {
   DiagonalEnvelope (const FastSeq& x, const FastSeq& y)
     : px(&x), py(&y), xLen(px->length()), yLen(py->length()) { }
   void initFull();
-  void initSparse (unsigned int kmerLen = DEFAULT_KMER_LENGTH,
+  void initSparse (const KmerIndex& yKmerIndex,
 		   unsigned int bandSize = DEFAULT_BAND_SIZE,
 		   int kmerThreshold = DEFAULT_KMER_THRESHOLD,  // negative => use memory guides
 		   size_t cellSize = sizeof(double),
