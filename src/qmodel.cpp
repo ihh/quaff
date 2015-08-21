@@ -585,7 +585,8 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       if (threads == 0) {
 	Warn ("Can't detect number of cores; running in single-threaded mode");
 	threads = 1;
-      }
+      } else if (LogThisAt(2))
+	logger << "Running with " << plural(threads,"thread") << endl;
       argvec.pop_front();
       return true;
 
