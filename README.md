@@ -34,9 +34,9 @@ Commands:
    -gaporder &lt;k&gt;   Allow gap open probabilities to depend on k-mer contexts
    -prior &lt;file&gt;, -saveprior &lt;file&gt;
                    Respectively: load/save prior pseudocounts from/to file
-   -counts &lt;file&gt;  Save E-step counts to file, which can then be used as a prior
-   -countswithprior &lt;file&gt;
-                   Like -counts, but adds in prior pseudocounts as well
+   -saveparams &lt;file&gt;, -savecounts &lt;file&gt;, -savecountswithprior &lt;file&gt;
+                   After each EM step, save parameters, or E-step counts
+                   (saved counts can subsequently be used as a prior)
 
 
  quaff align refs.fasta reads.fastq

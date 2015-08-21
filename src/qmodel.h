@@ -303,7 +303,7 @@ struct QuaffTrainer {
   int maxIterations;
   double minFractionalLoglikeIncrement;
   bool allowNullModel;
-  string rawCountsFilename, countsWithPriorFilename;
+  string rawCountsFilename, countsWithPriorFilename, saveParamsFilename;
   
   QuaffTrainer();
   bool parseTrainingArgs (deque<string>& argvec);

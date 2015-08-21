@@ -452,9 +452,9 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -gaporder <k>   Allow gap open probabilities to depend on k-mer contexts\n"
     + "   -prior <file>, -saveprior <file>\n"
     + "                   Respectively: load/save prior pseudocounts from/to file\n"
-    + "   -counts <file>  Save E-step counts to file, which can then be used as a prior\n"
-    + "   -countswithprior <file>\n"
-    + "                   Like -counts, but adds in prior pseudocounts as well\n"
+    + "   -saveparams <file>, -savecounts <file>, -savecountswithprior <file>\n"
+    + "                   After each EM step, save parameters, or E-step counts\n"
+    + "                   (saved counts can subsequently be used as a prior)\n"
     + "\n"
     + "\n"
     // uncomment to document "count" command:

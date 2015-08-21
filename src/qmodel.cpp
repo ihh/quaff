@@ -1284,16 +1284,23 @@ bool QuaffTrainer::parseTrainingArgs (deque<string>& argvec) {
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-counts") {
+    } else if (arg == "-savecounts") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       rawCountsFilename = argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-countswithprior") {
+    } else if (arg == "-savecountswithprior") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       countsWithPriorFilename = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-saveparams") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      saveParamsFilename = argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -1370,19 +1377,24 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     countsWithPrior.addWeighted (pseudocounts, 1.);
     const double oldExpectedLogLike = countsWithPrior.expectedLogLike (qp);
     qp = countsWithPrior.fit();
+    qp.fitRefSeqs(x);
     const double newExpectedLogLike = countsWithPrior.expectedLogLike (qp);
     if (LogThisAt(2))
       logger << "Expected log-likelihood went from " << oldExpectedLogLike << " to " << newExpectedLogLike << " during M-step" << endl;
+
+    if (saveParamsFilename.size()) {
+      ofstream out (saveParamsFilename);
+      qp.write (out);
+    }
+    if (rawCountsFilename.size()) {
+      ofstream out (rawCountsFilename);
+      counts.write (out);
+    }
+    if (countsWithPriorFilename.size()) {
+      ofstream out (countsWithPriorFilename);
+      countsWithPrior.write (out);
+    }
   }
-  if (rawCountsFilename.size()) {
-    ofstream out (rawCountsFilename);
-    counts.write (out);
-  }
-  if (countsWithPriorFilename.size()) {
-    ofstream out (countsWithPriorFilename);
-    countsWithPrior.write (out);
-  }
-  qp.fitRefSeqs(x);
   return qp;
 }
 
