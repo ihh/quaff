@@ -454,7 +454,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "                   Respectively: load/save prior pseudocounts from/to file\n"
     + "   -saveparams <file>, -savecounts <file>, -savecountswithprior <file>\n"
     + "                   After each EM step, save parameters, or E-step counts\n"
-    + "                   (saved counts can subsequently be used as a prior)\n"
+    + "                    (saved counts can subsequently be used as a prior)\n"
     + "\n"
     + "\n"
     // uncomment to document "count" command:

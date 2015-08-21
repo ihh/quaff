@@ -36,7 +36,7 @@ Commands:
                    Respectively: load/save prior pseudocounts from/to file
    -saveparams &lt;file&gt;, -savecounts &lt;file&gt;, -savecountswithprior &lt;file&gt;
                    After each EM step, save parameters, or E-step counts
-                   (saved counts can subsequently be used as a prior)
+                    (saved counts can subsequently be used as a prior)
 
 
  quaff align refs.fasta reads.fastq
