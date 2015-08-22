@@ -346,9 +346,13 @@ QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_
     nx(0),
     nOriginals(nOriginals)
 {
-  if (++ny == y.size())  // handle annoying edge case of being given a single sequence
+  ++ny;  // no self-comparisons
+  if (ny == y.size())  // handle annoying trivial edge case of being given a single sequence
     ++nx;
-  plog.initProgress ("Overlap alignment");
+  else {
+    printer.writeAlignmentHeader (out, x, false);
+    plog.initProgress ("Overlap alignment");
+  }
 }
 
 bool QuaffOverlapScheduler::finished() const {

@@ -493,8 +493,15 @@ void Alignment::writeSam (ostream& out) const {
     revcomp().writeSam(out);
   else {
     int flag = gappedSeq[1].source.rev ? 16 : 0;
-    out << gappedSeq[1].source.name << ' ' << flag << ' ' << gappedSeq[0].source.name << ' ' << gappedSeq[0].source.start << " 0 " << cigarString() << " * 0 0 * * AS:i:" << ((int) round(score)) << endl;
+    out << gappedSeq[1].source.name << '\t' << flag << '\t' << gappedSeq[0].source.name << '\t' << gappedSeq[0].source.start << "\t0\t" << cigarString() << "\t*\t0\t0\t*\t*\tAS:i:" << ((int) round(score)) << endl;
   }
+}
+
+void Alignment::writeSamHeader (ostream& out, const vguard<FastSeq>& seqs, const char* go_so) {
+  out << "@HD\tVN:1.0\t" << go_so << endl;
+  for (const auto& s : seqs)
+    if (s.source.isNull())
+      out << "@SQ\tSN:" << s.name << "\tLN:" << s.length() << endl;
 }
 
 string Alignment::cigarString() const {
@@ -1585,6 +1592,11 @@ bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (deque<string>& argvec) {
   return false;
 }
 
+void QuaffAlignmentPrinter::writeAlignmentHeader (ostream& out, const vguard<FastSeq>& refs, bool groupByQuery) {
+  if (format == SamAlignment)
+    Alignment::writeSamHeader (out, refs, groupByQuery ? "GO:query" : "SO:unknown");
+}
+
 void QuaffAlignmentPrinter::writeAlignment (ostream& out, const Alignment& align) const {
   if (align.score >= logOddsThreshold) {
     FastSeq ref;
@@ -1689,6 +1701,7 @@ QuaffAlignmentScheduler::QuaffAlignmentScheduler (const vguard<FastSeq>& x, cons
   : QuaffAlignmentPrintingScheduler (x, y, params, nullModel, config, out, printer, verbosity, function, file),
     keepAllAlignments(keepAllAlignments)
 {
+  printer.writeAlignmentHeader (out, x, true);
   plog.initProgress ("Alignment");
 }
 

@@ -168,6 +168,7 @@ struct Alignment {
   void writeGappedFasta (ostream& out) const;
   void writeStockholm (ostream& out) const;
   void writeSam (ostream& out) const;
+  static void writeSamHeader (ostream& out, const vguard<FastSeq>& seqs, const char* go_so = "SO:unknown");
   string cigarString() const;
   FastSeq getUngapped (size_t row) const;
   Alignment revcomp() const;
@@ -381,6 +382,7 @@ struct QuaffAlignmentPrinter {
 
   QuaffAlignmentPrinter();
   bool parseAlignmentPrinterArgs (deque<string>& argvec);
+  void writeAlignmentHeader (ostream& out, const vguard<FastSeq>& refs, bool groupByQuery);
   void writeAlignment (ostream& out, const Alignment& align) const;
 };
 
