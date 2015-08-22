@@ -73,7 +73,7 @@ struct QuaffOverlapAligner : QuaffAlignmentPrinter {
 struct QuaffOverlapTask : QuaffTask {
   const FastSeq& xfs;
   const bool yComplemented;
-  list<Alignment> alignList;
+  QuaffAlignmentPrinter::AlignmentList alignList;
 
   QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
   void run();

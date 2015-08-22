@@ -4,6 +4,7 @@
 #include <string>
 #include <algorithm>
 #include <map>
+#include <set>
 #include "vguard.h"
 #include "../kseq/kseq.h"
 
@@ -25,8 +26,21 @@ extern const string dnaAlphabet;
 AlphTok dnaComplement (AlphTok token);
 char dnaComplementChar (char c);
 
+struct SeqIntervalCoords {
+  string name;
+  SeqIdx start, end;  // 1-based, closed (includes begin & end)
+  bool rev;
+  SeqIntervalCoords() : name(), start(0), end(0), rev(false) { }
+  SeqIntervalCoords (const string& n, SeqIdx s, SeqIdx e, bool r)
+    : name(n), start(s), end(e), rev(r)
+  { }
+  bool isNull() const { return name.empty(); }
+  SeqIntervalCoords compose (const SeqIntervalCoords& srcCoords) const;
+};
+
 struct FastSeq {
   string name, comment, seq, qual;
+  SeqIntervalCoords source;  // if !source.isNull(), describes origin
   static const char minQualityChar, maxQualityChar;
   static const QualScore qualScoreRange;
   SeqIdx length() const { return (SeqIdx) seq.size(); }
@@ -49,6 +63,8 @@ struct FastSeq {
 vguard<FastSeq> readFastSeqs (const char* filename);
 void writeFastaSeqs (ostream& out, const vguard<FastSeq>& fastSeqs);
 void writeFastqSeqs (ostream& out, const vguard<FastSeq>& fastSeqs);
+
+set<string> fastSeqDuplicateNames (const vguard<FastSeq>& seqs);
 
 string revcomp (const string& dnaSeq);
 void addRevcomps (vguard<FastSeq>& db);

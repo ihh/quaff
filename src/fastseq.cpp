@@ -21,7 +21,7 @@ AlphTok dnaComplement (AlphTok token) {
 
 char dnaComplementChar (char c) {
   const int tok = tokenize (c, dnaAlphabet);
-  return tok < 0 ? 'N' : dnaAlphabet[dnaComplement(tok)];
+  return tok < 0 ? c : dnaAlphabet[dnaComplement(tok)];
 }
 
 Kmer makeKmer (SeqIdx k, vector<unsigned int>::const_iterator tok, AlphTok alphabetSize) {
@@ -46,6 +46,22 @@ string kmerToString (Kmer kmer, SeqIdx k, const string& alphabet) {
   for (SeqIdx j = 0; j < k; ++j, kmer = kmer / alphabet.size())
     rev += alphabet[kmer % alphabet.size()];
   return string (rev.rbegin(), rev.rend());
+}
+
+SeqIntervalCoords SeqIntervalCoords::compose (const SeqIntervalCoords& srcCoords) const {
+  if (srcCoords.isNull())
+    return *this;
+  SeqIntervalCoords coords;
+  coords.name = srcCoords.name;
+  coords.rev = rev != srcCoords.rev;
+  if (srcCoords.rev) {
+    coords.start = srcCoords.end - end + 1;
+    coords.end = srcCoords.end - start + 1;
+  } else {
+    coords.start = start + srcCoords.start - 1;
+    coords.end = end + srcCoords.start - 1;
+  }
+  return coords;
 }
 
 const char FastSeq::minQualityChar = '!';
@@ -149,6 +165,16 @@ vguard<FastSeq> readFastSeqs (const char* filename) {
   return seqs;
 }
 
+set<string> fastSeqDuplicateNames (const vguard<FastSeq>& seqs) {
+  set<string> name, dups;
+  for (const auto& s : seqs) {
+    if (name.find(s.name) != name.end())
+      dups.insert (s.name);
+    name.insert (s.name);
+  }
+  return dups;
+}
+
 string revcomp (const string& dnaSeq) {
   string rev = dnaSeq;
   const size_t len = dnaSeq.size();
@@ -163,6 +189,11 @@ FastSeq FastSeq::revcomp() const {
   fs.comment = comment;
   fs.seq = ::revcomp(seq);
   fs.qual = string (qual.rbegin(), qual.rend());
+  fs.source.name = name;
+  fs.source.start = 1;
+  fs.source.end = length();
+  fs.source.rev = true;
+  fs.source = fs.source.compose (source);
   return fs;
 }
 

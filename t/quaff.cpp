@@ -43,6 +43,7 @@ struct SeqList {
   bool parseRevcompArgs();
   bool parseQualScoreArgs();
   void loadSequences();
+  void loadSequencesForAligner (const QuaffAlignmentPrinter& aligner);
 };
 
 struct QuaffParamsIn : QuaffParams {
@@ -130,8 +131,8 @@ int main (int argc, char** argv) {
 	   || usage.parseUnknown())
       { }
 
-    reads.loadSequences();
-    refs.loadSequences();
+    reads.loadSequencesForAligner (aligner);
+    refs.loadSequencesForAligner (aligner);
     params.requireParamsOrUseDefaults();
     nullModel.requireNullModelOrFit (reads);
     
@@ -211,7 +212,7 @@ int main (int argc, char** argv) {
 	   || usage.parseUnknown())
       { }
 
-    reads.loadSequences();
+    reads.loadSequencesForAligner (aligner);
     params.requireParamsOrUseDefaults();
     nullModel.requireNullModelOrFit (reads);
 
@@ -406,6 +407,21 @@ bool SeqList::parseQualScoreArgs() {
   return false;
 }
 
+void SeqList::loadSequencesForAligner (const QuaffAlignmentPrinter& aligner) {
+  loadSequences();
+  
+  if (aligner.format == QuaffAlignmentPrinter::SamAlignment) {
+    const set<string> dups = fastSeqDuplicateNames (seqs);
+    if (!dups.empty()) {
+      cerr << "Duplicate names:";
+      for (const auto& d : dups)
+	cerr << ' ' << d;
+      cerr << endl;
+      Fail ("All %s sequence names are required to be unique for SAM-format alignment output", type.c_str());
+    }
+  }
+}
+
 void SeqList::loadSequences() {
   Require (filenames.size() > 0, "Please specify at least one %s file using %s", type.c_str(), tag.c_str());
 
@@ -473,7 +489,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "\n"
     + "\n"
     + "Alignment options (for align/overlap commands):\n"
-    + "   -format {fasta,stockholm,refseq}\n"
+    + "   -format {fasta,stockholm,sam,refseq}\n"
     + "                   Alignment output format\n"
     + "   -threshold <n>\n"
     + "   -nothreshold    Log-odds ratio score threshold for alignment reporting\n"

@@ -487,6 +487,53 @@ void Alignment::writeStockholm (ostream& out) const {
   out << "//" << endl;
 }
 
+void Alignment::writeSam (ostream& out) const {
+  Assert (rows() == 2, "Tried to print %u-row alignment in SAM format, which is for pairwise alignments", rows());
+  if (gappedSeq[0].source.rev)
+    revcomp().writeSam(out);
+  else {
+    int flag = gappedSeq[1].source.rev ? 16 : 0;
+    out << gappedSeq[1].source.name << ' ' << flag << ' ' << gappedSeq[0].source.name << ' ' << gappedSeq[0].source.start << " 0 " << cigarString() << " * 0 0 * * AS:i:" << ((int) round(score)) << endl;
+  }
+}
+
+string Alignment::cigarString() const {
+  Assert (rows() == 2, "Tried to print %u-row alignment in CIGAR format, which is for pairwise alignments", rows());
+  char lastCigarChar = 0;
+  size_t count = 0;
+  string cigar;
+  for (SeqIdx col = 0; col < columns(); ++col) {
+    const bool gap0 = isGapChar(gappedSeq[0].seq[col]), gap1 = isGapChar(gappedSeq[1].seq[col]);
+    char cigarChar = 0;
+    if (!gap0 && !gap1)
+      cigarChar = 'M';
+    else if (!gap0 && gap1)
+      cigarChar = 'D';
+    else if (gap0 && !gap1)
+      cigarChar = 'I';
+    if (cigarChar) {
+      if (cigarChar == lastCigarChar)
+	++count;
+      else {
+	if (count > 0)
+	  cigar = cigar + lastCigarChar + to_string(count);
+	lastCigarChar = cigarChar;
+	count = 1;
+      }
+    }
+  }
+  if (count > 0)
+    cigar = cigar + lastCigarChar + to_string(count);
+  return cigar;
+}
+
+Alignment Alignment::revcomp() const {
+  Alignment a (*this);
+  for (size_t row = 0; row < rows(); ++row)
+    a.gappedSeq[row] = a.gappedSeq[row].revcomp();
+  return a;
+}
+
 FastSeq Alignment::getUngapped (size_t row) const {
   const FastSeq& g = gappedSeq[row];
   FastSeq s = gappedSeq[row];
@@ -1008,6 +1055,14 @@ Alignment QuaffViterbiMatrix::alignment() const {
   align.gappedSeq[0].seq = string (xRow.begin(), xRow.end());
   align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
   align.gappedSeq[1].qual = string (yQual.begin(), yQual.end());
+  align.gappedSeq[0].source.name = px->name;
+  align.gappedSeq[0].source.start = xStart;
+  align.gappedSeq[0].source.end = xEnd;
+  align.gappedSeq[1].source.name = py->name;
+  align.gappedSeq[1].source.start = 1;
+  align.gappedSeq[1].source.end = yLen;
+  align.gappedSeq[0].source = align.gappedSeq[0].source.compose (px->source);
+  align.gappedSeq[1].source = align.gappedSeq[1].source.compose (py->source);
   align.score = result;
   return align;
 }
@@ -1501,6 +1556,8 @@ bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (deque<string>& argvec) {
 	format = GappedFastaAlignment;
       else if (fmt == "stockholm")
 	format = StockholmAlignment;
+      else if (fmt == "sam")
+	format = SamAlignment;
       else if (fmt == "refseq")
 	format = UngappedFastaRef;
       else
@@ -1539,6 +1596,10 @@ void QuaffAlignmentPrinter::writeAlignment (ostream& out, const Alignment& align
 
     case StockholmAlignment:
       align.writeStockholm (out);
+      break;
+
+    case SamAlignment:
+      align.writeSam (out);
       break;
 
     case UngappedFastaRef:
@@ -1588,6 +1649,7 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
 QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments)
   : QuaffTask(yfs,params,nullModel,config),
     x(x),
+    alignList(Alignment::scoreGreaterThan),
     keepAllAlignments(keepAllAlignments)
 { }
 
@@ -1601,12 +1663,9 @@ void QuaffAlignmentTask::run() {
     const QuaffViterbiMatrix viterbi (env, params, config);
     if (viterbi.resultIsFinite()) {
       const Alignment a = viterbi.scoreAdjustedAlignment (nullModel);
-      if (keepAllAlignments || alignList.empty())
-	alignList.push_back (a);
-      else if (a.score > alignList.front().score) {
-	alignList.pop_front();
-	alignList.push_back (a);
-      }
+      alignList.insert (a);
+      if (!keepAllAlignments)
+	alignList.erase (++alignList.begin(), alignList.end());
     }
   }
 }
@@ -1617,7 +1676,7 @@ QuaffAlignmentPrintingScheduler::QuaffAlignmentPrintingScheduler (const vguard<F
     printer(printer)
 { }
 
-void QuaffAlignmentPrintingScheduler::printAlignments (const list<Alignment>& alignList) {
+void QuaffAlignmentPrintingScheduler::printAlignments (const QuaffAlignmentPrinter::AlignmentList& alignList) {
   outMx.lock();
   logger.lockSilently();  // to avoid interleaving clog & cout
   for (const auto& a : alignList)

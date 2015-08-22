@@ -4,7 +4,7 @@
 #include <map>
 #include <numeric>
 #include <deque>
-#include <list>
+#include <set>
 #include <mutex>
 #include "fastseq.h"
 #include "diagenv.h"
@@ -167,8 +167,12 @@ struct Alignment {
   const size_t columns() const { return rows() ? gappedSeq[0].length() : 0; }
   void writeGappedFasta (ostream& out) const;
   void writeStockholm (ostream& out) const;
+  void writeSam (ostream& out) const;
+  string cigarString() const;
   FastSeq getUngapped (size_t row) const;
+  Alignment revcomp() const;
   static bool isGapChar(char c) { return c == '-' || c == '.'; }
+  static bool scoreGreaterThan (const Alignment& a, const Alignment& b) { return a.score > b.score; }
 };
 
 // DP config
@@ -371,7 +375,8 @@ void runQuaffCountingTasks (QuaffCountingScheduler* qcs);
 
 // config/wrapper structs for Viterbi alignment
 struct QuaffAlignmentPrinter {
-  enum OutputFormat { GappedFastaAlignment, StockholmAlignment, UngappedFastaRef } format;
+  typedef multiset<Alignment,bool(*)(const Alignment&,const Alignment&)> AlignmentList;
+  enum OutputFormat { GappedFastaAlignment, StockholmAlignment, SamAlignment, UngappedFastaRef } format;
   double logOddsThreshold;
 
   QuaffAlignmentPrinter();
@@ -390,7 +395,7 @@ struct QuaffAligner : QuaffAlignmentPrinter {
 // structs for scheduling alignment tasks
 struct QuaffAlignmentTask : QuaffTask {
   const vguard<FastSeq>& x;
-  list<Alignment> alignList;
+  QuaffAlignmentPrinter::AlignmentList alignList;
   bool keepAllAlignments;
   QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments);
   void run();
@@ -401,7 +406,7 @@ struct QuaffAlignmentPrintingScheduler : QuaffScheduler {
   QuaffAlignmentPrinter& printer;
   mutex outMx;
   QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file);
-  void printAlignments (const list<Alignment>& alignList);
+  void printAlignments (const QuaffAlignmentPrinter::AlignmentList& alignList);
 };
 
 struct QuaffAlignmentScheduler : QuaffAlignmentPrintingScheduler {

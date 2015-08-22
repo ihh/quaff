@@ -30,7 +30,7 @@ void DiagonalEnvelope::initSparse (const KmerIndex& yKmerIndex, unsigned int ban
   }
 
   const vguard<AlphTok> xTok = px->tokens (yKmerIndex.alphabet);
-  const AlphTok alphabetSize = yKmerIndex.alphabet.size();
+  const AlphTok alphabetSize = (AlphTok) yKmerIndex.alphabet.size();
   
   map<int,unsigned int> diagKmerCount;
   for (SeqIdx i = 0; i <= xLen - kmerLen; ++i) {

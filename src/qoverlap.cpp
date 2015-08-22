@@ -1,3 +1,4 @@
+#include <list>
 #include <cmath>
 #include "qoverlap.h"
 #include "logsumexp.h"
@@ -277,6 +278,14 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
   align.gappedSeq[1].seq = string (yRow.begin(), yRow.end());
   align.gappedSeq[0].qual = string (xQual.begin(), xQual.end());
   align.gappedSeq[1].qual = string (yQual.begin(), yQual.end());
+  align.gappedSeq[0].source.name = px->name;
+  align.gappedSeq[0].source.start = xStart;
+  align.gappedSeq[0].source.end = xEnd;
+  align.gappedSeq[1].source.name = py->name;
+  align.gappedSeq[1].source.start = yStart;
+  align.gappedSeq[1].source.end = yEnd;
+  align.gappedSeq[0].source = align.gappedSeq[0].source.compose (px->source);
+  align.gappedSeq[1].source = align.gappedSeq[1].source.compose (py->source);
   align.score = result;
   return align;
 }
@@ -318,7 +327,8 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
 QuaffOverlapTask::QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config)
   : QuaffTask(yfs,params,nullModel,config),
     xfs(xfs),
-    yComplemented(yComplemented)
+    yComplemented(yComplemented),
+    alignList(Alignment::scoreGreaterThan)
 { }
 
 void QuaffOverlapTask::run() {
@@ -328,7 +338,7 @@ void QuaffOverlapTask::run() {
   const DiagonalEnvelope env = config.makeEnvelope (xfs, yKmerIndex, QuaffDPMatrixContainer::cellSize());
   const QuaffOverlapViterbiMatrix viterbi (env, params, yComplemented);
   if (viterbi.resultIsFinite())
-    alignList.push_back (viterbi.scoreAdjustedAlignment(nullModel));
+    alignList.insert (viterbi.scoreAdjustedAlignment(nullModel));
 }
 
 QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file)
