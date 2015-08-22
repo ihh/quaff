@@ -52,8 +52,8 @@ Commands:
 Alignment options (for align/overlap commands):
    -format {fasta,stockholm,sam,refseq}
                    Alignment output format
-   -threshold &lt;n&gt;
-   -nothreshold    Log-odds ratio score threshold for alignment reporting
+   -threshold &lt;n&gt;, -nothreshold
+                   Log-odds ratio score threshold for alignment reporting
    -noquals        Ignore read quality scores during alignment
 
 General options (for all commands, except where indicated):
