@@ -35,7 +35,7 @@ Commands:
    -prior &lt;file&gt;, -saveprior &lt;file&gt;
                    Respectively: load/save prior pseudocounts from/to file
    -saveparams &lt;file&gt;, -savecounts &lt;file&gt;, -savecountswithprior &lt;file&gt;
-                   After each EM step, save parameters, or E-step counts
+                   Save parameters (or E-step counts) to file, not stdout
                     (saved counts can subsequently be used as a prior)
 
 
@@ -50,11 +50,13 @@ Commands:
 
 
 Alignment options (for align/overlap commands):
-   -format {fasta,stockholm,sam,refseq}
-                   Alignment output format
    -threshold &lt;n&gt;, -nothreshold
                    Log-odds ratio score threshold for alignment reporting
    -noquals        Ignore read quality scores during alignment
+   -savealign &lt;file&gt;
+                   Stream alignments to file, instead of stdout
+   -format {fasta,stockholm,sam,refseq}
+                   Alignment output format
 
 General options (for all commands, except where indicated):
    -verbose, -vv, -vvv, -v4, -v5, etc.
@@ -73,7 +75,7 @@ General options (for all commands, except where indicated):
    -kmatchband &lt;n&gt; Size of DP band around kmer-matching diagonals (default 64)
    -kmatchmb &lt;M&gt;   Set kmer threshold to use M megabytes of memory
    -kmatchmax      Set kmer threshold to use all available memory (slow)
-   -kmatchoff      No kmer threshold, do full DP (swapfile-heavy, v slow)
+   -kmatchoff      No kmer threshold, do full DP (typically very slow)
 
    -threads &lt;n&gt;, -maxthreads
                    Specify number of threads, or use all cores available

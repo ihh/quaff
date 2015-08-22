@@ -6,6 +6,7 @@
 #include <deque>
 #include <set>
 #include <mutex>
+#include <fstream>
 #include "fastseq.h"
 #include "diagenv.h"
 #include "logger.h"
@@ -317,6 +318,8 @@ struct QuaffTrainer {
   QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner);
   QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
   static vguard<vguard<size_t> > defaultSortOrder (const vguard<FastSeq>& x, const vguard<FastSeq>& y);
+  bool usingParamOutputFile() const { return !saveParamsFilename.empty(); }
+  bool usingCountsOutputFile() const { return !rawCountsFilename.empty() || !countsWithPriorFilename.empty(); }
 };
 
 // structs for scheduling training tasks
@@ -379,11 +382,13 @@ struct QuaffAlignmentPrinter {
   typedef multiset<Alignment,bool(*)(const Alignment&,const Alignment&)> AlignmentList;
   enum OutputFormat { GappedFastaAlignment, StockholmAlignment, SamAlignment, UngappedFastaRef } format;
   double logOddsThreshold;
-
+  ofstream alignFile;
+  
   QuaffAlignmentPrinter();
   bool parseAlignmentPrinterArgs (deque<string>& argvec);
   void writeAlignmentHeader (ostream& out, const vguard<FastSeq>& refs, bool groupByQuery);
   void writeAlignment (ostream& out, const Alignment& align) const;
+  bool usingOutputFile() const { return alignFile.is_open(); }
 };
 
 struct QuaffAligner : QuaffAlignmentPrinter {

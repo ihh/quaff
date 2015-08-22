@@ -166,7 +166,8 @@ int main (int argc, char** argv) {
     params.requireParamsOrUsePrior (prior);
 
     QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, nullModel, prior, config);
-    newParams.write (cout);
+    if (!trainer.usingParamOutputFile())
+      newParams.write (cout);
 
   } else if (command == "count") {
     QuaffTrainer trainer;
@@ -193,7 +194,8 @@ int main (int argc, char** argv) {
     params.requireParamsOrUseDefaults();
 
     QuaffParamCounts counts = trainer.getCounts (refs.seqs, reads.seqs, params, nullModel, config);
-    counts.write (cout);
+    if (!trainer.usingCountsOutputFile())
+      counts.write (cout);
 
   } else if (command == "overlap") {
     QuaffOverlapAligner aligner;
@@ -469,7 +471,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -prior <file>, -saveprior <file>\n"
     + "                   Respectively: load/save prior pseudocounts from/to file\n"
     + "   -saveparams <file>, -savecounts <file>, -savecountswithprior <file>\n"
-    + "                   After each EM step, save parameters, or E-step counts\n"
+    + "                   Save parameters (or E-step counts) to file, not stdout\n"
     + "                    (saved counts can subsequently be used as a prior)\n"
     + "\n"
     + "\n"
@@ -489,11 +491,13 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "\n"
     + "\n"
     + "Alignment options (for align/overlap commands):\n"
-    + "   -format {fasta,stockholm,sam,refseq}\n"
-    + "                   Alignment output format\n"
     + "   -threshold <n>, -nothreshold\n"
     + "                   Log-odds ratio score threshold for alignment reporting\n"
     + "   -noquals        Ignore read quality scores during alignment\n"
+    + "   -savealign <file>\n"
+    + "                   Stream alignments to file, instead of stdout\n"
+    + "   -format {fasta,stockholm,sam,refseq}\n"
+    + "                   Alignment output format\n"
     + "\n"
     + "General options (for all commands, except where indicated):\n"
     + "   -verbose, -vv, -vvv, -v4, -v5, etc.\n"
@@ -514,7 +518,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -kmatchband <n> Size of DP band around kmer-matching diagonals (default " + to_string(DEFAULT_BAND_SIZE) + ")\n"
     + "   -kmatchmb <M>   Set kmer threshold to use M megabytes of memory\n"
     + "   -kmatchmax      Set kmer threshold to use all available memory (slow)\n"
-    + "   -kmatchoff      No kmer threshold, do full DP (swapfile-heavy, v slow)\n"
+    + "   -kmatchoff      No kmer threshold, do full DP (typically very slow)\n"
     + "\n"
     + "   -threads <n>, -maxthreads\n"
     + "                   Specify number of threads, or use all cores available\n"

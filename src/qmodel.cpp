@@ -1340,25 +1340,6 @@ bool QuaffTrainer::parseTrainingArgs (deque<string>& argvec) {
       argvec.pop_front();
       argvec.pop_front();
       return true;
-    
-    } else if (arg == "-force") {
-      allowNullModel = false;
-      argvec.pop_front();
-      return true;
-
-    } else if (arg == "-savecounts") {
-      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
-      rawCountsFilename = argvec[1];
-      argvec.pop_front();
-      argvec.pop_front();
-      return true;
-
-    } else if (arg == "-savecountswithprior") {
-      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
-      countsWithPriorFilename = argvec[1];
-      argvec.pop_front();
-      argvec.pop_front();
-      return true;
 
     } else if (arg == "-saveparams") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
@@ -1377,6 +1358,20 @@ bool QuaffTrainer::parseCountingArgs (deque<string>& argvec) {
     const string& arg = argvec[0];
     if (arg == "-force") {
       allowNullModel = false;
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-savecounts") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      rawCountsFilename = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-savecountswithprior") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      countsWithPriorFilename = argvec[1];
+      argvec.pop_front();
       argvec.pop_front();
       return true;
     }
@@ -1586,6 +1581,14 @@ bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (deque<string>& argvec) {
       argvec.pop_front();
       return true;
 
+    } else if (arg == "-savealign") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      Require (!usingOutputFile(), "Only one %s file is allowed", arg.c_str());
+      alignFile.open (argvec[1]);
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
     }
   }
 
@@ -1594,31 +1597,32 @@ bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (deque<string>& argvec) {
 
 void QuaffAlignmentPrinter::writeAlignmentHeader (ostream& out, const vguard<FastSeq>& refs, bool groupByQuery) {
   if (format == SamAlignment)
-    Alignment::writeSamHeader (out, refs, groupByQuery ? "GO:query" : "SO:unknown");
+    Alignment::writeSamHeader (usingOutputFile() ? alignFile : out, refs, groupByQuery ? "GO:query" : "SO:unknown");
 }
 
 void QuaffAlignmentPrinter::writeAlignment (ostream& out, const Alignment& align) const {
+  ostream& alignOut (usingOutputFile() ? (ostream&) alignFile : out);
   if (align.score >= logOddsThreshold) {
     FastSeq ref;
     switch (format) {
     case GappedFastaAlignment:
-      align.writeGappedFasta (out);
+      align.writeGappedFasta (alignOut);
       out << endl;
       break;
 
     case StockholmAlignment:
-      align.writeStockholm (out);
+      align.writeStockholm (alignOut);
       break;
 
     case SamAlignment:
-      align.writeSam (out);
+      align.writeSam (alignOut);
       break;
 
     case UngappedFastaRef:
       Assert (align.rows() == 2, "Not a pairwise alignment");
       ref = align.getUngapped(0);
       ref.comment = string("matches(") + align.gappedSeq[1].name + ") " + ref.comment;
-      ref.writeFasta (out);
+      ref.writeFasta (alignOut);
       break;
 
     default:
