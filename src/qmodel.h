@@ -1,6 +1,7 @@
 #ifndef QMODEL_INCLUDED
 #define QMODEL_INCLUDED
 
+#include <list>
 #include <map>
 #include <numeric>
 #include <deque>
@@ -19,6 +20,9 @@
 #define DefaultMatchKmerContext 1
 #define DefaultIndelKmerContext 0
 
+// Server
+#define DefaultServerPort 0x8aff
+
 // struct describing the probability of a given FASTA symbol,
 // and a negative binomial distribution over the associated quality score
 struct SymQualDist {
@@ -28,7 +32,7 @@ struct SymQualDist {
   double logQualProb (QualScore k) const;
   double logQualProb (const vguard<double>& kFreq) const;
   void write (ostream& out, const string& prefix) const;
-  void read (map<string,string>& paramVal, const string& prefix);
+  bool read (map<string,string>& paramVal, const string& prefix);
 };
 
 // Memo-ized log scores for a SymQualDist
@@ -48,7 +52,7 @@ struct SymQualCounts {
   SymQualCounts();
   double symCount() const { return accumulate (qualCount.begin(), qualCount.end(), 0.); }
   void write (ostream& out, const string& prefix) const;
-  void read (const string& counts);
+  bool read (map<string,string>& paramVal, const string& param);
 };
 
 // Classes to manage kmer-dependence of various parameters
@@ -92,6 +96,7 @@ struct QuaffParams {
   void writeToLog() const;
   void write (ostream& out) const;
   void read (istream& in);
+  bool read (map<string,string>& paramVal);
   void fitRefSeqs (const vguard<FastSeq>& refs);
 };
 
@@ -105,6 +110,7 @@ struct QuaffNullParams {
   void writeToLog() const;
   void write (ostream& out) const;
   void read (istream& in);
+  bool read (map<string,string>& paramVal);
 };
 
 // Memo-ized scores for transitions & emissions in quaff HMM
@@ -149,6 +155,7 @@ struct QuaffParamCounts {
   void writeToLog() const;
   void write (ostream& out) const;
   void read (istream& in);
+  bool read (map<string,string>& paramVal);
   void addWeighted (const QuaffParamCounts& counts, double weight);
   QuaffParamCounts operator+ (const QuaffParamCounts& counts) const;
   QuaffParams fit() const;  // maximum-likelihood fit
@@ -177,12 +184,25 @@ struct Alignment {
   static bool scoreGreaterThan (const Alignment& a, const Alignment& b) { return a.score > b.score; }
 };
 
+// struct representing remote server
+struct RemoteServer {
+  string addr;
+  unsigned int port;
+  RemoteServer (string addr, unsigned int port)
+    : addr(addr), port(port)
+  { }
+  string toString() const { return addr + ':' + to_string(port); }
+};
+
 // DP config
 struct QuaffDPConfig {
   bool local, sparse, autoMemSize;
   int kmerLen, kmerThreshold, bandSize;
   size_t maxSize;
   unsigned int threads;
+  list<RemoteServer> remotes;
+  string bucket;
+  int serverPort;
   QuaffDPConfig()
     : local(true),
       sparse(true),
@@ -191,12 +211,16 @@ struct QuaffDPConfig {
       kmerThreshold(DEFAULT_KMER_THRESHOLD),
       maxSize(0),
       bandSize(DEFAULT_BAND_SIZE),
-      threads(1)
+      threads(1),
+      serverPort(DefaultServerPort)
   { }
   bool parseRefSeqConfigArgs (deque<string>& argvec);
   bool parseGeneralConfigArgs (deque<string>& argvec);
+  bool parseServerConfigArgs (deque<string>& argvec);
   DiagonalEnvelope makeEnvelope (const FastSeq& x, const KmerIndex& yKmerIndex, size_t cellSize) const;
   size_t effectiveMaxSize() const;  // takes threading into account
+  void loadFromBucket (const string& filename) const;
+  void saveToBucket (const string& filename) const;
 };
 
 class QuaffDPMatrixContainer {
@@ -314,12 +338,15 @@ struct QuaffTrainer {
   QuaffTrainer();
   bool parseTrainingArgs (deque<string>& argvec);
   bool parseCountingArgs (deque<string>& argvec);
+  bool parseServerArgs (deque<string>& argvec);
   QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config);
   QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner);
   QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
+  void serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffDPConfig& config);
+  static void serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, const QuaffDPConfig* pconfig, unsigned int port);
   static vguard<vguard<size_t> > defaultSortOrder (const vguard<FastSeq>& x, const vguard<FastSeq>& y);
   bool usingParamOutputFile() const { return !saveParamsFilename.empty(); }
-  bool usingCountsOutputFile() const { return !rawCountsFilename.empty() || !countsWithPriorFilename.empty(); }
+  bool usingCountsOutputFile() const { return !rawCountsFilename.empty(); }
 };
 
 // structs for scheduling training tasks
@@ -341,6 +368,7 @@ struct QuaffCountingTask : QuaffTask {
   const bool useNullModel;
   QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& counts);
   void run();
+  void delegate (const RemoteServer& remote);
 };
 
 struct QuaffScheduler {
@@ -374,21 +402,23 @@ struct QuaffCountingScheduler : QuaffScheduler {
   double finalLogLike() const;
 };
 
-// thread entry point
+// thread entry points
 void runQuaffCountingTasks (QuaffCountingScheduler* qcs);
+void delegateQuaffCountingTasks (QuaffCountingScheduler* qcs, const RemoteServer* remote);
 
 // config/wrapper structs for Viterbi alignment
 struct QuaffAlignmentPrinter {
   typedef multiset<Alignment,bool(*)(const Alignment&,const Alignment&)> AlignmentList;
   enum OutputFormat { GappedFastaAlignment, StockholmAlignment, SamAlignment, UngappedFastaRef } format;
   double logOddsThreshold;
+  string alignFilename;
   ofstream alignFile;
   
   QuaffAlignmentPrinter();
   bool parseAlignmentPrinterArgs (deque<string>& argvec);
   void writeAlignmentHeader (ostream& out, const vguard<FastSeq>& refs, bool groupByQuery);
   void writeAlignment (ostream& out, const Alignment& align) const;
-  bool usingOutputFile() const { return alignFile.is_open(); }
+  bool usingOutputFile() const { return !alignFilename.empty(); }
 };
 
 struct QuaffAligner : QuaffAlignmentPrinter {

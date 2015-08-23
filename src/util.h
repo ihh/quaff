@@ -12,15 +12,21 @@
 #define NAN_DEBUG
 
 /* Errors, warnings, assertions.
-   "Fail" and "Require" are quieter versions of "Abort" and "Assert",
+   Fail(...) and Require(...) are quieter versions of Abort(...) and Assert(...)
    that do not print a stack trace or throw an exception,
    but merely call exit().
+   Test(...) does not exit or throw an exception,
+   just prints a warning and returns false if the assertion fails.
+   Desire(...) is a macro wrapper for Test(...)
+   that returns false from the calling function if the test fails.
 */
 void Abort(const char* error, ...);
 void Assert(int assertion, const char* error, ...);
 void Warn(const char* warning, ...);
 void Fail(const char* error, ...);
 void Require(int assertion, const char* error, ...);
+bool Test(int assertion, const char* error, ...);
+#define Desire(...) do { if (!Test(__VA_ARGS__)) return false; } while (0)
 
 /* singular or plural? */
 std::string plural (long n, const char* singular);

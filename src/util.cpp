@@ -62,9 +62,20 @@ void Require(int assertion, const char* error, ...) {
   }
 }
 
+bool Test(int assertion, const char* error, ...) {
+  va_list argptr;
+  if(!assertion) {
+    va_start (argptr, error);
+    vfprintf(stderr,error,argptr);
+    fprintf(stderr,"\n");
+    va_end (argptr);
+  }
+  return assertion;
+}
+
 std::string plural (long n, const char* singular) {
   std::string s = std::to_string(n) + " " + singular;
-  if (n > 1)
+  if (n != 1)
     s += "s";
   return s;
 }

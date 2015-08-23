@@ -315,6 +315,7 @@ bool QuaffOverlapAligner::parseAlignmentArgs (deque<string>& argvec) {
 void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
   QuaffOverlapScheduler qos (seqs, nOriginals, params, nullModel, config, out, *this, VFUNCFILE(2));
   list<thread> yThreads;
+  Require (config.threads > 0, "Please allocate at least one thread");
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffOverlapTasks, &qos));
     logger.assignThreadName (yThreads.back());
@@ -322,6 +323,7 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
   for (auto& thr : yThreads)
     thr.join();
   logger.clearThreadNames();
+  config.saveToBucket (alignFilename);
 }
 
 QuaffOverlapTask::QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config)

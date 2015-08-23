@@ -1,7 +1,7 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <regex>
-#include <list>
 #include <thread>
 #include <cmath>
 #include <cstdlib>
@@ -12,34 +12,86 @@
 #include "negbinom.h"
 #include "memsize.h"
 #include "logger.h"
+#include "PracticalSocket.h"
 
 // internal #defines
-#define MAX_FRACTIONAL_FWDBACK_ERROR .0001
-#define MAX_TRAINING_LOG_DELTA 20
+// Forward-backward tolerance
+const double MAX_FRACTIONAL_FWDBACK_ERROR = .0001;
+
+// Threshold for dropping poorly-matching refseqs
+const double MAX_TRAINING_LOG_DELTA = 20;
+
+// Size of receive buffer for sockets
+const int RCVBUFSIZE = 1024;
+
+// socket string terminator
+#define SocketTerminatorString "# EOF"
 
 // useful helper methods
 double logBetaPdf (double prob, double yesCount, double noCount);
+string readStringFromSocket (TCPSocket* sock);
 map<string,string> readParamFile (istream& in);
+map<string,string> readParamFile (TCPSocket* sock);
+void readParamFileLine (map<string,string>& paramVal, const string& line);
+vguard<size_t> readSortOrder (const string& orderString);
 
 // main method bodies
 double logBetaPdf (double prob, double yesCount, double noCount) {
   return log (gsl_ran_beta_pdf (prob, yesCount + 1, noCount + 1));
 }
 
+const regex eofRegex (SocketTerminatorString);
+string readStringFromSocket (TCPSocket* sock) {
+  string msg;
+  char buf[RCVBUFSIZE];
+  int recvMsgSize;
+  while ((recvMsgSize = sock->recv(buf, RCVBUFSIZE)) > 0) {
+    msg.append (buf, (size_t) recvMsgSize);
+    if (regex_search (msg, eofRegex))
+      break;
+  }
+  return msg;
+}
+
+const regex paramValRegex ("(\\S+)\\s*:\\s*(.+)");
+void readParamFileLine (map<string,string>& val, const string& line) {
+  smatch sm;
+  if (regex_match (line, sm, paramValRegex))
+    val[sm.str(1)] = sm.str(2);
+}
+
 map<string,string> readParamFile (istream& in) {
   map<string,string> val;
-  regex paramVal ("^\\s*(\\S+)\\s*:\\s+(.*)$");
-  regex nonWhite ("\\S");
   while (!in.eof()) {
     string line;
     getline(in,line);
-    smatch sm;
-    if (regex_match (line, sm, paramVal))
-      val[sm.str(1)] = sm.str(2);
-    else if (regex_search (line, nonWhite))
-      cerr << "Ignoring line: " << line;
+    readParamFileLine (val, line);
   }
   return val;
+}
+
+const regex lineRegex ("(.+)");
+map<string,string> readParamFile (TCPSocket* sock) {
+  string msg = readStringFromSocket (sock);
+  map<string,string> val;
+  smatch sm;
+  while (regex_search (msg, sm, lineRegex)) {
+    readParamFileLine (val, sm.str(1).c_str());
+    msg = sm.suffix().str();
+  }
+  return val;
+}
+
+const regex orderRegex ("(\\d+)");
+vguard<size_t> readSortOrder (const string& orderString) {
+  string s = orderString;
+  smatch sm;
+  vguard<size_t> sortOrder;
+  while (regex_search (s, sm, orderRegex)) {
+    sortOrder.push_back (atoi (sm.str(1).c_str()));
+    s = sm.suffix();
+  }
+  return sortOrder;
 }
 
 SymQualDist::SymQualDist()
@@ -58,14 +110,15 @@ void SymQualDist::write (ostream& out, const string& prefix) const {
       << endl;
 }
 
-void SymQualDist::read (map<string,string>& paramVal, const string& prefix) {
+bool SymQualDist::read (map<string,string>& paramVal, const string& prefix) {
   const string qp = prefix + "qp", qr = prefix + "qr";
-  Require (paramVal.find(prefix) != paramVal.end(), "Missing parameter: %s", prefix.c_str());
-  Require (paramVal.find(qp) != paramVal.end(), "Missing parameter: %s", qp.c_str());
-  Require (paramVal.find(qr) != paramVal.end(), "Missing parameter: %s", qr.c_str());
+  Desire (paramVal.find(prefix) != paramVal.end(), "Missing parameter: %s", prefix.c_str());
+  Desire (paramVal.find(qp) != paramVal.end(), "Missing parameter: %s", qp.c_str());
+  Desire (paramVal.find(qr) != paramVal.end(), "Missing parameter: %s", qr.c_str());
   symProb = atof (paramVal[prefix].c_str());
   qualTrialSuccessProb = atof (paramVal[qp].c_str());
   qualNumSuccessfulTrials = atof (paramVal[qr].c_str());
+  return true;
 }
 
 double SymQualDist::logQualProb (QualScore k) const {
@@ -99,15 +152,17 @@ void SymQualCounts::write (ostream& out, const string& prefix) const {
   }
 }
 
-void SymQualCounts::read (const string& counts) {
-  string c = counts;
+const regex countRegex ("(\\d+)\\s*:\\s*([\\d\\+\\-eE\\.]+)");
+bool SymQualCounts::read (map<string,string>& paramVal, const string& param) {
+  Desire (paramVal.find(param) != paramVal.end(), "Couldn't read %s", param.c_str());
+  string c = paramVal[param];
   qualCount = vguard<double> (FastSeq::qualScoreRange, 0.);
-  regex countRegex ("(\\d+)\\s*:\\s*([\\d\\+\\-eE\\.]+)");
   smatch sm;
   while (regex_search (c, sm, countRegex)) {
     qualCount[atoi (sm.str(1).c_str())] = atof (sm.str(2).c_str());
     c = sm.suffix().str();
   }
+  return true;
 }
 
 QuaffKmerContext::QuaffKmerContext (const char* prefix, unsigned int kmerLen)
@@ -201,11 +256,15 @@ void QuaffParams::writeToLog() const {
   logger.unlock();
 }
 
-#define QuaffParamRead(X) Require(val.find(#X) != val.end(),"Missing parameter: " #X), X = atof(val[#X].c_str())
-#define QuaffParamReadK(X,KMER) do { const string tmpParamName = indelContext.booleanParamName(#X,KMER); Require(val.find(tmpParamName) != val.end(),"Missing parameter: %s",tmpParamName.c_str()), X[KMER] = atof(val[tmpParamName].c_str()); } while(0)
+#define QuaffParamRead(X) do { Desire(val.find(#X) != val.end(),"Missing parameter: " #X); X = atof(val[#X].c_str()); } while(0)
+#define QuaffParamReadK(X,KMER) do { const string tmpParamName = indelContext.booleanParamName(#X,KMER); Desire(val.find(tmpParamName) != val.end(),"Missing parameter: %s",tmpParamName.c_str()); X[KMER] = atof(val[tmpParamName].c_str()); } while(0)
+
 void QuaffParams::read (istream& in) {
   map<string,string> val = readParamFile (in);
+  Require (read(val), "Couldn't read parameters");
+}
 
+bool QuaffParams::read (map<string,string>& val) {
   matchContext.readKmerLen(val);
   indelContext.readKmerLen(val);
   resize();
@@ -218,10 +277,11 @@ void QuaffParams::read (istream& in) {
   QuaffParamRead(extendDelete);
 
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].read (val, matchContext.insertParamName(i));
+    Desire (insert[i].read (val, matchContext.insertParamName(i)), "");
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     for (Kmer j = 0; j < matchContext.numKmers; ++j)
-      match[i][j].read (val, matchContext.matchParamName(i,j));
+      Desire (match[i][j].read (val, matchContext.matchParamName(i,j)), "");
+  return true;
 }
 
 void QuaffParams::fitRefSeqs (const vguard<FastSeq>& refs) {
@@ -399,7 +459,10 @@ void QuaffParamCounts::writeToLog() const {
 
 void QuaffParamCounts::read (istream& in) {
   map<string,string> val = readParamFile (in);
+  Require (read (val), "Couldn't read counts");
+}
 
+bool QuaffParamCounts::read (map<string,string>& val) {
   matchContext.readKmerLen(val);
   indelContext.readKmerLen(val);
   resize();
@@ -418,10 +481,11 @@ void QuaffParamCounts::read (istream& in) {
   QuaffParamRead(extendDeleteNo);
 
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].read (val[matchContext.insertParamName(i)]);
+    Desire (insert[i].read (val, matchContext.insertParamName(i)), "");
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     for (Kmer j = 0; j < matchContext.numKmers; ++j)
-      match[i][j].read (val[matchContext.matchParamName(i,j)]);
+      Desire (match[i][j].read (val, matchContext.matchParamName(i,j)), "");
+  return true;
 }
 
 const char Alignment::gapChar = '-';
@@ -557,6 +621,21 @@ FastSeq Alignment::getUngapped (size_t row) const {
   return s;
 }
 
+bool QuaffDPConfig::parseServerConfigArgs (deque<string>& argvec) {
+  if (argvec.size()) {
+    const string& arg = argvec[0];
+    if (arg == "-port") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      const char* val = argvec[1].c_str();
+      serverPort = atoi (val);
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+    }
+  }
+  return false;
+}
+
 bool QuaffDPConfig::parseRefSeqConfigArgs (deque<string>& argvec) {
   if (argvec.size()) {
     const string& arg = argvec[0];
@@ -570,6 +649,9 @@ bool QuaffDPConfig::parseRefSeqConfigArgs (deque<string>& argvec) {
   return parseGeneralConfigArgs (argvec);
 }
 
+const regex defaultPortRemoteRegex ("([A-Za-z0-9\\-\\.]+)");
+const regex singlePortRemoteRegex ("([A-Za-z0-9\\-\\.]+):(\\d+)");
+const regex multiPortRemoteRegex ("([A-Za-z0-9\\-\\.]+):(\\d+)-(\\d+)");
 bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
   if (argvec.size()) {
     const string& arg = argvec[0];
@@ -604,7 +686,7 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       maxSize = atoi(val) << 20;
       if (maxSize == 0) {
 	maxSize = getMemorySize();
-	Assert (maxSize > 0, "Can't figure out available system memory; you will need to specify a size");
+	Require (maxSize > 0, "Can't figure out available system memory; you will need to specify a size");
       }
       kmerThreshold = -1;
       autoMemSize = false;
@@ -614,7 +696,7 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
 
     } else if (arg == "-kmatchmax") {
       maxSize = getMemorySize();
-      Assert (maxSize > 0, "Can't figure out available system memory; you will need to specify a size");
+      Require (maxSize > 0, "Can't figure out available system memory; you will need to specify a size");
       kmerThreshold = -1;
       autoMemSize = true;
       argvec.pop_front();
@@ -629,7 +711,6 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       const char* val = argvec[1].c_str();
       threads = atoi (val);
-      Require (threads > 0, "Please specify a non-zero number of threads; use -maxthreads to auto-detect");
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -641,6 +722,33 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
 	threads = 1;
       } else if (LogThisAt(2))
 	logger << "Running in " << plural(threads,"thread") << endl;
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-remote") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      const string& remoteStr = argvec[1];
+      smatch sm;
+      if (regex_match (remoteStr, sm, defaultPortRemoteRegex))
+	remotes.push_back (RemoteServer (sm.str(1), DefaultServerPort));
+      else if (regex_match (remoteStr, sm, singlePortRemoteRegex))
+	remotes.push_back (RemoteServer (sm.str(1), atoi (sm.str(2).c_str())));
+      else if (regex_match (remoteStr, sm, multiPortRemoteRegex)) {
+	const string& addr = sm.str(1);
+	const unsigned int minPort = atoi (sm.str(2).c_str());
+	const unsigned int maxPort = atoi (sm.str(3).c_str());
+	for (unsigned int port = minPort; port < maxPort; ++port)
+	  remotes.push_back (RemoteServer (addr, port));
+      } else
+	Fail ("Can't parse server address: %s", remoteStr.c_str());
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-s3") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      bucket = argvec[1];
+      argvec.pop_front();
       argvec.pop_front();
       return true;
 
@@ -661,6 +769,24 @@ DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const KmerIndex&
 
 size_t QuaffDPConfig::effectiveMaxSize() const {
   return autoMemSize ? (maxSize / threads) : maxSize;
+}
+
+void QuaffDPConfig::loadFromBucket (const string& filename) const {
+  if (bucket.size() && filename.size()) {
+    const string cmd = string("aws sync s3://") + bucket + "/ . --include " + filename;
+    const int status = system (cmd.c_str());
+    if (status != 0)
+      Warn ("Return code %d attempting to load %s from S3 bucket %s", status, filename.c_str(), bucket.c_str());
+  }
+}
+
+void QuaffDPConfig::saveToBucket (const string& filename) const {
+  if (bucket.size() && filename.size()) {
+    const string cmd = string("aws cp ") + filename + " s3://" + bucket + '/';
+    const int status = system (cmd.c_str());
+    if (status != 0)
+      Warn ("Return code %d attempting to load %s from S3 bucket %s", status, filename.c_str(), bucket.c_str());
+  }
 }
 
 double QuaffDPMatrixContainer::dummy = -numeric_limits<double>::infinity();
@@ -1274,10 +1400,14 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
 
 void QuaffNullParams::read (istream& in) {
   map<string,string> val = readParamFile (in);
+  Require (read (val), "Couldn't read null model");
+}
 
+bool QuaffNullParams::read (map<string,string>& val) {
   QuaffParamRead(nullEmit);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    null[i].read (val, string("null") + dnaAlphabet[i]);
+    Desire (null[i].read (val, string("null") + dnaAlphabet[i]), "Couldn't read null param");
+  return true;
 }
 
 double QuaffNullParams::logLikelihood (const vguard<FastSeq>& seqs) const {
@@ -1347,6 +1477,13 @@ bool QuaffTrainer::parseTrainingArgs (deque<string>& argvec) {
       argvec.pop_front();
       argvec.pop_front();
       return true;
+
+    } else if (arg == "-savecountswithprior") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      countsWithPriorFilename = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
     }
   }
 
@@ -1367,11 +1504,17 @@ bool QuaffTrainer::parseCountingArgs (deque<string>& argvec) {
       argvec.pop_front();
       argvec.pop_front();
       return true;
+    }
+  }
 
-    } else if (arg == "-savecountswithprior") {
-      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
-      countsWithPriorFilename = argvec[1];
-      argvec.pop_front();
+  return parseServerArgs (argvec);
+}
+
+bool QuaffTrainer::parseServerArgs (deque<string>& argvec) {
+  if (argvec.size()) {
+    const string& arg = argvec[0];
+    if (arg == "-force") {
+      allowNullModel = false;
       argvec.pop_front();
       return true;
     }
@@ -1389,21 +1532,107 @@ vguard<vguard<size_t> > QuaffTrainer::defaultSortOrder (const vguard<FastSeq>& x
 QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner) {
   QuaffCountingScheduler qcs (x, y, params, nullModel, allowNullModel, config, sortOrder, banner, VFUNCFILE(2));
   list<thread> yThreads;
+  Require (config.threads > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffCountingTasks, &qcs));
-      logger.assignThreadName (yThreads.back());
+    logger.assignThreadName (yThreads.back());
+  }
+  for (const auto& remote : config.remotes) {
+    yThreads.push_back (thread (&delegateQuaffCountingTasks, &qcs, &remote));
+    logger.assignThreadName (yThreads.back());
   }
   for (auto& t : yThreads)
     t.join();
   logger.clearThreadNames();
   logLike = qcs.finalLogLike();
-  return qcs.finalCounts();
+  const QuaffParamCounts counts = qcs.finalCounts();
+  if (rawCountsFilename.size()) {
+    ofstream out (rawCountsFilename);
+    counts.write (out);
+  }
+  return counts;
 }
 
 QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
   vguard<vguard<size_t> > sortOrder = defaultSortOrder (x, y);
   double logLike;
-  return getCounts (x, y, params, nullModel, config, sortOrder, logLike, "");
+  const QuaffParamCounts counts = getCounts (x, y, params, nullModel, config, sortOrder, logLike, "");
+  config.saveToBucket (rawCountsFilename);
+  return counts;
+}
+
+void QuaffTrainer::serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffDPConfig& config) {
+  list<thread> serverThreads;
+  Require (config.threads > 0, "Please allocate at least one thread");
+  for (unsigned int n = 0; n < config.threads; ++n) {
+    serverThreads.push_back (thread (&QuaffTrainer::serveCountsFromThread, &x, &y, allowNullModel, &config, config.serverPort + n));
+    logger.assignThreadName (serverThreads.back());
+  }
+  for (auto& t : serverThreads)
+    t.join();
+}
+
+void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, const QuaffDPConfig* pconfig, unsigned int port) {
+  map<string,const FastSeq*> yDict;
+  for (const auto& s : *py)
+    yDict[s.name] = &s;
+
+  TCPServerSocket servSock (port);
+  if (LogThisAt(1))
+    logger << "(listening on port " << port << ')' << endl;
+
+  while (true) {
+    TCPSocket *sock = NULL;
+    sock = servSock.accept();
+    if (LogThisAt(1))
+      logger << "Handling request from " << sock->getForeignAddress() << endl;
+
+    auto paramVal = readParamFile (sock);
+
+    const string& yName = paramVal["yName"];
+    const string& xOrder = paramVal["xOrder"];
+
+    vguard<size_t> sortOrder = readSortOrder (xOrder);
+
+    QuaffParams params;
+    QuaffNullParams nullModel;
+
+    if (yDict.find(yName) != yDict.end()
+	&& sortOrder.size()
+	&& params.read (paramVal)
+	&& nullModel.read (paramVal)) {
+
+      if (LogThisAt(2))
+	logger << "Aligning " << plural(sortOrder.size(),"reference") << " to " << yName << endl;
+    
+      const unsigned int matchKmerLen = params.matchContext.kmerLen;
+      const unsigned int indelKmerLen = params.indelContext.kmerLen;
+      QuaffParamCounts yCounts (matchKmerLen, indelKmerLen);
+
+      double yLogLike;
+      QuaffCountingTask task (*px, *yDict[yName], params, nullModel, useNullModel, *pconfig, sortOrder, yLogLike, yCounts);
+      task.run();
+
+      ostringstream out;
+      out << "xOrder: { ";
+      for (size_t nx = 0; nx < sortOrder.size(); ++nx)
+	out << (nx == 0 ? "" : ", ") << sortOrder[nx];
+      out << " }" << endl;
+      out << "loglike: " << yLogLike << endl;
+      yCounts.write (out);
+      out << SocketTerminatorString << endl;
+
+      const string s = out.str();
+      sock->send (s.c_str(), (int) s.size());
+
+      if (LogThisAt(2))
+	logger << "Request completed" << endl;
+
+    } else if (LogThisAt(1))
+      logger << "Bad request, ignoring" << endl;
+	
+    delete sock;
+  }
 }
 
 QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config) {
@@ -1419,6 +1648,11 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     const string banner = string(" (E-step #") + to_string(iter+1) + ")";
     double logLike = 0;
     counts = getCounts (x, y, qp, nullModel, config, sortOrder, logLike, banner.c_str());
+    if (LogThisAt(3)) {
+      logger << "Parameter counts computed during E-step:" << endl;
+      counts.writeToLog();
+    }
+
     const double logPrior = pseudocounts.logPrior (qp);
     const double logLikeWithPrior = logLike + logPrior;
     if (LogThisAt(1))
@@ -1426,12 +1660,14 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     if (iter > 0 && logLikeWithPrior < prevLogLikeWithPrior + abs(prevLogLikeWithPrior)*minFractionalLoglikeIncrement)
       break;
     prevLogLikeWithPrior = logLikeWithPrior;
-    if (LogThisAt(3)) {
-      logger << "Parameter counts computed during E-step:" << endl;
-      counts.writeToLog();
-    }
+
     countsWithPrior = counts;
     countsWithPrior.addWeighted (pseudocounts, 1.);
+    if (countsWithPriorFilename.size()) {
+      ofstream out (countsWithPriorFilename);
+      countsWithPrior.write (out);
+    }
+
     const double oldExpectedLogLike = countsWithPrior.expectedLogLike (qp);
     qp = countsWithPrior.fit();
     qp.fitRefSeqs(x);
@@ -1443,15 +1679,10 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
       ofstream out (saveParamsFilename);
       qp.write (out);
     }
-    if (rawCountsFilename.size()) {
-      ofstream out (rawCountsFilename);
-      counts.write (out);
-    }
-    if (countsWithPriorFilename.size()) {
-      ofstream out (countsWithPriorFilename);
-      countsWithPrior.write (out);
-    }
   }
+  config.saveToBucket (saveParamsFilename);
+  config.saveToBucket (rawCountsFilename);
+  config.saveToBucket (countsWithPriorFilename);
   return qp;
 }
 
@@ -1496,6 +1727,44 @@ void QuaffCountingTask::run() {
     if (xyLogLike[*sortOrderCutoff] < yLogLike - MAX_TRAINING_LOG_DELTA)
       break;
   sortOrder.erase (sortOrderCutoff, sortOrder.end());  // bye bye unproductive refseqs
+}
+
+void QuaffCountingTask::delegate (const RemoteServer& remote) {
+  while (true) {
+    if (LogThisAt(3))
+      logger << "Delegating " << yfs.name << " to " << remote.toString() << endl;
+    ostringstream out;
+    out << "yName: " << yfs.name << endl;
+    out << "xOrder: { ";
+    for (size_t nx = 0; nx < sortOrder.size(); ++nx)
+      out << (nx == 0 ? "" : ", ") << sortOrder[nx];
+    out << " }" << endl;
+    nullModel.write (out);
+    params.write (out);
+    out << SocketTerminatorString << endl;
+
+    const string msg = out.str();
+
+    TCPSocket sock(remote.addr, remote.port);
+    sock.send (msg.c_str(), msg.size());
+
+    map<string,string> paramVal = readParamFile (&sock);
+
+    if (LogThisAt(3))
+      logger << "Parsing results from " << remote.toString() << endl;
+
+    const string& xOrder = paramVal["xOrder"];
+    const string& yLogLikeStr = paramVal["loglike"];
+    if (xOrder.size()
+	&& yLogLikeStr.size()
+	&& yCounts.read (paramVal)) {
+      sortOrder = readSortOrder (xOrder);
+      yLogLike = atof (yLogLikeStr.c_str());
+      break;
+
+    } else if (LogThisAt(3))
+      logger << "Retrying..." << endl;
+  }
 }
 
 QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file)
@@ -1543,6 +1812,19 @@ void runQuaffCountingTasks (QuaffCountingScheduler* qcs) {
   }
 }
 
+void delegateQuaffCountingTasks (QuaffCountingScheduler* qcs, const RemoteServer* remote) {
+  while (true) {
+    qcs->lock();
+    if (qcs->finished()) {
+      qcs->unlock();
+      break;
+    }
+    QuaffCountingTask task = qcs->nextCountingTask();
+    qcs->unlock();
+    task.delegate (*remote);
+  }
+}
+
 QuaffAlignmentPrinter::QuaffAlignmentPrinter()
   : format (StockholmAlignment),
     logOddsThreshold (0)
@@ -1583,8 +1865,7 @@ bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (deque<string>& argvec) {
 
     } else if (arg == "-savealign") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
-      Require (!usingOutputFile(), "Only one %s file is allowed", arg.c_str());
-      alignFile.open (argvec[1]);
+      alignFilename = argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -1596,6 +1877,8 @@ bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (deque<string>& argvec) {
 }
 
 void QuaffAlignmentPrinter::writeAlignmentHeader (ostream& out, const vguard<FastSeq>& refs, bool groupByQuery) {
+  if (usingOutputFile())
+    alignFile.open (alignFilename);
   if (format == SamAlignment)
     Alignment::writeSamHeader (usingOutputFile() ? alignFile : out, refs, groupByQuery ? "GO:query" : "SO:unknown");
 }
@@ -1653,6 +1936,7 @@ bool QuaffAligner::parseAlignmentArgs (deque<string>& argvec) {
 void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
   QuaffAlignmentScheduler qas (x, y, params, nullModel, config, printAllAlignments, out, *this, VFUNCFILE(2));
   list<thread> yThreads;
+  Require (config.threads > 0, "Please allocate at least one thread");
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffAlignmentTasks, &qas));
     logger.assignThreadName (yThreads.back());
@@ -1660,6 +1944,7 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
   for (auto& t : yThreads)
     t.join();
   logger.clearThreadNames();
+  config.saveToBucket (alignFilename);
 }
 
 QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments)

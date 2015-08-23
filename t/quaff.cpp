@@ -42,190 +42,218 @@ struct SeqList {
   bool parseSeqFilename();
   bool parseRevcompArgs();
   bool parseQualScoreArgs();
-  void loadSequences();
-  void loadSequencesForAligner (const QuaffAlignmentPrinter& aligner);
+  void loadSequences (const QuaffDPConfig& config);
+  void loadSequencesForAligner (const QuaffDPConfig& config, const QuaffAlignmentPrinter& aligner);
 };
 
 struct QuaffParamsIn : QuaffParams {
   deque<string>& argvec;
-  bool initialized;
-
+  string loadFilename;
+  
   QuaffParamsIn (deque<string>& argvec)
     : QuaffParams(),
-      argvec(argvec),
-      initialized(false)
+      argvec(argvec)
   { }
 
   bool parseParamFilename();
-  void requireParamsOrUseDefaults();
-  void requireParamsOrUsePrior (const QuaffParamCounts& prior);
+  void loadParams (const QuaffDPConfig& config);
+  void requireParamsOrUseDefaults (const QuaffDPConfig& config);
+  void requireParamsOrUsePrior (const QuaffDPConfig& config, const QuaffParamCounts& prior);
+  bool initialized() const { return !loadFilename.empty(); }
 };
 
 struct QuaffNullParamsIn : QuaffNullParams {
   deque<string>& argvec;
-  bool initialized;
-  string saveFilename;
+  string loadFilename, saveFilename;
   
   QuaffNullParamsIn (deque<string>& argvec)
     : QuaffNullParams(),
-      argvec(argvec),
-      initialized(false)
+      argvec(argvec)
   { }
 
   bool parseNullModelFilename();
-  void requireNullModelOrFit (const SeqList& seqList);
+  void loadNullModel (const QuaffDPConfig& config);
+  void requireNullModelOrFit (const QuaffDPConfig& config, const SeqList& seqList);
+  bool initialized() const { return !loadFilename.empty(); }
 };
 
 struct QuaffPriorIn : QuaffParamCounts {
   deque<string>& argvec;
-  bool initialized, kmerLenSpecified;
-  string saveFilename;
+  bool kmerLenSpecified;
+  string loadFilename, saveFilename;
 
   QuaffPriorIn (deque<string>& argvec)
     : QuaffParamCounts(1,0),  // fix initial (matchKmerLen,indelKmerLen) at (1,0)
       argvec(argvec),
-      initialized(false),
       kmerLenSpecified(false)
   { }
 
   bool parsePriorArgs();
-  void requirePrior();
-  void requirePriorOrUseNullModel (const QuaffNullParams& nullModel, const QuaffParamsIn& params);
+  void loadPrior (const QuaffDPConfig& config);
+  void requirePrior (const QuaffDPConfig& config);
+  void requirePriorOrUseNullModel (const QuaffDPConfig& config, const QuaffNullParams& nullModel, const QuaffParamsIn& params);
+  bool initialized() const { return !loadFilename.empty(); }
 };
 
 int main (int argc, char** argv) {
 
-  deque<string> argvec (argc);
-  for (int n = 0; n < argc; ++n)
-    argvec[n] = argv[n];
+  try {
+    deque<string> argvec (argc);
+    for (int n = 0; n < argc; ++n)
+      argvec[n] = argv[n];
   
-  QuaffUsage usage (argvec);
-  const string command = usage.getCommand();
+    QuaffUsage usage (argvec);
+    const string command = usage.getCommand();
 
-  QuaffParamsIn params (argvec);
+    QuaffParamsIn params (argvec);
 
-  SeqList refs (argvec, "reference", "-ref", "^-(ref|refs|fasta)$");
-  refs.wantRevcomps = true;
+    SeqList refs (argvec, "reference", "-ref", "^-(ref|refs|fasta)$");
+    refs.wantRevcomps = true;
 
-  SeqList reads (argvec, "read", "-read", "^-(read|reads|fastq)$");
-  reads.wantQualScores = true;
+    SeqList reads (argvec, "read", "-read", "^-(read|reads|fastq)$");
+    reads.wantQualScores = true;
 
-  QuaffDPConfig config;
+    QuaffDPConfig config;
 
-  if (command == "align") {
-    QuaffAligner aligner;
-    QuaffNullParamsIn nullModel (argvec);
-    usage.implicitSwitches.push_back (string ("-ref"));
-    usage.implicitSwitches.push_back (string ("-read"));
-    usage.unlimitImplicitSwitches = true;
-    config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
-    while (logger.parseLogArgs (argvec)
-	   || aligner.parseAlignmentArgs (argvec)
-	   || config.parseRefSeqConfigArgs (argvec)
-	   || params.parseParamFilename()
-	   || nullModel.parseNullModelFilename()
-	   || refs.parseSeqFilename()
-	   || refs.parseRevcompArgs()
-	   || reads.parseSeqFilename()
-	   || reads.parseQualScoreArgs()
-	   || usage.parseUnknown())
-      { }
+    if (command == "align") {
+      QuaffAligner aligner;
+      QuaffNullParamsIn nullModel (argvec);
+      usage.implicitSwitches.push_back (string ("-ref"));
+      usage.implicitSwitches.push_back (string ("-read"));
+      usage.unlimitImplicitSwitches = true;
+      config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
+      while (logger.parseLogArgs (argvec)
+	     || aligner.parseAlignmentArgs (argvec)
+	     || config.parseRefSeqConfigArgs (argvec)
+	     || params.parseParamFilename()
+	     || nullModel.parseNullModelFilename()
+	     || refs.parseSeqFilename()
+	     || refs.parseRevcompArgs()
+	     || reads.parseSeqFilename()
+	     || reads.parseQualScoreArgs()
+	     || usage.parseUnknown())
+	{ }
 
-    reads.loadSequencesForAligner (aligner);
-    refs.loadSequencesForAligner (aligner);
-    params.requireParamsOrUseDefaults();
-    nullModel.requireNullModelOrFit (reads);
+      reads.loadSequencesForAligner (config, aligner);
+      refs.loadSequencesForAligner (config, aligner);
+      params.requireParamsOrUseDefaults (config);
+      nullModel.requireNullModelOrFit (config, reads);
     
-    aligner.align (cout, refs.seqs, reads.seqs, params, nullModel, config);
+      aligner.align (cout, refs.seqs, reads.seqs, params, nullModel, config);
 
-  } else if (command == "train") {
-    QuaffTrainer trainer;
-    QuaffNullParamsIn nullModel (argvec);
-    QuaffPriorIn prior (argvec);
-    usage.implicitSwitches.push_back (string ("-ref"));
-    usage.implicitSwitches.push_back (string ("-read"));
-    usage.unlimitImplicitSwitches = true;
-    config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
-    while (logger.parseLogArgs (argvec)
-	   || trainer.parseTrainingArgs (argvec)
-	   || config.parseRefSeqConfigArgs (argvec)
-	   || params.parseParamFilename()
-	   || nullModel.parseNullModelFilename()
-	   || prior.parsePriorArgs()
-	   || refs.parseSeqFilename()
-	   || refs.parseRevcompArgs()
-	   || reads.parseSeqFilename()
-	   || usage.parseUnknown())
-      { }
+    } else if (command == "train") {
+      QuaffTrainer trainer;
+      QuaffNullParamsIn nullModel (argvec);
+      QuaffPriorIn prior (argvec);
+      usage.implicitSwitches.push_back (string ("-ref"));
+      usage.implicitSwitches.push_back (string ("-read"));
+      usage.unlimitImplicitSwitches = true;
+      config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
+      while (logger.parseLogArgs (argvec)
+	     || trainer.parseTrainingArgs (argvec)
+	     || config.parseRefSeqConfigArgs (argvec)
+	     || params.parseParamFilename()
+	     || nullModel.parseNullModelFilename()
+	     || prior.parsePriorArgs()
+	     || refs.parseSeqFilename()
+	     || refs.parseRevcompArgs()
+	     || reads.parseSeqFilename()
+	     || usage.parseUnknown())
+	{ }
 
-    reads.loadSequences();
-    refs.loadSequences();
+      reads.loadSequences (config);
+      refs.loadSequences (config);
 
-    nullModel.requireNullModelOrFit (reads);
-    prior.requirePriorOrUseNullModel (nullModel, params);
-    params.requireParamsOrUsePrior (prior);
+      nullModel.requireNullModelOrFit (config, reads);
+      prior.requirePriorOrUseNullModel (config, nullModel, params);
+      params.requireParamsOrUsePrior (config, prior);
 
-    QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, nullModel, prior, config);
-    if (!trainer.usingParamOutputFile())
-      newParams.write (cout);
+      QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, nullModel, prior, config);
+      if (!trainer.usingParamOutputFile())
+	newParams.write (cout);
 
-  } else if (command == "count") {
-    QuaffTrainer trainer;
-    QuaffNullParamsIn nullModel (argvec);
-    usage.implicitSwitches.push_back (string ("-ref"));
-    usage.implicitSwitches.push_back (string ("-read"));
-    usage.unlimitImplicitSwitches = true;
-    config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
-    while (logger.parseLogArgs (argvec)
-	   || trainer.parseCountingArgs (argvec)
-	   || config.parseRefSeqConfigArgs (argvec)
-	   || params.parseParamFilename()
-	   || nullModel.parseNullModelFilename()
-	   || refs.parseSeqFilename()
-	   || refs.parseRevcompArgs()
-	   || reads.parseSeqFilename()
-	   || usage.parseUnknown())
-      { }
+    } else if (command == "count") {
+      QuaffTrainer trainer;
+      QuaffNullParamsIn nullModel (argvec);
+      usage.implicitSwitches.push_back (string ("-ref"));
+      usage.implicitSwitches.push_back (string ("-read"));
+      usage.unlimitImplicitSwitches = true;
+      config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
+      while (logger.parseLogArgs (argvec)
+	     || trainer.parseCountingArgs (argvec)
+	     || config.parseRefSeqConfigArgs (argvec)
+	     || params.parseParamFilename()
+	     || nullModel.parseNullModelFilename()
+	     || refs.parseSeqFilename()
+	     || refs.parseRevcompArgs()
+	     || reads.parseSeqFilename()
+	     || usage.parseUnknown())
+	{ }
 
-    reads.loadSequences();
-    refs.loadSequences();
+      reads.loadSequences (config);
+      refs.loadSequences (config);
 
-    nullModel.requireNullModelOrFit (reads);
-    params.requireParamsOrUseDefaults();
+      nullModel.requireNullModelOrFit (config, reads);
+      params.requireParamsOrUseDefaults (config);
 
-    QuaffParamCounts counts = trainer.getCounts (refs.seqs, reads.seqs, params, nullModel, config);
-    if (!trainer.usingCountsOutputFile())
-      counts.write (cout);
+      QuaffParamCounts counts = trainer.getCounts (refs.seqs, reads.seqs, params, nullModel, config);
+      if (!trainer.usingCountsOutputFile())
+	counts.write (cout);
 
-  } else if (command == "overlap") {
-    QuaffOverlapAligner aligner;
-    QuaffNullParamsIn nullModel (argvec);
-    reads.wantRevcomps = true;
-    usage.implicitSwitches.push_back (string ("-read"));
-    usage.unlimitImplicitSwitches = true;
-    while (logger.parseLogArgs (argvec)
-	   || aligner.parseAlignmentArgs (argvec)
-	   || config.parseGeneralConfigArgs (argvec)
-	   || params.parseParamFilename()
-	   || nullModel.parseNullModelFilename()
-	   || reads.parseSeqFilename()
-	   || reads.parseRevcompArgs()
-	   || reads.parseQualScoreArgs()
-	   || usage.parseUnknown())
-      { }
+    } else if (command == "countserver") {
+      QuaffTrainer trainer;
+      usage.implicitSwitches.push_back (string ("-ref"));
+      usage.implicitSwitches.push_back (string ("-read"));
+      usage.unlimitImplicitSwitches = true;
+      config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
+      while (logger.parseLogArgs (argvec)
+	     || trainer.parseServerArgs (argvec)
+	     || config.parseRefSeqConfigArgs (argvec)
+	     || config.parseServerConfigArgs (argvec)
+	     || refs.parseSeqFilename()
+	     || refs.parseRevcompArgs()
+	     || reads.parseSeqFilename()
+	     || usage.parseUnknown())
+	{ }
 
-    reads.loadSequencesForAligner (aligner);
-    params.requireParamsOrUseDefaults();
-    nullModel.requireNullModelOrFit (reads);
+      reads.loadSequences (config);
+      refs.loadSequences (config);
 
-    aligner.align (cout, reads.seqs, reads.nOriginals, params, nullModel, config);
-
-  } else if (command == "help" || command == "-help" || command == "--help" || command == "-h") {
-    cout << usage.text;
-    return EXIT_SUCCESS;
+      trainer.serveCounts (refs.seqs, reads.seqs, config);
     
-  } else {
-    cerr << usage.briefText << "Unrecognized command: " << command << endl;
+    } else if (command == "overlap") {
+      QuaffOverlapAligner aligner;
+      QuaffNullParamsIn nullModel (argvec);
+      reads.wantRevcomps = true;
+      usage.implicitSwitches.push_back (string ("-read"));
+      usage.unlimitImplicitSwitches = true;
+      while (logger.parseLogArgs (argvec)
+	     || aligner.parseAlignmentArgs (argvec)
+	     || config.parseGeneralConfigArgs (argvec)
+	     || params.parseParamFilename()
+	     || nullModel.parseNullModelFilename()
+	     || reads.parseSeqFilename()
+	     || reads.parseRevcompArgs()
+	     || reads.parseQualScoreArgs()
+	     || usage.parseUnknown())
+	{ }
+
+      reads.loadSequencesForAligner (config, aligner);
+      params.requireParamsOrUseDefaults (config);
+      nullModel.requireNullModelOrFit (config, reads);
+
+      aligner.align (cout, reads.seqs, reads.nOriginals, params, nullModel, config);
+
+    } else if (command == "help" || command == "-help" || command == "--help" || command == "-h") {
+      cout << usage.text;
+      return EXIT_SUCCESS;
+    
+    } else {
+      cerr << usage.briefText << "Unrecognized command: " << command << endl;
+      return EXIT_FAILURE;
+    }
+
+  } catch (...) {
     return EXIT_FAILURE;
   }
 
@@ -237,10 +265,7 @@ bool QuaffParamsIn::parseParamFilename() {
     const string& arg = argvec[0];
     if (arg == "-params") {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
-      ifstream inFile (argvec[1]);
-      Require (!inFile.fail(), "Couldn't open %s", argvec[1].c_str());
-      read (inFile);
-      initialized = true;
+      loadFilename = argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -249,16 +274,27 @@ bool QuaffParamsIn::parseParamFilename() {
   return false;
 }
 
-void QuaffParamsIn::requireParamsOrUseDefaults() {
-  if (!initialized) {
+void QuaffParamsIn::loadParams (const QuaffDPConfig& config) {
+  if (initialized()) {
+    config.loadFromBucket (loadFilename);
+    ifstream inFile (loadFilename);
+    Require (!inFile.fail(), "Couldn't open %s", loadFilename.c_str());
+    read (inFile);
+  }
+}
+
+void QuaffParamsIn::requireParamsOrUseDefaults (const QuaffDPConfig& config) {
+  loadParams (config);
+  if (!initialized()) {
     if (LogThisAt(1))
       logger << "Using default model parameters" << endl;
     (QuaffParams&) *this = defaultQuaffParams();
   }
 }
 
-void QuaffParamsIn::requireParamsOrUsePrior (const QuaffParamCounts& prior) {
-  if (!initialized) {
+void QuaffParamsIn::requireParamsOrUsePrior (const QuaffDPConfig& config, const QuaffParamCounts& prior) {
+  loadParams (config);
+  if (!initialized()) {
     if (LogThisAt(1))
       logger << "Auto-initializing model parameters from prior" << endl;
     (QuaffParams&) *this = prior.fit();
@@ -270,10 +306,7 @@ bool QuaffNullParamsIn::parseNullModelFilename() {
     const string& arg = argvec[0];
     if (arg == "-null") {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
-      ifstream inFile (argvec[1]);
-      Require (!inFile.fail(), "Couldn't open %s", argvec[1].c_str());
-      read (inFile);
-      initialized = true;
+      loadFilename = argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -289,8 +322,18 @@ bool QuaffNullParamsIn::parseNullModelFilename() {
   return false;
 }
 
-void QuaffNullParamsIn::requireNullModelOrFit (const SeqList& seqList) {
-  if (!initialized) {
+void QuaffNullParamsIn::loadNullModel (const QuaffDPConfig& config) {
+  if (initialized()) {
+    config.loadFromBucket (loadFilename);
+    ifstream inFile (loadFilename);
+    Require (!inFile.fail(), "Couldn't open %s", loadFilename.c_str());
+    read (inFile);
+  }
+}
+
+void QuaffNullParamsIn::requireNullModelOrFit (const QuaffDPConfig& config, const SeqList& seqList) {
+  loadNullModel (config);
+  if (!initialized()) {
     if (LogThisAt(1))
       logger << "Auto-optimizing null model for read sequences" << endl;
     (QuaffNullParams&) *this = QuaffNullParams (seqList.seqs);
@@ -306,10 +349,7 @@ bool QuaffPriorIn::parsePriorArgs() {
     const string& arg = argvec[0];
     if (arg == "-prior") {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
-      ifstream inFile (argvec[1]);
-      Require (!inFile.fail(), "Couldn't open %s", argvec[1].c_str());
-      read (inFile);
-      initialized = true;
+      loadFilename = argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -344,16 +384,26 @@ bool QuaffPriorIn::parsePriorArgs() {
   return false;
 }
 
-void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffNullParams& nullModel, const QuaffParamsIn& params) {
-  if (initialized) {
-    if (params.initialized) {
+void QuaffPriorIn::loadPrior (const QuaffDPConfig& config) {
+  if (initialized()) {
+    config.loadFromBucket (loadFilename);
+    ifstream inFile (loadFilename);
+    Require (!inFile.fail(), "Couldn't open %s", loadFilename.c_str());
+    read (inFile);
+  }
+}
+
+void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffDPConfig& config, const QuaffNullParams& nullModel, const QuaffParamsIn& params) {
+  loadPrior (config);
+  if (initialized()) {
+    if (params.initialized()) {
       Require (matchContext.kmerLen == params.matchContext.kmerLen, "Order of match dependence in prior file (%d) does not match order in parameter file (%d)", matchContext.kmerLen, params.matchContext.kmerLen);
       Require (indelContext.kmerLen == params.indelContext.kmerLen, "Order of indel dependence in prior file (%d) does not match order in parameter file (%d)", indelContext.kmerLen, params.indelContext.kmerLen);
     }
   } else {
     if (LogThisAt(1))
       logger << "Auto-setting prior from null model" << endl;
-    if (params.initialized) {
+    if (params.initialized()) {
       if (kmerLenSpecified) {
 	Require (matchContext.kmerLen == params.matchContext.kmerLen, "Order of match dependence specified on command line (%d) does not match order in parameter file (%d)", matchContext.kmerLen, params.matchContext.kmerLen);
 	Require (indelContext.kmerLen == params.indelContext.kmerLen, "Order of indel dependence specified on command line (%d) does not match order in parameter file (%d)", indelContext.kmerLen, params.indelContext.kmerLen);
@@ -409,25 +459,24 @@ bool SeqList::parseQualScoreArgs() {
   return false;
 }
 
-void SeqList::loadSequencesForAligner (const QuaffAlignmentPrinter& aligner) {
-  loadSequences();
+void SeqList::loadSequencesForAligner (const QuaffDPConfig& config, const QuaffAlignmentPrinter& aligner) {
+  loadSequences (config);
   
-  if (aligner.format == QuaffAlignmentPrinter::SamAlignment) {
-    const set<string> dups = fastSeqDuplicateNames (seqs);
-    if (!dups.empty()) {
-      cerr << "Duplicate names:";
-      for (const auto& d : dups)
-	cerr << ' ' << d;
-      cerr << endl;
-      Fail ("All %s sequence names are required to be unique for SAM-format alignment output", type.c_str());
-    }
+  const set<string> dups = fastSeqDuplicateNames (seqs);
+  if (!dups.empty()) {
+    cerr << "Duplicate names:";
+    for (const auto& d : dups)
+      cerr << ' ' << d;
+    cerr << endl;
+    Fail ("All %s sequence names are required to be unique", type.c_str());
   }
 }
 
-void SeqList::loadSequences() {
+void SeqList::loadSequences (const QuaffDPConfig& config) {
   Require (filenames.size() > 0, "Please specify at least one %s file using %s", type.c_str(), tag.c_str());
 
   for (const auto& s : filenames) {
+    config.loadFromBucket (s);
     vguard<FastSeq> fsvec = readFastSeqs (s.c_str());
     for (auto& fs: fsvec) {
       if (wantQualScores)
