@@ -196,16 +196,6 @@ struct Alignment {
   static bool scoreGreaterThan (const Alignment& a, const Alignment& b) { return a.score > b.score; }
 };
 
-// struct representing remote server
-struct RemoteServer {
-  string addr;
-  unsigned int port;
-  RemoteServer (string addr, unsigned int port)
-    : addr(addr), port(port)
-  { }
-  string toString() const { return addr + ':' + to_string(port); }
-};
-
 // DP config
 struct QuaffDPConfig {
   bool local, sparse, autoMemSize;

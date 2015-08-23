@@ -9,6 +9,9 @@
 #include "stacktrace.h"
 #include "logger.h"
 
+// buffer size for popen
+#define PIPE_BUF_SIZE 1024
+
 void Warn(const char* warning, ...) {
   va_list argptr;
   fprintf(stderr,"Warning: ");
@@ -78,4 +81,15 @@ std::string plural (long n, const char* singular) {
   if (n != 1)
     s += "s";
   return s;
+}
+
+string pipeToString (const char* command) {
+  string result;
+  FILE* pipe = popen (command, "r");
+  char line[PIPE_BUF_SIZE];
+
+  while (fgets(line, PIPE_BUF_SIZE, pipe))
+    result += line;
+
+  return result;
 }

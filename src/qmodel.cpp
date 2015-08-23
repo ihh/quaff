@@ -11,6 +11,7 @@
 #include "logsumexp.h"
 #include "negbinom.h"
 #include "memsize.h"
+#include "aws.h"
 
 // internal #defines
 // Forward-backward tolerance
@@ -765,21 +766,13 @@ size_t QuaffDPConfig::effectiveMaxSize() const {
 }
 
 void QuaffDPConfig::loadFromBucket (const string& filename) const {
-  if (bucket.size() && filename.size()) {
-    const string cmd = string("aws sync s3://") + bucket + "/ . --include " + filename;
-    const int status = system (cmd.c_str());
-    if (status != 0)
-      Warn ("Return code %d attempting to load %s from S3 bucket %s", status, filename.c_str(), bucket.c_str());
-  }
+  if (bucket.size() && filename.size())
+    AWS::syncFromBucket (bucket, filename);
 }
 
 void QuaffDPConfig::saveToBucket (const string& filename) const {
-  if (bucket.size() && filename.size()) {
-    const string cmd = string("aws cp ") + filename + " s3://" + bucket + '/';
-    const int status = system (cmd.c_str());
-    if (status != 0)
-      Warn ("Return code %d attempting to load %s from S3 bucket %s", status, filename.c_str(), bucket.c_str());
-  }
+  if (bucket.size() && filename.size())
+    AWS::copyToBucket (filename, bucket);
 }
 
 double QuaffDPMatrixContainer::dummy = -numeric_limits<double>::infinity();

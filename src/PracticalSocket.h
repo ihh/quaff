@@ -336,4 +336,14 @@ private:
   void setBroadcast();
 };
 
+// struct describing remote server
+struct RemoteServer {
+  string addr;
+  unsigned int port;
+  RemoteServer (string addr, unsigned int port)
+    : addr(addr), port(port)
+  { }
+  string toString() const { return addr + ':' + to_string(port); }
+};
+
 #endif

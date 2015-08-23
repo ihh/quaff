@@ -35,6 +35,9 @@ std::string plural (long n, const char* singular);
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 
+/* pipe to string */
+std::string pipeToString (const char* command);
+
 /* sgn function
    http://stackoverflow.com/questions/1903954/is-there-a-standard-sign-function-signum-sgn-in-c-c
  */
