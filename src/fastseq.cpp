@@ -140,7 +140,7 @@ vguard<FastSeq> readFastSeqs (const char* filename) {
   vguard<FastSeq> seqs;
 
   gzFile fp = gzopen(filename, "r");
-  Assert (fp != Z_NULL, "Couldn't open %s", filename);
+  Require (fp != Z_NULL, "Couldn't open %s", filename);
 
   kseq_t *ks = kseq_init(fp);
   while (kseq_read(ks) != -1) {

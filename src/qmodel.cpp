@@ -649,9 +649,9 @@ bool QuaffDPConfig::parseRefSeqConfigArgs (deque<string>& argvec) {
   return parseGeneralConfigArgs (argvec);
 }
 
-const regex defaultPortRemoteRegex ("([A-Za-z0-9\\-\\.]+)");
-const regex singlePortRemoteRegex ("([A-Za-z0-9\\-\\.]+):(\\d+)");
-const regex multiPortRemoteRegex ("([A-Za-z0-9\\-\\.]+):(\\d+)-(\\d+)");
+const regex defaultPortRemoteRegex ("^([A-Za-z0-9\\-\\.]+)$");
+const regex singlePortRemoteRegex ("^([A-Za-z0-9\\-\\.]+):(\\d+)$");
+const regex multiPortRemoteRegex ("^([A-Za-z0-9\\-\\.]+):(\\d+)-(\\d+)$");
 bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
   if (argvec.size()) {
     const string& arg = argvec[0];
@@ -737,7 +737,7 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
 	const string& addr = sm.str(1);
 	const unsigned int minPort = atoi (sm.str(2).c_str());
 	const unsigned int maxPort = atoi (sm.str(3).c_str());
-	for (unsigned int port = minPort; port < maxPort; ++port)
+	for (unsigned int port = minPort; port <= maxPort; ++port)
 	  remotes.push_back (RemoteServer (addr, port));
       } else
 	Fail ("Can't parse server address: %s", remoteStr.c_str());
