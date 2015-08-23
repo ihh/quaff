@@ -11,8 +11,6 @@
 #include "logsumexp.h"
 #include "negbinom.h"
 #include "memsize.h"
-#include "logger.h"
-#include "PracticalSocket.h"
 
 // internal #defines
 // Forward-backward tolerance
@@ -21,18 +19,9 @@ const double MAX_FRACTIONAL_FWDBACK_ERROR = .0001;
 // Threshold for dropping poorly-matching refseqs
 const double MAX_TRAINING_LOG_DELTA = 20;
 
-// Size of receive buffer for sockets
-const int RCVBUFSIZE = 1024;
-
-// socket string terminator
-#define SocketTerminatorString "# EOF"
-
 // useful helper methods
 double logBetaPdf (double prob, double yesCount, double noCount);
-string readStringFromSocket (TCPSocket* sock);
-map<string,string> readParamFile (istream& in);
-map<string,string> readParamFile (TCPSocket* sock);
-void readParamFileLine (map<string,string>& paramVal, const string& line);
+void readQuaffParamFileLine (map<string,string>& paramVal, const string& line);
 vguard<size_t> readSortOrder (const string& orderString);
 
 // main method bodies
@@ -41,45 +30,46 @@ double logBetaPdf (double prob, double yesCount, double noCount) {
 }
 
 const regex eofRegex (SocketTerminatorString);
-string readStringFromSocket (TCPSocket* sock) {
+string readQuaffStringFromSocket (TCPSocket* sock, int bufSize) {
   string msg;
-  char buf[RCVBUFSIZE];
+  char* buf = new char[bufSize];
   int recvMsgSize;
   smatch sm;
-  while ((recvMsgSize = sock->recv(buf, RCVBUFSIZE)) > 0) {
+  while ((recvMsgSize = sock->recv(buf, bufSize)) > 0) {
     msg.append (buf, (size_t) recvMsgSize);
     if (regex_search (msg, sm, eofRegex)) {
       msg = sm.prefix().str();
       break;
     }
   }
+  delete[] buf;
   return msg;
 }
 
 const regex paramValRegex ("(\\S+)\\s*:\\s*(.+)");
-void readParamFileLine (map<string,string>& val, const string& line) {
+void readQuaffParamFileLine (map<string,string>& val, const string& line) {
   smatch sm;
   if (regex_match (line, sm, paramValRegex))
     val[sm.str(1)] = sm.str(2);
 }
 
-map<string,string> readParamFile (istream& in) {
+map<string,string> readQuaffParamFile (istream& in) {
   map<string,string> val;
   while (!in.eof()) {
     string line;
     getline(in,line);
-    readParamFileLine (val, line);
+    readQuaffParamFileLine (val, line);
   }
   return val;
 }
 
 const regex lineRegex ("(.+)");
-map<string,string> readParamFile (TCPSocket* sock) {
-  string msg = readStringFromSocket (sock);
+map<string,string> readQuaffParamFile (TCPSocket* sock) {
+  string msg = readQuaffStringFromSocket (sock);
   map<string,string> val;
   smatch sm;
   while (regex_search (msg, sm, lineRegex)) {
-    readParamFileLine (val, sm.str(1).c_str());
+    readQuaffParamFileLine (val, sm.str(1).c_str());
     msg = sm.suffix().str();
   }
   return val;
@@ -263,7 +253,7 @@ void QuaffParams::writeToLog() const {
 #define QuaffParamReadK(X,KMER) do { const string tmpParamName = indelContext.booleanParamName(#X,KMER); Desire(val.find(tmpParamName) != val.end(),"Missing parameter: %s",tmpParamName.c_str()); X[KMER] = atof(val[tmpParamName].c_str()); } while(0)
 
 void QuaffParams::read (istream& in) {
-  map<string,string> val = readParamFile (in);
+  map<string,string> val = readQuaffParamFile (in);
   Require (read(val), "Couldn't read parameters");
 }
 
@@ -461,7 +451,7 @@ void QuaffParamCounts::writeToLog() const {
 }
 
 void QuaffParamCounts::read (istream& in) {
-  map<string,string> val = readParamFile (in);
+  map<string,string> val = readQuaffParamFile (in);
   Require (read (val), "Couldn't read counts");
 }
 
@@ -1402,7 +1392,7 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
 }
 
 void QuaffNullParams::read (istream& in) {
-  map<string,string> val = readParamFile (in);
+  map<string,string> val = readQuaffParamFile (in);
   Require (read (val), "Couldn't read null model");
 }
 
@@ -1590,7 +1580,7 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
     if (LogThisAt(1))
       logger << "Handling request from " << sock->getForeignAddress() << endl;
 
-    auto paramVal = readParamFile (sock);
+    auto paramVal = readQuaffParamFile (sock);
 
     const string& yName = paramVal["yName"];
     const string& xOrder = paramVal["xOrder"];
@@ -1749,9 +1739,9 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
     const string msg = out.str();
 
     TCPSocket sock(remote.addr, remote.port);
-    sock.send (msg.c_str(), msg.size());
+    sock.send (msg.c_str(), (int) msg.size());
 
-    map<string,string> paramVal = readParamFile (&sock);
+    map<string,string> paramVal = readQuaffParamFile (&sock);
 
     if (LogThisAt(3))
       logger << "Parsing results from " << remote.toString() << endl;
@@ -1980,7 +1970,7 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
     if (LogThisAt(1))
       logger << "Handling request from " << sock->getForeignAddress() << endl;
 
-    auto paramVal = readParamFile (sock);
+    auto paramVal = readQuaffParamFile (sock);
 
     const string& yName = paramVal["yName"];
 
@@ -2044,9 +2034,9 @@ string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
   const string msg = out.str();
 
   TCPSocket sock(remote.addr, remote.port);
-  sock.send (msg.c_str(), msg.size());
+  sock.send (msg.c_str(), (int) msg.size());
 
-  const string response = readStringFromSocket (&sock);
+  const string response = readQuaffStringFromSocket (&sock);
   return response;
 }
 
@@ -2114,7 +2104,6 @@ void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qas, const RemoteServ
     }
     QuaffAlignmentTask task = qas->nextAlignmentTask();
     qas->unlock();
-
     const string alignStr = task.delegate (*remote);
     qas->printAlignments (alignStr);
   }

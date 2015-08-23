@@ -270,6 +270,30 @@ int main (int argc, char** argv) {
       refs.loadSequences (config);
 
       trainer.serveCounts (refs.seqs, reads.seqs, config);
+    
+    } else if (command == "overlapserver") {
+      QuaffOverlapAligner aligner;
+      QuaffNullParamsIn nullModel (argvec);
+      reads.wantRevcomps = true;
+      usage.implicitSwitches.push_back (string ("-read"));
+      usage.unlimitImplicitSwitches = true;
+      while (logger.parseLogArgs (argvec)
+	     || aligner.parseAlignmentArgs (argvec)
+	     || config.parseGeneralConfigArgs (argvec)
+	     || config.parseServerConfigArgs (argvec)
+	     || params.parseParamFilename()
+	     || nullModel.parseNullModelFilename()
+	     || reads.parseSeqFilename()
+	     || reads.parseRevcompArgs()
+	     || reads.parseQualScoreArgs()
+	     || usage.parseUnknown())
+	{ }
+
+      reads.loadSequencesForAligner (config, aligner);
+      params.requireParamsOrUseDefaults (config);
+      nullModel.requireNullModelOrFit (config, reads);
+
+      aligner.serveAlignments (reads.seqs, reads.nOriginals, params, nullModel, config);
 
     } else if (command == "help" || command == "-help" || command == "--help" || command == "-h") {
       cout << usage.text;

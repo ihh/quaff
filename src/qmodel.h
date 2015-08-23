@@ -11,6 +11,7 @@
 #include "fastseq.h"
 #include "diagenv.h"
 #include "logger.h"
+#include "PracticalSocket.h"
 
 // EM convergence parameters
 #define QuaffMaxEMIterations 100
@@ -20,8 +21,19 @@
 #define DefaultMatchKmerContext 1
 #define DefaultIndelKmerContext 0
 
-// Server
+// Default server port
 #define DefaultServerPort 0x8aff
+
+// Default size of receive buffer for sockets
+#define RCVBUFSIZE 1024
+
+// Terminator string for socket messages
+#define SocketTerminatorString "# EOF"
+
+// useful helper methods
+string readQuaffStringFromSocket (TCPSocket* sock, int bufSize = RCVBUFSIZE);
+map<string,string> readQuaffParamFile (istream& in);
+map<string,string> readQuaffParamFile (TCPSocket* sock);
 
 // struct describing the probability of a given FASTA symbol,
 // and a negative binomial distribution over the associated quality score
