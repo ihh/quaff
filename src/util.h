@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <functional>
 #include <cassert>
+#include <mutex>
 
 /* uncomment to enable NaN checks */
 #define NAN_DEBUG
@@ -37,6 +38,16 @@ std::string plural (long n, const char* singular);
 
 /* pipe to string */
 std::string pipeToString (const char* command);
+
+/* temp file */
+struct TempFile {
+  static const std::string dir;  /* /tmp */
+  static unsigned int count;
+  std::string fullPath;
+  std::mutex mx;
+  TempFile (const std::string& contents, const char* filenamePrefix = "tempfile");
+  ~TempFile();
+};
 
 /* sgn function
    http://stackoverflow.com/questions/1903954/is-there-a-standard-sign-function-signum-sgn-in-c-c

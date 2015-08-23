@@ -1,3 +1,4 @@
+#include <fstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -5,6 +6,7 @@
 #include <ctype.h>
 #include <math.h>
 #include <unistd.h>
+#include <sys/types.h>
 #include "util.h"
 #include "stacktrace.h"
 #include "logger.h"
@@ -83,6 +85,24 @@ std::string plural (long n, const char* singular) {
   return s;
 }
 
+const string TempFile::dir = "/tmp";
+unsigned int TempFile::count = 0;
+TempFile::TempFile (const std::string& contents, const char* filenamePrefix) {
+  mx.lock();
+  do {
+    fullPath = dir + '/' + filenamePrefix + std::to_string(getpid()) + '.' + std::to_string(++count);
+  } while (access(fullPath.c_str(),F_OK ) != -1);
+  mx.unlock();
+  ofstream out (fullPath);
+  Assert (out.is_open() && !out.fail(), "Couldn't write to temp file %s", fullPath.c_str());
+  out << contents;
+}
+
+TempFile::~TempFile() {
+  if (fullPath.size())
+    unlink (fullPath.c_str());
+}
+
 string pipeToString (const char* command) {
   string result;
   FILE* pipe = popen (command, "r");
@@ -93,3 +113,4 @@ string pipeToString (const char* command) {
 
   return result;
 }
+
