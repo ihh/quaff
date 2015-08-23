@@ -748,7 +748,7 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-s3") {
+    } else if (arg == "-bucket") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       bucket = argvec[1];
       argvec.pop_front();
@@ -1939,15 +1939,75 @@ bool QuaffAligner::parseAlignmentArgs (deque<string>& argvec) {
 void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
   QuaffAlignmentScheduler qas (x, y, params, nullModel, config, printAllAlignments, out, *this, VFUNCFILE(2));
   list<thread> yThreads;
-  Require (config.threads > 0, "Please allocate at least one thread");
+  Require (config.threads > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffAlignmentTasks, &qas));
+    logger.assignThreadName (yThreads.back());
+  }
+  for (const auto& remote : config.remotes) {
+    yThreads.push_back (thread (&delegateQuaffAlignmentTasks, &qas, &remote));
     logger.assignThreadName (yThreads.back());
   }
   for (auto& t : yThreads)
     t.join();
   logger.clearThreadNames();
   config.saveToBucket (alignFilename);
+}
+
+void QuaffAligner::serveAlignments (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
+  list<thread> serverThreads;
+  Require (config.threads > 0, "Please allocate at least one thread");
+  for (unsigned int n = 0; n < config.threads; ++n) {
+    serverThreads.push_back (thread (&QuaffAligner::serveAlignmentsFromThread, this, &x, &y, &params, &nullModel, &config, config.serverPort + n));
+    logger.assignThreadName (serverThreads.back());
+  }
+  for (auto& t : serverThreads)
+    t.join();
+}
+
+void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vguard<FastSeq>* px, const vguard<FastSeq>* py, const QuaffParams* pparams, const QuaffNullParams* pnullModel, const QuaffDPConfig* pconfig, unsigned int port) {
+  map<string,const FastSeq*> yDict;
+  for (const auto& s : *py)
+    yDict[s.name] = &s;
+
+  TCPServerSocket servSock (port);
+  if (LogThisAt(1))
+    logger << "(listening on port " << port << ')' << endl;
+
+  while (true) {
+    TCPSocket *sock = NULL;
+    sock = servSock.accept();
+    if (LogThisAt(1))
+      logger << "Handling request from " << sock->getForeignAddress() << endl;
+
+    auto paramVal = readParamFile (sock);
+
+    const string& yName = paramVal["yName"];
+
+    if (yDict.find(yName) != yDict.end()) {
+
+      if (LogThisAt(2))
+	logger << "Aligning " << yName << endl;
+
+      QuaffAlignmentTask task (*px, *yDict[yName], *pparams, *pnullModel, *pconfig, paligner->printAllAlignments);
+      task.run();
+
+      ostringstream out;
+      for (const auto& a : task.alignList)
+	paligner->writeAlignment (out, a);
+      out << SocketTerminatorString << endl;
+
+      const string s = out.str();
+      sock->send (s.c_str(), (int) s.size());
+
+      if (LogThisAt(2))
+	logger << "Request completed" << endl;
+
+    } else if (LogThisAt(1))
+      logger << "Bad request, ignoring" << endl;
+	
+    delete sock;
+  }
 }
 
 QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments)
@@ -1974,6 +2034,22 @@ void QuaffAlignmentTask::run() {
   }
 }
 
+string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
+  if (LogThisAt(3))
+    logger << "Delegating " << yfs.name << " to " << remote.toString() << endl;
+  ostringstream out;
+  out << "yName: " << yfs.name << endl;
+  out << SocketTerminatorString << endl;
+  
+  const string msg = out.str();
+
+  TCPSocket sock(remote.addr, remote.port);
+  sock.send (msg.c_str(), msg.size());
+
+  const string response = readStringFromSocket (&sock);
+  return response;
+}
+
 QuaffAlignmentPrintingScheduler::QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file)
   : QuaffScheduler (x, y, params, nullModel, config, verbosity, function, file),
     out(out),
@@ -1985,6 +2061,14 @@ void QuaffAlignmentPrintingScheduler::printAlignments (const QuaffAlignmentPrint
   logger.lockSilently();  // to avoid interleaving clog & cout
   for (const auto& a : alignList)
     printer.writeAlignment (out, a);
+  logger.unlockSilently();
+  outMx.unlock();
+}
+
+void QuaffAlignmentPrintingScheduler::printAlignments (const string& alignStr) {
+  outMx.lock();
+  logger.lockSilently();  // to avoid interleaving clog & cout
+  out << alignStr;
   logger.unlockSilently();
   outMx.unlock();
 }
@@ -2018,5 +2102,20 @@ void runQuaffAlignmentTasks (QuaffAlignmentScheduler* qas) {
     qas->unlock();
     task.run();
     qas->printAlignments (task.alignList);
+  }
+}
+
+void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qas, const RemoteServer* remote) {
+  while (true) {
+    qas->lock();
+    if (qas->finished()) {
+      qas->unlock();
+      break;
+    }
+    QuaffAlignmentTask task = qas->nextAlignmentTask();
+    qas->unlock();
+
+    const string alignStr = task.delegate (*remote);
+    qas->printAlignments (alignStr);
   }
 }

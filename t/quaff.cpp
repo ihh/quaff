@@ -199,27 +199,6 @@ int main (int argc, char** argv) {
       QuaffParamCounts counts = trainer.getCounts (refs.seqs, reads.seqs, params, nullModel, config);
       if (!trainer.usingCountsOutputFile())
 	counts.write (cout);
-
-    } else if (command == "countserver") {
-      QuaffTrainer trainer;
-      usage.implicitSwitches.push_back (string ("-ref"));
-      usage.implicitSwitches.push_back (string ("-read"));
-      usage.unlimitImplicitSwitches = true;
-      config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
-      while (logger.parseLogArgs (argvec)
-	     || trainer.parseServerArgs (argvec)
-	     || config.parseRefSeqConfigArgs (argvec)
-	     || config.parseServerConfigArgs (argvec)
-	     || refs.parseSeqFilename()
-	     || refs.parseRevcompArgs()
-	     || reads.parseSeqFilename()
-	     || usage.parseUnknown())
-	{ }
-
-      reads.loadSequences (config);
-      refs.loadSequences (config);
-
-      trainer.serveCounts (refs.seqs, reads.seqs, config);
     
     } else if (command == "overlap") {
       QuaffOverlapAligner aligner;
@@ -243,6 +222,54 @@ int main (int argc, char** argv) {
       nullModel.requireNullModelOrFit (config, reads);
 
       aligner.align (cout, reads.seqs, reads.nOriginals, params, nullModel, config);
+
+    } else if (command == "alignserver") {
+      QuaffAligner aligner;
+      QuaffNullParamsIn nullModel (argvec);
+      usage.implicitSwitches.push_back (string ("-ref"));
+      usage.implicitSwitches.push_back (string ("-read"));
+      usage.unlimitImplicitSwitches = true;
+      config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
+      while (logger.parseLogArgs (argvec)
+	     || aligner.parseAlignmentArgs (argvec)
+	     || config.parseRefSeqConfigArgs (argvec)
+	     || config.parseServerConfigArgs (argvec)
+	     || params.parseParamFilename()
+	     || nullModel.parseNullModelFilename()
+	     || refs.parseSeqFilename()
+	     || refs.parseRevcompArgs()
+	     || reads.parseSeqFilename()
+	     || reads.parseQualScoreArgs()
+	     || usage.parseUnknown())
+	{ }
+
+      reads.loadSequencesForAligner (config, aligner);
+      refs.loadSequencesForAligner (config, aligner);
+      params.requireParamsOrUseDefaults (config);
+      nullModel.requireNullModelOrFit (config, reads);
+    
+      aligner.serveAlignments (refs.seqs, reads.seqs, params, nullModel, config);
+
+    } else if (command == "countserver") {
+      QuaffTrainer trainer;
+      usage.implicitSwitches.push_back (string ("-ref"));
+      usage.implicitSwitches.push_back (string ("-read"));
+      usage.unlimitImplicitSwitches = true;
+      config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
+      while (logger.parseLogArgs (argvec)
+	     || trainer.parseServerArgs (argvec)
+	     || config.parseRefSeqConfigArgs (argvec)
+	     || config.parseServerConfigArgs (argvec)
+	     || refs.parseSeqFilename()
+	     || refs.parseRevcompArgs()
+	     || reads.parseSeqFilename()
+	     || usage.parseUnknown())
+	{ }
+
+      reads.loadSequences (config);
+      refs.loadSequences (config);
+
+      trainer.serveCounts (refs.seqs, reads.seqs, config);
 
     } else if (command == "help" || command == "-help" || command == "--help" || command == "-h") {
       cout << usage.text;

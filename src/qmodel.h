@@ -427,6 +427,8 @@ struct QuaffAligner : QuaffAlignmentPrinter {
   QuaffAligner();
   bool parseAlignmentArgs (deque<string>& argvec);
   void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
+  void serveAlignments (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
+  static void serveAlignmentsFromThread (QuaffAligner* paligner, const vguard<FastSeq>* px, const vguard<FastSeq>* py, const QuaffParams* pparams, const QuaffNullParams* pnullModel, const QuaffDPConfig* pconfig, unsigned int port);
 };
 
 // structs for scheduling alignment tasks
@@ -436,6 +438,7 @@ struct QuaffAlignmentTask : QuaffTask {
   bool keepAllAlignments;
   QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments);
   void run();
+  string delegate (const RemoteServer& remote);
 };
 
 struct QuaffAlignmentPrintingScheduler : QuaffScheduler {
@@ -444,6 +447,7 @@ struct QuaffAlignmentPrintingScheduler : QuaffScheduler {
   mutex outMx;
   QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file);
   void printAlignments (const QuaffAlignmentPrinter::AlignmentList& alignList);
+  void printAlignments (const string& alignStr);
 };
 
 struct QuaffAlignmentScheduler : QuaffAlignmentPrintingScheduler {
@@ -455,5 +459,6 @@ struct QuaffAlignmentScheduler : QuaffAlignmentPrintingScheduler {
 
 // thread entry point
 void runQuaffAlignmentTasks (QuaffAlignmentScheduler* qas);
+void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qcs, const RemoteServer* remote);
 
 #endif /* QMODEL_INCLUDED */
