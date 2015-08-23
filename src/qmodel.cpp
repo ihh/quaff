@@ -45,10 +45,13 @@ string readStringFromSocket (TCPSocket* sock) {
   string msg;
   char buf[RCVBUFSIZE];
   int recvMsgSize;
+  smatch sm;
   while ((recvMsgSize = sock->recv(buf, RCVBUFSIZE)) > 0) {
     msg.append (buf, (size_t) recvMsgSize);
-    if (regex_search (msg, eofRegex))
+    if (regex_search (msg, sm, eofRegex)) {
+      msg = sm.prefix().str();
       break;
+    }
   }
   return msg;
 }
