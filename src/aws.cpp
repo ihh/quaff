@@ -168,6 +168,7 @@ void AWS::handleSignal (int sig) {
     signalHandler.erase (iter);  // prevent infinite loops
     (*handler) (sig);
   }
+  exit (EXIT_FAILURE);
 }
 
 void AWS::registerCleanup() {

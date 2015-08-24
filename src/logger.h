@@ -1,6 +1,7 @@
 #ifndef LOGGER_INCLUDED
 #define LOGGER_INCLUDED
 
+#include <list>
 #include <set>
 #include <map>
 #include <string>
@@ -32,7 +33,7 @@ private:
   recursive_timed_mutex mx;
   bool mxLocked;
   thread::id mxOwner;
-  map<thread::id,unsigned int> threadNum;
+  map<thread::id,string> threadName;
 
   inline bool testLogTag (const char* tag) {
     return logTags.find(tag) != logTags.end();
@@ -85,9 +86,9 @@ public:
   Logger& lockSilently();
   Logger& unlockSilently();
 
-  string threadName (thread::id id);
-  void assignThreadName (const thread& thr);
-  void clearThreadNames();
+  string getThreadName (thread::id id);
+  void nameLastThread (const list<thread>& threads, const char* prefix);
+  void eraseThreadName (const thread& thr);
   
   typedef ostream& (*ostream_manipulator)(ostream&);
   Logger& operator<< (ostream_manipulator om) {

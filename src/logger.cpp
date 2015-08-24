@@ -76,15 +76,15 @@ Logger& Logger::lockAndPrint (bool showHeader) {
   thread::id myId = this_thread::get_id();
   if (!(mxLocked && mxOwner == myId)) {
     if (mx.try_lock_for (std::chrono::milliseconds(1000))) {
-      if (showHeader && mxOwner != myId && threadNum.size() > 1)
+      if (showHeader && mxOwner != myId && threadName.size() > 1)
 	clog << (useAnsiColor ? threadAnsiColor.c_str() : "")
-	     << '(' << threadName(myId) << ')'
+	     << '(' << getThreadName(myId) << ')'
 	     << (useAnsiColor ? ansiColorOff.c_str() : "") << ' ';
       mxOwner = myId;
       mxLocked = true;
     } else if (showHeader)
       clog << (useAnsiColor ? threadAnsiColor.c_str() : "")
-	   << '(' << threadName(myId) << ", ignoring lock by " << threadName(mxOwner) << ')'
+	   << '(' << getThreadName(myId) << ", ignoring lock by " << getThreadName(mxOwner) << ')'
 	   << (useAnsiColor ? ansiColorOff.c_str() : "") << ' ';
   }
   if (showHeader && useAnsiColor && lastTestedVerbosity != lastColor) {
@@ -117,24 +117,22 @@ Logger& Logger::unlock() { return unlockAndPrint(); }
 Logger& Logger::lockSilently() { return lockAndPrint(false); }
 Logger& Logger::unlockSilently() { return unlockAndPrint(); }
 
-string Logger::threadName (thread::id id) {
-  string s;
-  const auto& iter = threadNum.find(id);
-  if (iter == threadNum.end()) {
+string Logger::getThreadName (thread::id id) {
+  const auto& iter = threadName.find(id);
+  if (iter == threadName.end()) {
     ostringstream o;
     o << "thread " << id;
-    s = o.str();
-  } else
-    s = string("thread #") + to_string (iter->second);
-  return s;
+    return o.str();
+  }
+  return iter->second;
 }
 
-void Logger::assignThreadName (const thread& thr) {
-  threadNum[thr.get_id()] = (unsigned int) (threadNum.size() + 1);
+void Logger::nameLastThread (const list<thread>& threads, const char* prefix) {
+  threadName[threads.back().get_id()] = string(prefix) + " thread #" + to_string(threads.size());
 }
 
-void Logger::clearThreadNames() {
-  threadNum.clear();
+void Logger::eraseThreadName (const thread& thr) {
+  threadName.erase (thr.get_id());
 }
 
 ProgressLogger::ProgressLogger (int verbosity, const char* function, const char* file)

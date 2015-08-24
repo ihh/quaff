@@ -886,8 +886,10 @@ void QuaffDPConfig::startRemoteServers() {
     for (const auto& addr : ec2InstanceAddresses)
       addRemote (ec2User, addr, ec2Port, ec2Cores);
   }
-  for (const auto& remoteJob : remoteJobs)
+  for (const auto& remoteJob : remoteJobs) {
     remoteServerThreads.push_back (thread (&startRemoteQuaffServer, this, &remoteJob));
+    logger.nameLastThread (remoteServerThreads, "ssh");
+  }
 }
 
 string QuaffDPConfig::ec2StartupScript() const {
@@ -902,8 +904,10 @@ void QuaffDPConfig::stopRemoteServers() {
     const string msg = string ("quit: 1\n") + SocketTerminatorString;
     sock.send (msg.c_str(), msg.size());
   }
-  for (auto& t : remoteServerThreads)
+  for (auto& t : remoteServerThreads) {
     t.join();
+    logger.eraseThreadName (t);
+  }
   aws.terminateInstances (ec2InstanceIds);
 }
 
@@ -1678,15 +1682,16 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
   Require (config.threads > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffCountingTasks, &qcs));
-    logger.assignThreadName (yThreads.back());
+    logger.nameLastThread (yThreads, "DP");
   }
   for (const auto& remote : config.remotes) {
     yThreads.push_back (thread (&delegateQuaffCountingTasks, &qcs, &remote));
-    logger.assignThreadName (yThreads.back());
+    logger.nameLastThread (yThreads, "DP");
   }
-  for (auto& t : yThreads)
+  for (auto& t : yThreads) {
     t.join();
-  logger.clearThreadNames();
+    logger.eraseThreadName (t);
+  }
   logLike = qcs.finalLogLike();
   const QuaffParamCounts counts = qcs.finalCounts();
   if (rawCountsFilename.size()) {
@@ -1711,10 +1716,12 @@ void QuaffTrainer::serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>&
   Require (config.threads > 0, "Please allocate at least one thread");
   for (unsigned int n = 0; n < config.threads; ++n) {
     serverThreads.push_back (thread (&serveCountsFromThread, &x, &y, allowNullModel, &config, config.serverPort + n));
-    logger.assignThreadName (serverThreads.back());
+    logger.nameLastThread (serverThreads, "server");
   }
-  for (auto& t : serverThreads)
+  for (auto& t : serverThreads) {
     t.join();
+    logger.eraseThreadName (t);
+  }
 }
 
 void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, const QuaffDPConfig* pconfig, unsigned int port) {
@@ -2135,15 +2142,16 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
   config.startRemoteServers();
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffAlignmentTasks, &qas));
-    logger.assignThreadName (yThreads.back());
+    logger.nameLastThread (yThreads, "align");
   }
   for (const auto& remote : config.remotes) {
     yThreads.push_back (thread (&delegateQuaffAlignmentTasks, &qas, &remote));
-    logger.assignThreadName (yThreads.back());
+    logger.nameLastThread (yThreads, "align");
   }
-  for (auto& t : yThreads)
+  for (auto& t : yThreads) {
     t.join();
-  logger.clearThreadNames();
+    logger.eraseThreadName (t);
+  }
   config.stopRemoteServers();
   config.saveToBucket (alignFilename);
 }
@@ -2153,10 +2161,12 @@ void QuaffAligner::serveAlignments (const vguard<FastSeq>& x, const vguard<FastS
   Require (config.threads > 0, "Please allocate at least one thread");
   for (unsigned int n = 0; n < config.threads; ++n) {
     serverThreads.push_back (thread (&serveAlignmentsFromThread, this, &x, &y, &params, &nullModel, &config, config.serverPort + n));
-    logger.assignThreadName (serverThreads.back());
+    logger.nameLastThread (serverThreads, "server");
   }
-  for (auto& t : serverThreads)
+  for (auto& t : serverThreads) {
     t.join();
+    logger.eraseThreadName (t);
+  }
 }
 
 void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vguard<FastSeq>* px, const vguard<FastSeq>* py, const QuaffParams* pparams, const QuaffNullParams* pnullModel, const QuaffDPConfig* pconfig, unsigned int port) {

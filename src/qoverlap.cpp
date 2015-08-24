@@ -320,15 +320,16 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
   config.startRemoteServers();
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffOverlapTasks, &qos));
-    logger.assignThreadName (yThreads.back());
+    logger.nameLastThread (yThreads, "align");
   }
   for (const auto& remote : config.remotes) {
     yThreads.push_back (thread (&delegateQuaffOverlapTasks, &qos, &remote));
-    logger.assignThreadName (yThreads.back());
+    logger.nameLastThread (yThreads, "align");
   }
-  for (auto& thr : yThreads)
-    thr.join();
-  logger.clearThreadNames();
+  for (auto& t : yThreads) {
+    t.join();
+    logger.eraseThreadName (t);
+  }
   config.stopRemoteServers();
   config.saveToBucket (alignFilename);
 }
@@ -338,10 +339,12 @@ void QuaffOverlapAligner::serveAlignments (const vguard<FastSeq>& seqs, size_t n
   Require (config.threads > 0, "Please allocate at least one thread");
   for (unsigned int n = 0; n < config.threads; ++n) {
     serverThreads.push_back (thread (&QuaffOverlapAligner::serveAlignmentsFromThread, this, &seqs, nOriginals, &params, &nullModel, &config, config.serverPort + n));
-    logger.assignThreadName (serverThreads.back());
+    logger.nameLastThread (serverThreads, "server");
   }
-  for (auto& t : serverThreads)
+  for (auto& t : serverThreads) {
     t.join();
+    logger.eraseThreadName (t);
+  }
   config.saveToBucket (alignFilename);
 }
 
