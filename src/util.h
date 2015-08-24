@@ -49,6 +49,8 @@ struct TempFile {
   ~TempFile();
 };
 
+std::string join (const std::vector<std::string>& s, const char* sep = " ");
+
 /* sgn function
    http://stackoverflow.com/questions/1903954/is-there-a-standard-sign-function-signum-sgn-in-c-c
  */

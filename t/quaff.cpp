@@ -16,7 +16,7 @@ struct QuaffUsage {
   deque<string> implicitSwitches;
   bool unlimitImplicitSwitches;
   QuaffUsage (deque<string>& argvec);
-  string getCommand();
+  string getCommand (const char* error = NULL);
   bool parseUnknown();
 };
 
@@ -223,78 +223,85 @@ int main (int argc, char** argv) {
 
       aligner.align (cout, reads.seqs, reads.nOriginals, params, nullModel, config);
 
-    } else if (command == "alignserver") {
-      QuaffAligner aligner;
-      QuaffNullParamsIn nullModel (argvec);
-      usage.implicitSwitches.push_back (string ("-ref"));
-      usage.implicitSwitches.push_back (string ("-read"));
-      usage.unlimitImplicitSwitches = true;
-      config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
-      while (logger.parseLogArgs (argvec)
-	     || aligner.parseAlignmentArgs (argvec)
-	     || config.parseRefSeqConfigArgs (argvec)
-	     || config.parseServerConfigArgs (argvec)
-	     || params.parseParamFilename()
-	     || nullModel.parseNullModelFilename()
-	     || refs.parseSeqFilename()
-	     || refs.parseRevcompArgs()
-	     || reads.parseSeqFilename()
-	     || reads.parseQualScoreArgs()
-	     || usage.parseUnknown())
-	{ }
+    } else if (command == "server") {
+      const string serverCommand = usage.getCommand ("server needs a command");
 
-      reads.loadSequencesForAligner (config, aligner);
-      refs.loadSequencesForAligner (config, aligner);
-      params.requireParamsOrUseDefaults (config);
-      nullModel.requireNullModelOrFit (config, reads);
+      if (serverCommand == "align") {
+	QuaffAligner aligner;
+	QuaffNullParamsIn nullModel (argvec);
+	usage.implicitSwitches.push_back (string ("-ref"));
+	usage.implicitSwitches.push_back (string ("-read"));
+	usage.unlimitImplicitSwitches = true;
+	config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
+	while (logger.parseLogArgs (argvec)
+	       || aligner.parseAlignmentArgs (argvec)
+	       || config.parseRefSeqConfigArgs (argvec)
+	       || config.parseServerConfigArgs (argvec)
+	       || params.parseParamFilename()
+	       || nullModel.parseNullModelFilename()
+	       || refs.parseSeqFilename()
+	       || refs.parseRevcompArgs()
+	       || reads.parseSeqFilename()
+	       || reads.parseQualScoreArgs()
+	       || usage.parseUnknown())
+	  { }
+
+	reads.loadSequencesForAligner (config, aligner);
+	refs.loadSequencesForAligner (config, aligner);
+	params.requireParamsOrUseDefaults (config);
+	nullModel.requireNullModelOrFit (config, reads);
     
-      aligner.serveAlignments (refs.seqs, reads.seqs, params, nullModel, config);
+	aligner.serveAlignments (refs.seqs, reads.seqs, params, nullModel, config);
 
-    } else if (command == "countserver") {
-      QuaffTrainer trainer;
-      usage.implicitSwitches.push_back (string ("-ref"));
-      usage.implicitSwitches.push_back (string ("-read"));
-      usage.unlimitImplicitSwitches = true;
-      config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
-      while (logger.parseLogArgs (argvec)
-	     || trainer.parseServerArgs (argvec)
-	     || config.parseRefSeqConfigArgs (argvec)
-	     || config.parseServerConfigArgs (argvec)
-	     || refs.parseSeqFilename()
-	     || refs.parseRevcompArgs()
-	     || reads.parseSeqFilename()
-	     || usage.parseUnknown())
-	{ }
+      } else if (serverCommand == "count") {
+	QuaffTrainer trainer;
+	usage.implicitSwitches.push_back (string ("-ref"));
+	usage.implicitSwitches.push_back (string ("-read"));
+	usage.unlimitImplicitSwitches = true;
+	config.kmerThreshold = DEFAULT_REFSEQ_KMER_THRESHOLD;
+	while (logger.parseLogArgs (argvec)
+	       || trainer.parseServerArgs (argvec)
+	       || config.parseRefSeqConfigArgs (argvec)
+	       || config.parseServerConfigArgs (argvec)
+	       || refs.parseSeqFilename()
+	       || refs.parseRevcompArgs()
+	       || reads.parseSeqFilename()
+	       || usage.parseUnknown())
+	  { }
 
-      reads.loadSequences (config);
-      refs.loadSequences (config);
+	reads.loadSequences (config);
+	refs.loadSequences (config);
 
-      trainer.serveCounts (refs.seqs, reads.seqs, config);
+	trainer.serveCounts (refs.seqs, reads.seqs, config);
     
-    } else if (command == "overlapserver") {
-      QuaffOverlapAligner aligner;
-      QuaffNullParamsIn nullModel (argvec);
-      reads.wantRevcomps = true;
-      usage.implicitSwitches.push_back (string ("-read"));
-      usage.unlimitImplicitSwitches = true;
-      while (logger.parseLogArgs (argvec)
-	     || aligner.parseAlignmentArgs (argvec)
-	     || config.parseGeneralConfigArgs (argvec)
-	     || config.parseServerConfigArgs (argvec)
-	     || params.parseParamFilename()
-	     || nullModel.parseNullModelFilename()
-	     || reads.parseSeqFilename()
-	     || reads.parseRevcompArgs()
-	     || reads.parseQualScoreArgs()
-	     || usage.parseUnknown())
-	{ }
+      } else if (serverCommand == "overlap") {
+	QuaffOverlapAligner aligner;
+	QuaffNullParamsIn nullModel (argvec);
+	reads.wantRevcomps = true;
+	usage.implicitSwitches.push_back (string ("-read"));
+	usage.unlimitImplicitSwitches = true;
+	while (logger.parseLogArgs (argvec)
+	       || aligner.parseAlignmentArgs (argvec)
+	       || config.parseGeneralConfigArgs (argvec)
+	       || config.parseServerConfigArgs (argvec)
+	       || params.parseParamFilename()
+	       || nullModel.parseNullModelFilename()
+	       || reads.parseSeqFilename()
+	       || reads.parseRevcompArgs()
+	       || reads.parseQualScoreArgs()
+	       || usage.parseUnknown())
+	  { }
 
-      reads.loadSequencesForAligner (config, aligner);
-      params.requireParamsOrUseDefaults (config);
-      nullModel.requireNullModelOrFit (config, reads);
+	reads.loadSequencesForAligner (config, aligner);
+	params.requireParamsOrUseDefaults (config);
+	nullModel.requireNullModelOrFit (config, reads);
 
-      aligner.serveAlignments (reads.seqs, reads.nOriginals, params, nullModel, config);
-
+	aligner.serveAlignments (reads.seqs, reads.nOriginals, params, nullModel, config);
+      } else {
+	cerr << "Unrecognized server command: " << serverCommand << endl;
+	return EXIT_FAILURE;
+      }
+      
     } else if (command == "help" || command == "-help" || command == "--help" || command == "-h") {
       cout << usage.text;
       return EXIT_SUCCESS;
@@ -551,6 +558,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     prog(argvec[0]),
     unlimitImplicitSwitches(false)
 {
+  argvec.pop_front();
   // leave "count" command undocumented... it's really for the paper
   //  briefText = "Usage: " + prog + " {help,train,count,align,overlap} [options]\n";
   briefText = "Usage: " + prog + " {help,train,align,overlap} [options]\n";
@@ -625,13 +633,15 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "\n";
 }
 
-string QuaffUsage::getCommand() {
-  if (argvec.size() < 2) {
-    cerr << briefText;
+string QuaffUsage::getCommand (const char* error) {
+  if (argvec.empty()) {
+    if (error)
+      cerr << error;
+    else
+      cerr << briefText;
     exit (EXIT_FAILURE);
   }
-  const string command (argvec[1]);
-  argvec.pop_front();
+  const string command (argvec[0]);
   argvec.pop_front();
   return command;
 }

@@ -103,6 +103,16 @@ TempFile::~TempFile() {
     unlink (fullPath.c_str());
 }
 
+string join (const vector<string>& s, const char* sep) {
+  string j;
+  if (s.size()) {
+    j = s.front();
+    for (size_t n = 1; n < s.size(); ++n)
+      j = j + sep + s[n];
+  }
+  return j;
+}
+
 string pipeToString (const char* command) {
   string result;
   FILE* pipe = popen (command, "r");

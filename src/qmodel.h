@@ -22,7 +22,7 @@
 #define DefaultIndelKmerContext 0
 
 // Default server port
-#define DefaultServerPort 0x8aff
+#define DefaultServerPort 8000
 
 // Default size of receive buffer for sockets
 #define RCVBUFSIZE 1024

@@ -767,12 +767,12 @@ size_t QuaffDPConfig::effectiveMaxSize() const {
 
 void QuaffDPConfig::loadFromBucket (const string& filename) const {
   if (bucket.size() && filename.size())
-    AWS::syncFromBucket (bucket, filename);
+    aws.syncFromBucket (bucket, filename);
 }
 
 void QuaffDPConfig::saveToBucket (const string& filename) const {
   if (bucket.size() && filename.size())
-    AWS::copyToBucket (filename, bucket);
+    aws.copyToBucket (filename, bucket);
 }
 
 double QuaffDPMatrixContainer::dummy = -numeric_limits<double>::infinity();
