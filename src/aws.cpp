@@ -76,9 +76,9 @@ vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const st
     runningInstanceIds.insert (id);
 
   if (LogThisAt(3))
-    logger << "Waiting for EC2 instances to start: " << join(ids) << endl;
+    logger << "Waiting for EC2 instance-status-ok: " << join(ids) << endl;
 
-  const string waitCmd = string("aws ec2 wait instance-running --instance-id ") + join(ids);
+  const string waitCmd = string("aws ec2 wait instance-status-ok --instance-id ") + join(ids);
   const int waitStatus = system(waitCmd.c_str());
   Assert (waitStatus == 0, "Failed: %s", waitCmd.c_str());
 
