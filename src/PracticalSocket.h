@@ -336,16 +336,4 @@ private:
   void setBroadcast();
 };
 
-/* Added by Ian Holmes, 8/22/2015
-   struct describing remote server
-*/
-struct RemoteServer {
-  string addr;
-  unsigned int port;
-  RemoteServer (string addr, unsigned int port)
-    : addr(addr), port(port)
-  { }
-  string toString() const { return addr + ':' + to_string(port); }
-};
-
 #endif

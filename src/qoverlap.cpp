@@ -313,10 +313,11 @@ bool QuaffOverlapAligner::parseAlignmentArgs (deque<string>& argvec) {
   return parseAlignmentPrinterArgs (argvec);
 }
 
-void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
+void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config) {
   QuaffOverlapScheduler qos (seqs, nOriginals, params, nullModel, config, out, *this, VFUNCFILE(2));
   list<thread> yThreads;
   Require (config.threads > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
+  config.startRemoteServers();
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffOverlapTasks, &qos));
     logger.assignThreadName (yThreads.back());
@@ -328,6 +329,7 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
   for (auto& thr : yThreads)
     thr.join();
   logger.clearThreadNames();
+  config.stopRemoteServers();
   config.saveToBucket (alignFilename);
 }
 
@@ -359,6 +361,11 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
       logger << "Handling request from " << sock->getForeignAddress() << endl;
 
     auto paramVal = readQuaffParamFile (sock);
+
+    if (paramVal.find("quit") != paramVal.end()) {
+      delete sock;
+      break;
+    }
 
     const string& xName = paramVal["xName"];
     const string& yName = paramVal["yName"];
@@ -433,11 +440,20 @@ string QuaffOverlapTask::delegate (const RemoteServer& remote) {
   out << SocketTerminatorString << endl;
   
   const string msg = out.str();
+  string response;
 
-  TCPSocket sock(remote.addr, remote.port);
-  sock.send (msg.c_str(), (int) msg.size());
+  while (true) {
+    try {
+      TCPSocket sock(remote.addr, remote.port);
+      sock.send (msg.c_str(), (int) msg.size());
 
-  const string response = readQuaffStringFromSocket (&sock);
+      response = readQuaffStringFromSocket (&sock);
+      break;
+
+    } catch (SocketException& e) {
+      cerr << e.what() << endl;
+    }
+  }
   return response;
 }
 

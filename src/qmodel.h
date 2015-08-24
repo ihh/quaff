@@ -12,6 +12,7 @@
 #include "diagenv.h"
 #include "logger.h"
 #include "PracticalSocket.h"
+#include "aws.h"
 
 // EM convergence parameters
 #define QuaffMaxEMIterations 100
@@ -196,15 +197,36 @@ struct Alignment {
   static bool scoreGreaterThan (const Alignment& a, const Alignment& b) { return a.score > b.score; }
 };
 
+// structs describing remote servers & jobs
+struct RemoteServer {
+  string addr;
+  unsigned int port;
+  RemoteServer (string addr, unsigned int port);
+  string toString() const;
+};
+
+struct RemoteServerJob {
+  string addr, user;
+  unsigned int port, threads;
+  RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads);
+  string toString() const;
+};
+
 // DP config
 struct QuaffDPConfig {
   bool local, sparse, autoMemSize;
   int kmerLen, kmerThreshold, bandSize;
   size_t maxSize;
   unsigned int threads;
-  list<RemoteServer> remotes;
-  string bucket;
   int serverPort;
+  list<RemoteServer> remotes;
+  list<RemoteServerJob> remoteJobs;
+  list<thread> remoteServerThreads;
+  string bucket, sshPath, sshKey, remoteQuaffPath;
+  string remoteServerArgs;
+  unsigned int ec2Instances, ec2Cores, ec2Port;
+  vguard<string> ec2InstanceIds, ec2InstanceAddresses;
+  string ec2Ami, ec2Type, ec2User;
   QuaffDPConfig()
     : local(true),
       sparse(true),
@@ -214,16 +236,32 @@ struct QuaffDPConfig {
       maxSize(0),
       bandSize(DEFAULT_BAND_SIZE),
       threads(1),
-      serverPort(DefaultServerPort)
+      serverPort(DefaultServerPort),
+      sshPath("ssh"),
+      remoteQuaffPath("quaff"),
+      ec2Instances(0),
+      ec2Ami(AWS_DEFAULT_AMI),
+      ec2Type(AWS_DEFAULT_INSTANCE_TYPE),
+      ec2Cores(AWS_DEFAULT_INSTANCE_CORES),
+      ec2User(AWS_DEFAULT_USER),
+      ec2Port(DefaultServerPort)
   { }
   bool parseRefSeqConfigArgs (deque<string>& argvec);
   bool parseGeneralConfigArgs (deque<string>& argvec);
   bool parseServerConfigArgs (deque<string>& argvec);
+  void setServerArgs (const char* serverType, const string& args);
   DiagonalEnvelope makeEnvelope (const FastSeq& x, const KmerIndex& yKmerIndex, size_t cellSize) const;
   size_t effectiveMaxSize() const;  // takes threading into account
   void loadFromBucket (const string& filename) const;
   void saveToBucket (const string& filename) const;
+  void addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads);
+  void startRemoteServers();
+  void stopRemoteServers();
+  string ec2StartupScript() const;
 };
+
+// thread entry point
+void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob* remoteJob);
 
 class QuaffDPMatrixContainer {
 public:
@@ -341,9 +379,10 @@ struct QuaffTrainer {
   bool parseTrainingArgs (deque<string>& argvec);
   bool parseCountingArgs (deque<string>& argvec);
   bool parseServerArgs (deque<string>& argvec);
-  QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config);
-  QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner);
-  QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
+  string serverArgs() const;
+  QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, QuaffDPConfig& config);
+  QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner);
+  QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   void serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffDPConfig& config);
   static void serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, const QuaffDPConfig* pconfig, unsigned int port);
   static vguard<vguard<size_t> > defaultSortOrder (const vguard<FastSeq>& x, const vguard<FastSeq>& y);
@@ -418,6 +457,7 @@ struct QuaffAlignmentPrinter {
   
   QuaffAlignmentPrinter();
   bool parseAlignmentPrinterArgs (deque<string>& argvec);
+  string serverArgs() const;
   void writeAlignmentHeader (ostream& out, const vguard<FastSeq>& refs, bool groupByQuery);
   void writeAlignment (ostream& out, const Alignment& align) const;
   bool usingOutputFile() const { return !alignFilename.empty(); }
@@ -428,7 +468,8 @@ struct QuaffAligner : QuaffAlignmentPrinter {
 
   QuaffAligner();
   bool parseAlignmentArgs (deque<string>& argvec);
-  void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
+  string serverArgs() const;
+  void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   void serveAlignments (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
   static void serveAlignmentsFromThread (QuaffAligner* paligner, const vguard<FastSeq>* px, const vguard<FastSeq>* py, const QuaffParams* pparams, const QuaffNullParams* pnullModel, const QuaffDPConfig* pconfig, unsigned int port);
 };

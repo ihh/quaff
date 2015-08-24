@@ -11,9 +11,11 @@
 using namespace std;
 
 // some defaults
+// note this AMI is for us-east-1 region
 #define AWS_DEFAULT_AMI "ami-1ecae776"
-#define AWS_DEFAULT_REGION "us-east-1"
 #define AWS_DEFAULT_INSTANCE_TYPE "m3.medium"
+#define AWS_DEFAULT_INSTANCE_CORES 1
+#define AWS_DEFAULT_USER "ec2-user"
 
 #define AWS_DEFAULT_KEY_PAIR "quaff"
 #define AWS_DEFAULT_SECURITY_GROUP "quaff"

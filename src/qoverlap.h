@@ -66,7 +66,7 @@ struct QuaffOverlapViterbiMatrix : QuaffDPMatrixContainer {
 struct QuaffOverlapAligner : QuaffAlignmentPrinter {
   QuaffOverlapAligner();
   bool parseAlignmentArgs (deque<string>& argvec);
-  void align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
+  void align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   void serveAlignments (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
   static void serveAlignmentsFromThread (QuaffOverlapAligner* paligner, const vguard<FastSeq>* pseqs, size_t nOriginals, const QuaffParams* pparams, const QuaffNullParams* pnullModel, const QuaffDPConfig* pconfig, unsigned int port);
 };

@@ -615,6 +615,22 @@ FastSeq Alignment::getUngapped (size_t row) const {
   return s;
 }
 
+RemoteServer::RemoteServer (string addr, unsigned int port)
+  : addr(addr), port(port)
+{ }
+
+string RemoteServer::toString() const {
+  return addr + ':' + to_string(port);
+}
+
+RemoteServerJob::RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads)
+  : user(user), addr(addr), port(port), threads(threads)
+{ }
+
+string RemoteServerJob::toString() const {
+  return (user.size() ? (user+'@') : string()) + addr + ':' + to_string(port) + '-' + to_string(port+threads-1);
+}
+
 bool QuaffDPConfig::parseServerConfigArgs (deque<string>& argvec) {
   if (argvec.size()) {
     const string& arg = argvec[0];
@@ -643,9 +659,10 @@ bool QuaffDPConfig::parseRefSeqConfigArgs (deque<string>& argvec) {
   return parseGeneralConfigArgs (argvec);
 }
 
-const regex defaultPortRemoteRegex ("^([A-Za-z0-9\\-\\.]+)$");
-const regex singlePortRemoteRegex ("^([A-Za-z0-9\\-\\.]+):(\\d+)$");
-const regex multiPortRemoteRegex ("^([A-Za-z0-9\\-\\.]+):(\\d+)-(\\d+)$");
+const regex remoteAddrRegex ("^[^@]*?@?([A-Za-z0-9\\-\\.]+)(:\\d+-\\d+|)$");
+const regex singleRemotePortRegex ("^:(\\d+)$");
+const regex multiRemotePortRegex ("^:(\\d+)-(\\d+)$");
+const regex remoteUserRegex ("^(.+?)@");
 bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
   if (argvec.size()) {
     const string& arg = argvec[0];
@@ -723,25 +740,91 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       const string& remoteStr = argvec[1];
       smatch sm;
-      if (regex_match (remoteStr, sm, defaultPortRemoteRegex))
-	remotes.push_back (RemoteServer (sm.str(1), DefaultServerPort));
-      else if (regex_match (remoteStr, sm, singlePortRemoteRegex))
-	remotes.push_back (RemoteServer (sm.str(1), atoi (sm.str(2).c_str())));
-      else if (regex_match (remoteStr, sm, multiPortRemoteRegex)) {
-	const string& addr = sm.str(1);
-	const unsigned int minPort = atoi (sm.str(2).c_str());
-	const unsigned int maxPort = atoi (sm.str(3).c_str());
-	for (unsigned int port = minPort; port <= maxPort; ++port)
-	  remotes.push_back (RemoteServer (addr, port));
-      } else
+      string user, addr;
+      unsigned int minPort, maxPort;
+      if (!regex_match (remoteStr, sm, remoteAddrRegex))
 	Fail ("Can't parse server address: %s", remoteStr.c_str());
+      addr = sm.str(2);
+      if (regex_match (remoteStr, sm, remoteUserRegex))
+	user = sm.str(1);
+      if (regex_match (remoteStr, sm, singleRemotePortRegex))
+	minPort = maxPort = atoi (sm.str(1).c_str());
+      else if (regex_match (remoteStr, sm, multiRemotePortRegex)) {
+	minPort = atoi (sm.str(1).c_str());
+	maxPort = atoi (sm.str(2).c_str());
+	Require (maxPort >= minPort, "Invalid port range (%u-%u)", minPort, maxPort);
+      }
+      addRemote (user, addr, minPort, maxPort + 1 - minPort);
       argvec.pop_front();
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-bucket") {
+    } else if (arg == "-sshpath") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      sshPath = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-sshkey") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      sshKey = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-remotepath") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      remoteQuaffPath = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-s3bucket") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       bucket = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-ec2ami") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      ec2Ami = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-ec2type") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      ec2Type = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-ec2cores") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      ec2Cores = atoi (argvec[1].c_str());
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-ec2user") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      ec2User = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-ec2port") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      ec2Port = atoi (argvec[1].c_str());
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-ec2instances") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      ec2Instances = atoi (argvec[1].c_str());
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -749,7 +832,22 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
     }
   }
 
-  return false;
+  return aws.parseAWSConfigArgs (argvec);
+}
+
+void QuaffDPConfig::setServerArgs (const char* serverType, const string& args) {
+  remoteServerArgs = string(serverType)
+    + args
+    + (sparse
+       ? (string(" -kmatchband ") + to_string(bandSize)
+	  + " -kmatch " + to_string(kmerLen)
+	  + (kmerThreshold >= 0
+	     ? (string(" -kmatchn ") + to_string(kmerThreshold))
+	     : (string(" -kmatchmb ") + to_string(maxSize >> 20))))
+       : string(" -kmatchoff"))
+    + (bucket.size() ? (string(" -s3bucket ") + bucket) : string());
+  if (LogThisAt(7))
+    logger << "Remote server arguments: " << remoteServerArgs << endl;
 }
 
 DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const KmerIndex& yKmerIndex, size_t cellSize) const {
@@ -773,6 +871,61 @@ void QuaffDPConfig::loadFromBucket (const string& filename) const {
 void QuaffDPConfig::saveToBucket (const string& filename) const {
   if (bucket.size() && filename.size())
     aws.copyToBucket (filename, bucket);
+}
+
+void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads) {
+  remoteJobs.push_back (RemoteServerJob (user, addr, port, threads));
+  for (unsigned int p = port; p < port + threads; ++p)
+    remotes.push_back (RemoteServer (addr, p));
+}
+
+void QuaffDPConfig::startRemoteServers() {
+  if (ec2Instances > 0) {
+    ec2InstanceIds = aws.launchInstancesWithScript (ec2Instances, ec2Type, ec2Ami, ec2StartupScript());
+    ec2InstanceAddresses = aws.getInstanceAddresses (ec2InstanceIds);
+    for (const auto& addr : ec2InstanceAddresses)
+      addRemote (ec2User, addr, ec2Port, ec2Cores);
+  }
+  for (const auto& remoteJob : remoteJobs)
+    remoteServerThreads.push_back (thread (&startRemoteQuaffServer, this, &remoteJob));
+}
+
+string QuaffDPConfig::ec2StartupScript() const {
+  return aws.bashHeader()
+    + "yum -y install clang gsl libz git\n"
+    + "cd /usr/local;git clone https://github.com/ihh/quaff.git;cd quaff;make install\n";
+}
+
+void QuaffDPConfig::stopRemoteServers() {
+  for (const auto& remote : remotes) {
+    TCPSocket sock (remote.addr, remote.port);
+    const string msg = string ("quit: 1\n") + SocketTerminatorString;
+    sock.send (msg.c_str(), msg.size());
+  }
+  for (auto& t : remoteServerThreads)
+    t.join();
+  aws.terminateInstances (ec2InstanceIds);
+}
+
+// buffer size for popen
+#define PIPE_BUF_SIZE 1024
+void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob* remoteJob) {
+  string sshCmd = config->sshPath + " -l " + remoteJob->user;
+  if (config->sshKey.size())
+    sshCmd += " -i " + config->sshKey;
+  sshCmd += ' ' + remoteJob->addr + ' ' + config->remoteQuaffPath + " server " + config->remoteServerArgs + " -port " + to_string(remoteJob->port) + " -threads " + to_string(remoteJob->threads);
+
+  if (LogThisAt(4))
+    logger << "Executing " << sshCmd << endl;
+
+  FILE* pipe = popen (sshCmd.c_str(), "r");
+  char line[PIPE_BUF_SIZE];
+
+  while (fgets(line, PIPE_BUF_SIZE, pipe))
+    logger << line << flush;
+
+  if (LogThisAt(4))
+    logger << "Server process terminated: " << remoteJob->toString() << endl;
 }
 
 double QuaffDPMatrixContainer::dummy = -numeric_limits<double>::infinity();
@@ -1509,13 +1662,17 @@ bool QuaffTrainer::parseServerArgs (deque<string>& argvec) {
   return false;
 }
 
+string QuaffTrainer::serverArgs() const {
+  return string (allowNullModel ? "" : " -force");
+}
+
 vguard<vguard<size_t> > QuaffTrainer::defaultSortOrder (const vguard<FastSeq>& x, const vguard<FastSeq>& y) {
   vguard<size_t> initialSortOrder (x.size());
   iota (initialSortOrder.begin(), initialSortOrder.end(), (size_t) 0);
   return vguard<vguard<size_t> > (y.size(), initialSortOrder);
 }
 
-QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner) {
+QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner) {
   QuaffCountingScheduler qcs (x, y, params, nullModel, allowNullModel, config, sortOrder, banner, VFUNCFILE(2));
   list<thread> yThreads;
   Require (config.threads > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
@@ -1539,11 +1696,13 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
   return counts;
 }
 
-QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
+QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config) {
   vguard<vguard<size_t> > sortOrder = defaultSortOrder (x, y);
   double logLike;
+  config.startRemoteServers();
   const QuaffParamCounts counts = getCounts (x, y, params, nullModel, config, sortOrder, logLike, "");
   config.saveToBucket (rawCountsFilename);
+  config.stopRemoteServers();
   return counts;
 }
 
@@ -1551,7 +1710,7 @@ void QuaffTrainer::serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>&
   list<thread> serverThreads;
   Require (config.threads > 0, "Please allocate at least one thread");
   for (unsigned int n = 0; n < config.threads; ++n) {
-    serverThreads.push_back (thread (&QuaffTrainer::serveCountsFromThread, &x, &y, allowNullModel, &config, config.serverPort + n));
+    serverThreads.push_back (thread (&serveCountsFromThread, &x, &y, allowNullModel, &config, config.serverPort + n));
     logger.assignThreadName (serverThreads.back());
   }
   for (auto& t : serverThreads)
@@ -1574,6 +1733,11 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
       logger << "Handling request from " << sock->getForeignAddress() << endl;
 
     auto paramVal = readQuaffParamFile (sock);
+
+    if (paramVal.find("quit") != paramVal.end()) {
+      delete sock;
+      break;
+    }
 
     const string& yName = paramVal["yName"];
     const string& xOrder = paramVal["xOrder"];
@@ -1621,7 +1785,7 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
   }
 }
 
-QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, const QuaffDPConfig& config) {
+QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, QuaffDPConfig& config) {
   const unsigned int matchKmerLen = seed.matchContext.kmerLen;
   const unsigned int indelKmerLen = seed.indelContext.kmerLen;
   Assert (pseudocounts.matchContext.kmerLen == matchKmerLen, "Prior must have same match kmer-length as parameters");
@@ -1630,6 +1794,7 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
   QuaffParamCounts counts(matchKmerLen,indelKmerLen), countsWithPrior(matchKmerLen,indelKmerLen);
   double prevLogLikeWithPrior = -numeric_limits<double>::infinity();
   vguard<vguard<size_t> > sortOrder = defaultSortOrder (x, y);
+  config.startRemoteServers();
   for (int iter = 0; iter < maxIterations; ++iter) {
     const string banner = string(" (E-step #") + to_string(iter+1) + ")";
     double logLike = 0;
@@ -1666,6 +1831,7 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
       qp.write (out);
     }
   }
+  config.stopRemoteServers();
   config.saveToBucket (saveParamsFilename);
   config.saveToBucket (rawCountsFilename);
   config.saveToBucket (countsWithPriorFilename);
@@ -1731,24 +1897,31 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
 
     const string msg = out.str();
 
-    TCPSocket sock(remote.addr, remote.port);
-    sock.send (msg.c_str(), (int) msg.size());
+    try {
+      TCPSocket sock(remote.addr, remote.port);
+      sock.send (msg.c_str(), (int) msg.size());
 
-    map<string,string> paramVal = readQuaffParamFile (&sock);
+      map<string,string> paramVal = readQuaffParamFile (&sock);
+
+      if (LogThisAt(3))
+	logger << "Parsing results from " << remote.toString() << endl;
+
+      const string& xOrder = paramVal["xOrder"];
+      const string& yLogLikeStr = paramVal["loglike"];
+      if (xOrder.size()
+	  && yLogLikeStr.size()
+	  && yCounts.read (paramVal)) {
+
+	sortOrder = readSortOrder (xOrder);
+	yLogLike = atof (yLogLikeStr.c_str());
+	break;
+      }
+
+    } catch (SocketException& e) {
+      cerr << e.what() << endl;
+    }
 
     if (LogThisAt(3))
-      logger << "Parsing results from " << remote.toString() << endl;
-
-    const string& xOrder = paramVal["xOrder"];
-    const string& yLogLikeStr = paramVal["loglike"];
-    if (xOrder.size()
-	&& yLogLikeStr.size()
-	&& yCounts.read (paramVal)) {
-      sortOrder = readSortOrder (xOrder);
-      yLogLike = atof (yLogLikeStr.c_str());
-      break;
-
-    } else if (LogThisAt(3))
       logger << "Retrying..." << endl;
   }
 }
@@ -1862,6 +2035,38 @@ bool QuaffAlignmentPrinter::parseAlignmentPrinterArgs (deque<string>& argvec) {
   return false;
 }
 
+string QuaffAlignmentPrinter::serverArgs() const {
+  string args = " -format ";
+  switch (format) {
+  case GappedFastaAlignment:
+    args += "fasta";
+    break;
+
+  case StockholmAlignment:
+    args += "stockholm";
+    break;
+
+  case SamAlignment:
+    args += "sam";
+    break;
+
+  case UngappedFastaRef:
+    args += "refseq";
+    break;
+
+  default:
+    Abort ("Unrecognized alignment format");
+    break;
+  }
+
+  if (logOddsThreshold > -numeric_limits<double>::infinity())
+    args += " -threshold " + to_string(logOddsThreshold);
+  else
+    args += " -nothreshold";
+
+  return args;
+}
+
 void QuaffAlignmentPrinter::writeAlignmentHeader (ostream& out, const vguard<FastSeq>& refs, bool groupByQuery) {
   if (usingOutputFile())
     alignFile.open (alignFilename);
@@ -1919,10 +2124,15 @@ bool QuaffAligner::parseAlignmentArgs (deque<string>& argvec) {
   return parseAlignmentPrinterArgs (argvec);
 }
 
-void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
+string QuaffAligner::serverArgs() const {
+  return QuaffAlignmentPrinter::serverArgs() + (printAllAlignments ? " -printall" : "");
+}
+
+void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config) {
   QuaffAlignmentScheduler qas (x, y, params, nullModel, config, printAllAlignments, out, *this, VFUNCFILE(2));
   list<thread> yThreads;
   Require (config.threads > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
+  config.startRemoteServers();
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffAlignmentTasks, &qas));
     logger.assignThreadName (yThreads.back());
@@ -1934,6 +2144,7 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
   for (auto& t : yThreads)
     t.join();
   logger.clearThreadNames();
+  config.stopRemoteServers();
   config.saveToBucket (alignFilename);
 }
 
@@ -1941,7 +2152,7 @@ void QuaffAligner::serveAlignments (const vguard<FastSeq>& x, const vguard<FastS
   list<thread> serverThreads;
   Require (config.threads > 0, "Please allocate at least one thread");
   for (unsigned int n = 0; n < config.threads; ++n) {
-    serverThreads.push_back (thread (&QuaffAligner::serveAlignmentsFromThread, this, &x, &y, &params, &nullModel, &config, config.serverPort + n));
+    serverThreads.push_back (thread (&serveAlignmentsFromThread, this, &x, &y, &params, &nullModel, &config, config.serverPort + n));
     logger.assignThreadName (serverThreads.back());
   }
   for (auto& t : serverThreads)
@@ -1964,6 +2175,11 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
       logger << "Handling request from " << sock->getForeignAddress() << endl;
 
     auto paramVal = readQuaffParamFile (sock);
+
+    if (paramVal.find("quit") != paramVal.end()) {
+      delete sock;
+      break;
+    }
 
     const string& yName = paramVal["yName"];
 
@@ -2025,11 +2241,21 @@ string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
   out << SocketTerminatorString << endl;
   
   const string msg = out.str();
+  string response;
 
-  TCPSocket sock(remote.addr, remote.port);
-  sock.send (msg.c_str(), (int) msg.size());
+  while (true) {
+    try {
+      TCPSocket sock(remote.addr, remote.port);
+      sock.send (msg.c_str(), (int) msg.size());
 
-  const string response = readQuaffStringFromSocket (&sock);
+      response = readQuaffStringFromSocket (&sock);
+      break;
+
+    } catch (SocketException& e) {
+      cerr << e.what() << endl;
+    }
+  }
+
   return response;
 }
 

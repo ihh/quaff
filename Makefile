@@ -8,7 +8,7 @@ LIBFLAGS = -lstdc++ -lz -lgsl
 
 CPPFILES = $(wildcard src/*.cpp)
 
-all: quaff test
+all: quaff
 
 clean:
 	rm -rf bin/*
@@ -41,6 +41,10 @@ testdiagenv: bin/testdiagenv
 	bin/testdiagenv data/c8f30.fastq.gz data/c8f30.fastq.gz 6 14 64
 
 quaff: bin/quaff
+
+install: bin/quaff
+	cp $< /usr/local/bin
+	chmod a+x /usr/local/bin/quaff
 
 # For updating README.md
 README.md: bin/quaff

@@ -194,19 +194,20 @@ AWS::~AWS() {
 bool AWS::parseAWSConfigArgs (deque<string>& argvec) {
   if (argvec.size()) {
     const string& arg = argvec[0];
-    if (arg == "-keyname" || arg == "--key-name") {
+    if (arg == "-ec2key") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       keyPair = argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-securitygroup" || arg == "--security-group") {
+    } else if (arg == "-ec2group") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       securityGroup = argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
+
     }
   }
 
