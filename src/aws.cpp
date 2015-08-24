@@ -142,11 +142,11 @@ string AWS::bashHeader() const {
   Assert (secretkey != NULL, "AWS_SECRET_ACCESS_KEY undefined");
 
   const char* region = getenv("AWS_DEFAULT_REGION");
-  Assert (region != NULL, "AWS_DEFAULT_REGION undefined");
 
   return bashBang + "export AWS_ACCESS_KEY_ID=" + keyid
     + "\nexport AWS_SECRET_ACCESS_KEY=" + secretkey
-    + "\nexport AWS_DEFAULT_REGION=" + region + "\n";
+    + (region == NULL ? string() : (string("\nexport AWS_DEFAULT_REGION=") + region))
+    + "\n";
 }
 
 void AWS::cleanup() {

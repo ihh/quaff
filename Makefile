@@ -10,9 +10,16 @@ CPPFILES = $(wildcard src/*.cpp)
 
 all: quaff
 
+quaff: bin/quaff
+
+install: bin/quaff
+	cp $< /usr/local/bin
+	chmod a+x /usr/local/bin/quaff
+
 clean:
 	rm -rf bin/*
 
+# testaws is not included in the top-level 'make test' target
 test: testfast testquaffio testlogsumexp testnegbinom testdiagenv
 
 bin/%: $(CPPFILES) t/%.cpp
@@ -40,11 +47,9 @@ testnegbinom: bin/testnegbinom
 testdiagenv: bin/testdiagenv
 	bin/testdiagenv data/c8f30.fastq.gz data/c8f30.fastq.gz 6 14 64
 
-quaff: bin/quaff
-
-install: bin/quaff
-	cp $< /usr/local/bin
-	chmod a+x /usr/local/bin/quaff
+# testaws should be run separately (it needs secret keys, could cost money, etc)
+testaws: bin/testaws
+	echo Run like this: 'bin/testaws keyPairName'
 
 # For updating README.md
 README.md: bin/quaff
