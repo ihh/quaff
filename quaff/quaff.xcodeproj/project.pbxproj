@@ -21,6 +21,9 @@
 		28586EE21B7C20B500F39A98 /* libgsl.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 28586EE11B7C20B500F39A98 /* libgsl.0.dylib */; };
 		28586EE61B7FDE7400F39A98 /* qoverlap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28586EE41B7FDE7400F39A98 /* qoverlap.cpp */; };
 		285AE33B1B89778100E1940C /* PracticalSocket.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 285AE3391B89778100E1940C /* PracticalSocket.cpp */; };
+		28DFA0BE1B8BDC420096461C /* aws.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28DFA0B81B8BDC420096461C /* aws.cpp */; };
+		28DFA0BF1B8BDC420096461C /* base64.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28DFA0BA1B8BDC420096461C /* base64.cpp */; };
+		28DFA0C01B8BDC420096461C /* gason.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 28DFA0BC1B8BDC420096461C /* gason.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -65,6 +68,12 @@
 		28586EE51B7FDE7400F39A98 /* qoverlap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = qoverlap.h; path = /Users/yam/quaff/src/qoverlap.h; sourceTree = "<absolute>"; };
 		285AE3391B89778100E1940C /* PracticalSocket.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = PracticalSocket.cpp; path = /Users/yam/quaff/src/PracticalSocket.cpp; sourceTree = "<absolute>"; };
 		285AE33A1B89778100E1940C /* PracticalSocket.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = PracticalSocket.h; path = /Users/yam/quaff/src/PracticalSocket.h; sourceTree = "<absolute>"; };
+		28DFA0B81B8BDC420096461C /* aws.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = aws.cpp; path = /Users/yam/quaff/src/aws.cpp; sourceTree = "<absolute>"; };
+		28DFA0B91B8BDC420096461C /* aws.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = aws.h; path = /Users/yam/quaff/src/aws.h; sourceTree = "<absolute>"; };
+		28DFA0BA1B8BDC420096461C /* base64.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = base64.cpp; path = /Users/yam/quaff/src/base64.cpp; sourceTree = "<absolute>"; };
+		28DFA0BB1B8BDC420096461C /* base64.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = base64.h; path = /Users/yam/quaff/src/base64.h; sourceTree = "<absolute>"; };
+		28DFA0BC1B8BDC420096461C /* gason.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = gason.cpp; path = /Users/yam/quaff/src/gason.cpp; sourceTree = "<absolute>"; };
+		28DFA0BD1B8BDC420096461C /* gason.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = gason.h; path = /Users/yam/quaff/src/gason.h; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -102,6 +111,12 @@
 			isa = PBXGroup;
 			children = (
 				283CC92F1B7D3189003ADD62 /* quaff.cpp */,
+				28DFA0B81B8BDC420096461C /* aws.cpp */,
+				28DFA0B91B8BDC420096461C /* aws.h */,
+				28DFA0BA1B8BDC420096461C /* base64.cpp */,
+				28DFA0BB1B8BDC420096461C /* base64.h */,
+				28DFA0BC1B8BDC420096461C /* gason.cpp */,
+				28DFA0BD1B8BDC420096461C /* gason.h */,
 				284271561B84525300FFE10B /* memsize.cpp */,
 				284271571B84525300FFE10B /* memsize.h */,
 				284271521B83CC4A00FFE10B /* defaultparams.cpp */,
@@ -188,12 +203,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				284271581B84525300FFE10B /* memsize.cpp in Sources */,
+				28DFA0C01B8BDC420096461C /* gason.cpp in Sources */,
 				28586ED91B7C1FF400F39A98 /* negbinom.cpp in Sources */,
 				283CC92E1B7D3005003ADD62 /* diagenv.cpp in Sources */,
 				28586ED61B7C1FF400F39A98 /* fastseq.cpp in Sources */,
 				28586ED81B7C1FF400F39A98 /* logsumexp.cpp in Sources */,
+				28DFA0BE1B8BDC420096461C /* aws.cpp in Sources */,
 				28586EDA1B7C1FF400F39A98 /* qmodel.cpp in Sources */,
 				28586EE61B7FDE7400F39A98 /* qoverlap.cpp in Sources */,
+				28DFA0BF1B8BDC420096461C /* base64.cpp in Sources */,
 				283CC9301B7D3189003ADD62 /* quaff.cpp in Sources */,
 				285AE33B1B89778100E1940C /* PracticalSocket.cpp in Sources */,
 				284271551B83CC4A00FFE10B /* defaultparams.cpp in Sources */,

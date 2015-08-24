@@ -45,7 +45,7 @@ void AWS::copyToBucket (const string& filename, const string& bucket) {
 
 vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const string& instanceType, const string& ami, const string& userDataScript) {
   vguard<string> ids;
-  const string base64UserDataScript = base64_encode (userDataScript.c_str(), userDataScript.size());
+  const string base64UserDataScript = base64_encode (userDataScript.c_str(), (unsigned int) userDataScript.size());
   const string runCmd = string("aws ec2 run-instances --enable-api-termination --key-name ") + keyPair + " --security-groups " + securityGroup + " --instance-type " + instanceType + " --count " + to_string(nInstances) + ':' + to_string(nInstances) + " --image-id " + ami + " --user-data " + base64UserDataScript;
 
   if (LogThisAt(9))

@@ -659,9 +659,9 @@ bool QuaffDPConfig::parseRefSeqConfigArgs (deque<string>& argvec) {
   return parseGeneralConfigArgs (argvec);
 }
 
-const regex remoteAddrRegex ("^[^@]*?@?([A-Za-z0-9\\-\\.]+)(:\\d+-\\d+|)$");
-const regex singleRemotePortRegex ("^:(\\d+)$");
-const regex multiRemotePortRegex ("^:(\\d+)-(\\d+)$");
+const regex remoteAddrRegex ("^(.+?@|)([A-Za-z0-9\\-\\.]+)(:\\d+|:\\d+-\\d+|)$");
+const regex singleRemotePortRegex (":(\\d+)$");
+const regex multiRemotePortRegex (":(\\d+)-(\\d+)$");
 const regex remoteUserRegex ("^(.+?)@");
 bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
   if (argvec.size()) {
@@ -745,15 +745,16 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       if (!regex_match (remoteStr, sm, remoteAddrRegex))
 	Fail ("Can't parse server address: %s", remoteStr.c_str());
       addr = sm.str(2);
-      if (regex_match (remoteStr, sm, remoteUserRegex))
+      if (regex_search (remoteStr, sm, remoteUserRegex))
 	user = sm.str(1);
-      if (regex_match (remoteStr, sm, singleRemotePortRegex))
+      if (regex_search (remoteStr, sm, singleRemotePortRegex))
 	minPort = maxPort = atoi (sm.str(1).c_str());
-      else if (regex_match (remoteStr, sm, multiRemotePortRegex)) {
+      else if (regex_search (remoteStr, sm, multiRemotePortRegex)) {
 	minPort = atoi (sm.str(1).c_str());
 	maxPort = atoi (sm.str(2).c_str());
 	Require (maxPort >= minPort, "Invalid port range (%u-%u)", minPort, maxPort);
-      }
+      } else
+	Fail ("Can't parse server port range: %s", remoteStr.c_str());
       addRemote (user, addr, minPort, maxPort + 1 - minPort);
       argvec.pop_front();
       argvec.pop_front();
@@ -902,7 +903,7 @@ void QuaffDPConfig::stopRemoteServers() {
   for (const auto& remote : remotes) {
     TCPSocket sock (remote.addr, remote.port);
     const string msg = string ("quit: 1\n") + SocketTerminatorString;
-    sock.send (msg.c_str(), msg.size());
+    sock.send (msg.c_str(), (int) msg.size());
   }
   for (auto& t : remoteServerThreads) {
     t.join();
@@ -914,10 +915,12 @@ void QuaffDPConfig::stopRemoteServers() {
 // buffer size for popen
 #define PIPE_BUF_SIZE 1024
 void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob* remoteJob) {
-  string sshCmd = config->sshPath + " -l " + remoteJob->user;
+  string sshCmd = config->sshPath;
+  if (remoteJob->user.size())
+    sshCmd += " -l " + remoteJob->user;
   if (config->sshKey.size())
     sshCmd += " -i " + config->sshKey;
-  sshCmd += ' ' + remoteJob->addr + ' ' + config->remoteQuaffPath + " server " + config->remoteServerArgs + " -port " + to_string(remoteJob->port) + " -threads " + to_string(remoteJob->threads);
+  sshCmd += ' ' + remoteJob->addr + ' ' + config->remoteQuaffPath + " server " + config->remoteServerArgs + " -port " + to_string(remoteJob->port) + " -threads " + to_string(remoteJob->threads) + " 2>&1";
 
   if (LogThisAt(4))
     logger << "Executing " << sshCmd << endl;
@@ -926,7 +929,8 @@ void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob*
   char line[PIPE_BUF_SIZE];
 
   while (fgets(line, PIPE_BUF_SIZE, pipe))
-    logger << line << flush;
+    if (LogThisAt(4))
+      logger << line << flush;
 
   if (LogThisAt(4))
     logger << "Server process terminated: " << remoteJob->toString() << endl;
@@ -2264,6 +2268,9 @@ string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
     } catch (SocketException& e) {
       cerr << e.what() << endl;
     }
+
+    if (LogThisAt(3))
+      logger << "Retrying..." << endl;
   }
 
   return response;

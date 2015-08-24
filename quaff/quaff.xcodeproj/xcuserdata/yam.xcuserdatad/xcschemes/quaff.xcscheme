@@ -114,6 +114,10 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "countserver nanopair-data/U00096.2.fas c8f30.fastq.gz -v3 -port 8000"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "align nanopair-data/U00096.2.fas data/c8f30.fastq.gz copy.fastq -v9 -threads 2 -remote 127.0.0.1:8000"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
