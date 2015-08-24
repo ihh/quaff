@@ -767,7 +767,7 @@ size_t QuaffDPConfig::effectiveMaxSize() const {
 
 void QuaffDPConfig::loadFromBucket (const string& filename) const {
   if (bucket.size() && filename.size())
-    aws.syncFromBucket (bucket, filename);
+    aws.copyFromBucket (bucket, filename);
 }
 
 void QuaffDPConfig::saveToBucket (const string& filename) const {

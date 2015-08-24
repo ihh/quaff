@@ -3,6 +3,7 @@
 #include "gason.h"
 #include "util.h"
 #include "logger.h"
+#include "base64.h"
 
 JsonValue* jsonFind (JsonValue& parent, const char* key);
 JsonValue& jsonFindOrDie (JsonValue& parent, const char* key);
@@ -28,15 +29,15 @@ bool AWS::cleanupCalled = false;
 
 AWS aws;
 
-void AWS::syncFromBucket (const string& bucket, const string& filename) {
-  const string cmd = string("aws sync s3://") + bucket + "/ . --include " + filename;
+void AWS::copyFromBucket (const string& bucket, const string& filename) {
+  const string cmd = string("aws s3 cp s3://") + bucket + '/' + filename + ' ' + filename;
   const int status = system (cmd.c_str());
   if (status != 0)
-    Warn ("Return code %d attempting to sync file %s from S3 bucket %s", status, filename.c_str(), bucket.c_str());
+    Warn ("Return code %d attempting to copy file %s from S3 bucket %s", status, filename.c_str(), bucket.c_str());
 }
 
 void AWS::copyToBucket (const string& filename, const string& bucket) {
-  const string cmd = string("aws cp ") + filename + " s3://" + bucket + '/';
+  const string cmd = string("aws s3 cp ") + filename + " s3://" + bucket + '/' + filename;
   const int status = system (cmd.c_str());
   if (status != 0)
     Warn ("Return code %d attempting to copy file %s to S3 bucket %s", status, filename.c_str(), bucket.c_str());
@@ -44,8 +45,8 @@ void AWS::copyToBucket (const string& filename, const string& bucket) {
 
 vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const string& instanceType, const string& ami, const string& userDataScript) {
   vguard<string> ids;
-  TempFile tempfile (userDataScript, "userdata");
-  const string runCmd = string("aws ec2 run-instances --enable-api-termination --key-name " + keyPair + " --security-groups " + securityGroup + " --instance-type " + instanceType + " --count " + to_string(nInstances) + ':' + to_string(nInstances) + " --image-id " + ami + " --user-data " + tempfile.fullPath);
+  const string base64UserDataScript = base64_encode (userDataScript.c_str(), userDataScript.size());
+  const string runCmd = string("aws ec2 run-instances --enable-api-termination --key-name ") + keyPair + " --security-groups " + securityGroup + " --instance-type " + instanceType + " --count " + to_string(nInstances) + ':' + to_string(nInstances) + " --image-id " + ami + " --user-data " + base64UserDataScript;
 
   if (LogThisAt(9))
     logger << "Executing: " << runCmd << endl;
@@ -178,7 +179,9 @@ void AWS::registerCleanup() {
 }
 
 AWS::AWS()
-  : bashBang ("#!/bin/bash\n")
+  : bashBang ("#!/bin/bash\n"),
+    keyPair (AWS_DEFAULT_KEY_PAIR),
+    securityGroup (AWS_DEFAULT_SECURITY_GROUP)
 {
   Assert (objectCount++ == 0, "aws object must be a singleton!");
   registerCleanup();

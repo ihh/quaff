@@ -11,7 +11,6 @@ int main (int argc, char **argv) {
   }
 
   aws.keyPair = argv[1];
-  aws.securityGroup = "quaff";
 
   const string script = aws.bashHeader()
     + "mkfifo /tmp/fifo\n"
@@ -28,7 +27,7 @@ int main (int argc, char **argv) {
   const vguard<string> addrs = aws.getInstanceAddresses (ids);
   
   cerr << "Instance running at " << addrs[0] << endl;
-  cerr << "Try: nc " << addrs[0] << " 8000" << endl;
+  cerr << "The following should connect to an echo server: nc " << addrs[0] << " 8000" << endl;
   cerr << "Sleeping for 120 seconds (try killing this process to check termination handling)" << endl;
 
   usleep(120000000);

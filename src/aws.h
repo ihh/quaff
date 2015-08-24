@@ -15,6 +15,9 @@ using namespace std;
 #define AWS_DEFAULT_REGION "us-east-1"
 #define AWS_DEFAULT_INSTANCE_TYPE "m3.medium"
 
+#define AWS_DEFAULT_KEY_PAIR "quaff"
+#define AWS_DEFAULT_SECURITY_GROUP "quaff"
+
 class AWS {
 private:
   // list of instances to terminate on abort, exit, etc
@@ -37,7 +40,7 @@ public:
   // config
   bool parseAWSConfigArgs (deque<string>& argvec);
   // S3
-  void syncFromBucket (const string& bucket, const string& filename);
+  void copyFromBucket (const string& bucket, const string& filename);
   void copyToBucket (const string& filename, const string& bucket);
   // EC2
   vguard<string> launchInstancesWithScript (unsigned int nInstances, const string& instanceType, const string& ami, const string& userDataScript);
