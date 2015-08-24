@@ -636,7 +636,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
 string QuaffUsage::getCommand (const char* error) {
   if (argvec.empty()) {
     if (error)
-      cerr << error;
+      cerr << error << endl;
     else
       cerr << briefText;
     exit (EXIT_FAILURE);
