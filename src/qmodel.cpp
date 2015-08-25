@@ -49,7 +49,7 @@ string readQuaffStringFromSocket (TCPSocket* sock, int bufSize) {
   return msg;
 }
 
-const regex paramValRegex ("(\\S+)\\s*:\\s*(.+)");
+const regex paramValRegex ("([^ ]+) *: *(.+)");
 void readQuaffParamFileLine (map<string,string>& val, const string& line) {
   smatch sm;
   if (regex_match (line, sm, paramValRegex))
@@ -78,7 +78,7 @@ map<string,string> readQuaffParamFile (TCPSocket* sock) {
   return val;
 }
 
-const regex orderRegex ("(\\d+)");
+const regex orderRegex ("([0-9]+)");
 vguard<size_t> readSortOrder (const string& orderString) {
   string s = orderString;
   smatch sm;
@@ -161,7 +161,7 @@ void SymQualCounts::write (ostream& out, const string& prefix) const {
   }
 }
 
-const regex countRegex ("(\\d+)\\s*:\\s*([\\d\\+\\-eE\\.]+)");
+const regex countRegex ("([0-9]+) *: *([^ ,}]+)");
 bool SymQualCounts::read (map<string,string>& paramVal, const string& param) {
   Desire (paramVal.find(param) != paramVal.end(), "Couldn't read %s", param.c_str());
   string c = paramVal[param];
@@ -680,9 +680,9 @@ bool QuaffDPConfig::parseRefSeqConfigArgs (deque<string>& argvec) {
   return parseGeneralConfigArgs (argvec);
 }
 
-const regex remoteAddrRegex ("^(.+?@|)([A-Za-z0-9\\-\\.]+)(:\\d+|:\\d+-\\d+|)$");
-const regex singleRemotePortRegex (":(\\d+)$");
-const regex multiRemotePortRegex (":(\\d+)-(\\d+)$");
+const regex remoteAddrRegex ("^(.+?@|)([^:]+)(:[0-9]+|:[0-9]+-[0-9]+|)$");
+const regex singleRemotePortRegex (":([0-9]+)$");
+const regex multiRemotePortRegex (":([0-9]+)-([0-9]+)$");
 const regex remoteUserRegex ("^(.+?)@");
 bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
   if (argvec.size()) {
