@@ -46,7 +46,7 @@ struct SeqList {
 
 struct QuaffParamsIn : QuaffParams {
   deque<string>& argvec;
-  string loadFilename, serverArgs;
+  string loadFilename;
   
   QuaffParamsIn (deque<string>& argvec)
     : QuaffParams(),
@@ -62,7 +62,7 @@ struct QuaffParamsIn : QuaffParams {
 
 struct QuaffNullParamsIn : QuaffNullParams {
   deque<string>& argvec;
-  string loadFilename, saveFilename, serverArgs;
+  string loadFilename, saveFilename;
   
   QuaffNullParamsIn (deque<string>& argvec)
     : QuaffNullParams(),
@@ -78,7 +78,7 @@ struct QuaffNullParamsIn : QuaffNullParams {
 struct QuaffPriorIn : QuaffParamCounts {
   deque<string>& argvec;
   bool kmerLenSpecified;
-  string loadFilename, saveFilename, serverArgs;
+  string loadFilename, saveFilename;
 
   QuaffPriorIn (deque<string>& argvec)
     : QuaffParamCounts(1,0),  // fix initial (matchKmerLen,indelKmerLen) at (1,0)
@@ -137,7 +137,7 @@ int main (int argc, char** argv) {
       params.requireParamsOrUseDefaults (config);
       nullModel.requireNullModelOrFit (config, reads);
 
-      config.setServerArgs ("align", aligner.serverArgs() + params.serverArgs + nullModel.serverArgs + refs.serverArgs + reads.serverArgs);
+      config.setServerArgs ("align", aligner.serverArgs() + refs.serverArgs + reads.serverArgs);
     
       aligner.align (cout, refs.seqs, reads.seqs, params, nullModel, config);
 
@@ -225,7 +225,7 @@ int main (int argc, char** argv) {
       params.requireParamsOrUseDefaults (config);
       nullModel.requireNullModelOrFit (config, reads);
 
-      config.setServerArgs ("overlap", aligner.serverArgs() + params.serverArgs + nullModel.serverArgs + reads.serverArgs);
+      config.setServerArgs ("overlap", aligner.serverArgs() + reads.serverArgs);
 
       aligner.align (cout, reads.seqs, reads.nOriginals, params, nullModel, config);
 
@@ -330,7 +330,6 @@ bool QuaffParamsIn::parseParamFilename() {
     if (arg == "-params") {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
       loadFilename = argvec[1];
-      serverArgs += ' ' + arg + ' ' + argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -372,7 +371,6 @@ bool QuaffNullParamsIn::parseNullModelFilename() {
     if (arg == "-null") {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
       loadFilename = argvec[1];
-      serverArgs += ' ' + arg + ' ' + argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -416,7 +414,6 @@ bool QuaffPriorIn::parsePriorArgs() {
     if (arg == "-prior") {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
       loadFilename = argvec[1];
-      serverArgs += ' ' + arg + ' ' + argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -426,7 +423,6 @@ bool QuaffPriorIn::parsePriorArgs() {
       matchContext.initKmerContext (atoi (argvec[1].c_str()));
       resize();
       kmerLenSpecified = true;
-      serverArgs += ' ' + arg + ' ' + argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -436,7 +432,6 @@ bool QuaffPriorIn::parsePriorArgs() {
       indelContext.initKmerContext (atoi (argvec[1].c_str()));
       resize();
       kmerLenSpecified = true;
-      serverArgs += ' ' + arg + ' ' + argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
