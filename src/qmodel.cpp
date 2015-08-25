@@ -14,6 +14,7 @@
 #include "negbinom.h"
 #include "memsize.h"
 #include "aws.h"
+#include "regexmacros.h"
 
 // internal #defines
 // Forward-backward tolerance
@@ -21,6 +22,16 @@ const double MAX_FRACTIONAL_FWDBACK_ERROR = .0001;
 
 // Threshold for dropping poorly-matching refseqs
 const double MAX_TRAINING_LOG_DELTA = 20;
+
+const regex eofRegex (SocketTerminatorString, regex::basic);
+const regex paramValRegex (RE_VARNAME_GROUP " *: *" RE_DOT_GROUP, regex::basic);
+const regex lineRegex (RE_DOT_GROUP, regex::basic);
+const regex orderRegex (RE_NUMERIC_GROUP, regex::basic);
+const regex countRegex (RE_NUMERIC_GROUP " *: *" RE_FLOAT_GROUP, regex::basic);
+const regex remoteUserAddrRegex (RE_DOT_GROUP "@" RE_DNS_GROUP ".*", regex::basic);
+const regex remoteAddrRegex (RE_DNS_GROUP ".*", regex::basic);
+const regex singleRemotePortRegex (".*:" RE_NUMERIC_GROUP, regex::basic);
+const regex multiRemotePortRegex (".*:" RE_NUMERIC_GROUP "-" RE_NUMERIC_GROUP, regex::basic);
 
 // useful helper methods
 double logBetaPdf (double prob, double yesCount, double noCount);
@@ -32,7 +43,6 @@ double logBetaPdf (double prob, double yesCount, double noCount) {
   return log (gsl_ran_beta_pdf (prob, yesCount + 1, noCount + 1));
 }
 
-const regex eofRegex (SocketTerminatorString);
 string readQuaffStringFromSocket (TCPSocket* sock, int bufSize) {
   string msg;
   char* buf = new char[bufSize];
@@ -49,10 +59,9 @@ string readQuaffStringFromSocket (TCPSocket* sock, int bufSize) {
   return msg;
 }
 
-const regex paramValRegex ("([^ ]+) *: *(.+)");
 void readQuaffParamFileLine (map<string,string>& val, const string& line) {
   smatch sm;
-  if (regex_match (line, sm, paramValRegex))
+  if (regex_search (line, sm, paramValRegex))
     val[sm.str(1)] = sm.str(2);
 }
 
@@ -66,7 +75,6 @@ map<string,string> readQuaffParamFile (istream& in) {
   return val;
 }
 
-const regex lineRegex ("(.+)");
 map<string,string> readQuaffParamFile (TCPSocket* sock) {
   string msg = readQuaffStringFromSocket (sock);
   map<string,string> val;
@@ -78,7 +86,6 @@ map<string,string> readQuaffParamFile (TCPSocket* sock) {
   return val;
 }
 
-const regex orderRegex ("([0-9]+)");
 vguard<size_t> readSortOrder (const string& orderString) {
   string s = orderString;
   smatch sm;
@@ -161,7 +168,6 @@ void SymQualCounts::write (ostream& out, const string& prefix) const {
   }
 }
 
-const regex countRegex ("([0-9]+) *: *([^ ,}]+)");
 bool SymQualCounts::read (map<string,string>& paramVal, const string& param) {
   Desire (paramVal.find(param) != paramVal.end(), "Couldn't read %s", param.c_str());
   string c = paramVal[param];
@@ -680,10 +686,6 @@ bool QuaffDPConfig::parseRefSeqConfigArgs (deque<string>& argvec) {
   return parseGeneralConfigArgs (argvec);
 }
 
-const regex remoteAddrRegex ("^(.+?@|)([^:]+)(:[0-9]+|:[0-9]+-[0-9]+|)$");
-const regex singleRemotePortRegex (":([0-9]+)$");
-const regex multiRemotePortRegex (":([0-9]+)-([0-9]+)$");
-const regex remoteUserRegex ("^(.+?)@");
 bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
   if (argvec.size()) {
     const string& arg = argvec[0];
@@ -763,14 +765,16 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       smatch sm;
       string user, addr;
       unsigned int minPort, maxPort;
-      if (!regex_match (remoteStr, sm, remoteAddrRegex))
-	Fail ("Can't parse server address: %s", remoteStr.c_str());
-      addr = sm.str(2);
-      if (regex_search (remoteStr, sm, remoteUserRegex))
+      if (regex_match (remoteStr, sm, remoteUserAddrRegex)) {
 	user = sm.str(1);
-      if (regex_search (remoteStr, sm, singleRemotePortRegex))
+	addr = sm.str(2);
+      } else if (regex_match (remoteStr, sm, remoteAddrRegex))
+	addr = sm.str(1);
+      else
+	Fail ("Can't parse server address: %s", remoteStr.c_str());
+      if (regex_match (remoteStr, sm, singleRemotePortRegex))
 	minPort = maxPort = atoi (sm.str(1).c_str());
-      else if (regex_search (remoteStr, sm, multiRemotePortRegex)) {
+      else if (regex_match (remoteStr, sm, multiRemotePortRegex)) {
 	minPort = atoi (sm.str(1).c_str());
 	maxPort = atoi (sm.str(2).c_str());
 	Require (maxPort >= minPort, "Invalid port range (%u-%u)", minPort, maxPort);
@@ -966,7 +970,7 @@ void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob*
   if (LogThisAt(4) || LogThisIf(status != EXIT_SUCCESS))
     logger << "Server process terminated: " << remoteJob->toString() << endl;
 
-  Assert (status == EXIT_SUCCESS, "Server command failed: %s\nExit code: %d\nRecent output:\n%s", sshCmd.c_str(), status, join(lastLines).c_str());
+  Assert (status == EXIT_SUCCESS, "Server command failed: %s\nExit code: %d\nLast output:\n%s", sshCmd.c_str(), status, join(lastLines).c_str());
 }
 
 double QuaffDPMatrixContainer::dummy = -numeric_limits<double>::infinity();

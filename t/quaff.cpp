@@ -1,6 +1,5 @@
 #include <iostream>
 #include <fstream>
-#include <regex>
 #include <deque>
 #include "../src/qmodel.h"
 #include "../src/qoverlap.h"
@@ -23,18 +22,16 @@ struct QuaffUsage {
 struct SeqList {
   vguard<string> filenames;
   string type, tag;
-  regex tagRegex;
   deque<string>& argvec;
   bool wantQualScores, wantRevcomps;
   vguard<FastSeq> seqs;
   size_t nOriginals;  // number of seqs that are NOT revcomps
   string serverArgs;
   
-  SeqList (deque<string>& argvec, const char* type, const char* tag, const char* tagRegex)
+  SeqList (deque<string>& argvec, const char* type, const char* tag)
     : argvec(argvec),
       type(type),
       tag(tag),
-      tagRegex(tagRegex),
       wantQualScores(false),
       wantRevcomps(false),
       nOriginals(0)
@@ -108,10 +105,10 @@ int main (int argc, char** argv) {
 
     QuaffParamsIn params (argvec);
 
-    SeqList refs (argvec, "reference", "-ref", "^-(ref|refs|fasta)$");
+    SeqList refs (argvec, "reference", "-ref");
     refs.wantRevcomps = true;
 
-    SeqList reads (argvec, "read", "-read", "^-(read|reads|fastq)$");
+    SeqList reads (argvec, "read", "-read");
     reads.wantQualScores = true;
 
     QuaffDPConfig config;
@@ -496,7 +493,7 @@ void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffDPConfig& config, cons
 bool SeqList::parseSeqFilename() {
   if (argvec.size()) {
     const string& arg = argvec[0];
-    if (regex_match (arg, tagRegex)) {
+    if (arg == tag) {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
       filenames.push_back (argvec[1]);
       serverArgs += ' ' + arg + ' ' + argvec[1];

@@ -4,9 +4,15 @@
 #include <stdarg.h>
 #include <math.h>
 #include "logger.h"
+#include "regexmacros.h"
 
 Logger logger;
 
+// POSIX basic regular expressions
+const regex all_v ("-" RE_GROUP(RE_PLUS("v")), regex::basic);
+const regex numeric_v ("-v" RE_NUMERIC_GROUP, regex::basic);
+
+// functions
 string ansiEscape (int code) {
   return string("\x1b[") + to_string(code) + "m";
 }
@@ -39,8 +45,6 @@ void Logger::colorOff() {
 }
 
 bool Logger::parseLogArgs (deque<string>& argvec) {
-  regex all_v ("^-v+$");
-  regex numeric_v ("^-v([0-9]+)$");
   smatch sm;
   if (argvec.size()) {
     const string& arg = argvec[0];

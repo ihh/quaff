@@ -33,7 +33,7 @@ clean:
 	rm -rf bin/*
 
 # testaws is not included in the top-level 'make test' target
-test: testfast testquaffio testlogsumexp testnegbinom testdiagenv
+test: testfast testquaffio testlogsumexp testnegbinom testdiagenv testregex
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
@@ -59,6 +59,10 @@ testnegbinom: bin/testnegbinom
 
 testdiagenv: bin/testdiagenv
 	bin/testdiagenv data/c8f30.fastq.gz data/c8f30.fastq.gz 6 14 64
+
+testregex: t/testregex.cpp
+	$(CPP) $(CPPFLAGS) $(GSLFLAGS) $(LIBFLAGS) -o bin/$@ $<
+	bin/$@
 
 # testaws should be run separately (it needs secret keys, could cost money, etc)
 testaws: bin/testaws
