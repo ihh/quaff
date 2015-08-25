@@ -40,7 +40,7 @@ void Logger::colorOff() {
 
 bool Logger::parseLogArgs (deque<string>& argvec) {
   regex all_v ("^-v+$");
-  regex numeric_v ("^-v(\\d+)$");
+  regex numeric_v ("^-v([0-9]+)$");
   smatch sm;
   if (argvec.size()) {
     const string& arg = argvec[0];

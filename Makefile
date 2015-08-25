@@ -15,6 +15,9 @@ LIBFLAGS = -lstdc++ -lz $(GSLLIBS)
 
 CPPFILES = $(wildcard src/*.cpp)
 
+CPP = clang++
+
+
 all: quaff
 
 quaff: bin/quaff
@@ -34,7 +37,7 @@ test: testfast testquaffio testlogsumexp testnegbinom testdiagenv
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
-	clang++ $(CPPFLAGS) $(GSLFLAGS) $(LIBFLAGS) -o $@ t/$*.cpp $(CPPFILES)
+	$(CPP) $(CPPFLAGS) $(GSLFLAGS) $(LIBFLAGS) -o $@ t/$*.cpp $(CPPFILES)
 
 testfast: bin/testfasta bin/testfastq
 	perl/testexpect.pl bin/testfasta data/tiny.fasta data/tiny.fasta
