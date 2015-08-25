@@ -24,7 +24,7 @@ const double MAX_FRACTIONAL_FWDBACK_ERROR = .0001;
 const double MAX_TRAINING_LOG_DELTA = 20;
 
 const regex eofRegex (SocketTerminatorString, regex::basic);
-const regex paramValRegex (RE_VARNAME_GROUP " *: *" RE_DOT_GROUP, regex::basic);
+const regex paramValRegex (" *" RE_VARNAME_GROUP " *: *" RE_DOT_GROUP, regex::basic);
 const regex lineRegex (RE_DOT_GROUP, regex::basic);
 const regex orderRegex (RE_NUMERIC_GROUP, regex::basic);
 const regex countRegex (RE_NUMERIC_GROUP " *: *" RE_FLOAT_GROUP, regex::basic);
@@ -61,7 +61,7 @@ string readQuaffStringFromSocket (TCPSocket* sock, int bufSize) {
 
 void readQuaffParamFileLine (map<string,string>& val, const string& line) {
   smatch sm;
-  if (regex_search (line, sm, paramValRegex))
+  if (regex_match (line, sm, paramValRegex))
     val[sm.str(1)] = sm.str(2);
 }
 

@@ -172,6 +172,7 @@ void AWS::handleSignal (int sig) {
     signalHandler.erase (iter);  // prevent infinite loops
     (*handler) (sig);
   }
+  cerr << endl;
   exit (EXIT_FAILURE);
 }
 
