@@ -49,7 +49,16 @@ struct TempFile {
   ~TempFile();
 };
 
-std::string join (const std::vector<std::string>& s, const char* sep = " ");
+template<class Container>
+std::string join (const Container& c, const char* sep = " ") {
+  std::string j;
+  for (const auto& s : c) {
+    if (!j.empty())
+      j += sep;
+    j += s;
+  }
+  return j;
+}
 
 /* sgn function
    http://stackoverflow.com/questions/1903954/is-there-a-standard-sign-function-signum-sgn-in-c-c

@@ -113,6 +113,7 @@ extern Logger logger;
 #define LogAt(V)     (logger.testVerbosityWithLock(V))
 #define LogWhen(TAG) (logger.testLogTagWithLock(TAG))
 #define LogThisAt(V) (logger.testVerbosityOrLogTagsWithLock(VFUNCFILE(V)))
+#define LogThisIf(X) ((X) && (LogThisAt(0) || true))
 
 
 /* progress logging */

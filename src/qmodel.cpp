@@ -949,17 +949,23 @@ void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob*
 
   FILE* pipe = popen (sshCmd.c_str(), "r");
   char line[PIPE_BUF_SIZE];
-
-  while (fgets(line, PIPE_BUF_SIZE, pipe))
+  deque<string> lastLines;
+  const int linesToKeep = 3;
+  
+  while (fgets(line, PIPE_BUF_SIZE, pipe)) {
+    lastLines.push_back (string (line));
+    if (lastLines.size() > linesToKeep)
+      lastLines.erase (lastLines.begin());
     if (LogThisAt(4))
       logger << line << flush;
+  }
 
   const int status = pclose (pipe);
   
-  if (LogThisAt(4))
+  if (LogThisAt(4) || LogThisIf(status != EXIT_SUCCESS))
     logger << "Server process terminated: " << remoteJob->toString() << endl;
 
-  Assert (status == EXIT_SUCCESS, "Server command failed: %s\nExit code: %d", sshCmd.c_str(), status);
+  Assert (status == EXIT_SUCCESS, "Server command failed: %s\nExit code: %d\nRecent output:\n%s", sshCmd.c_str(), status, join(lastLines).c_str());
 }
 
 double QuaffDPMatrixContainer::dummy = -numeric_limits<double>::infinity();
@@ -1219,7 +1225,7 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
   if (LogWhen("dpmatrix"))
     writeToLog();
 
-  if (gsl_root_test_delta (result, fwd.result, 0, MAX_FRACTIONAL_FWDBACK_ERROR) != GSL_SUCCESS)
+  if (LogThisIf (gsl_root_test_delta (result, fwd.result, 0, MAX_FRACTIONAL_FWDBACK_ERROR) != GSL_SUCCESS))
     logger << endl << endl << "Warning: forward score (" << fwd.result << ") does not match backward score (" << result << ")" << endl << endl << endl;
 
   if (LogThisAt(6)) {
@@ -1955,7 +1961,7 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
       }
 
     } catch (SocketException& e) {
-      if (LogThisAt(2))
+      if (LogThisAt(3))
 	logger << e.what() << endl;
     }
 
@@ -2292,7 +2298,7 @@ string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
       break;
 
     } catch (SocketException& e) {
-      if (LogThisAt(2))
+      if (LogThisAt(3))
 	logger << e.what() << endl;
     }
 
