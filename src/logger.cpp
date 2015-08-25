@@ -1,6 +1,7 @@
 #include <regex>
 #include <sstream>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <math.h>
 #include "logger.h"
 
