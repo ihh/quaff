@@ -53,6 +53,7 @@ public:
   void setVerbose (int v);
   void colorOff();
   bool parseLogArgs (deque<string>& argvec);
+  string args() const;
 
   inline bool testVerbosityWithLock (int v) {
     if (verbosity >= v) {

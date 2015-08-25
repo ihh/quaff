@@ -36,6 +36,8 @@ string readQuaffStringFromSocket (TCPSocket* sock, int bufSize = RCVBUFSIZE);
 map<string,string> readQuaffParamFile (istream& in);
 map<string,string> readQuaffParamFile (TCPSocket* sock);
 
+void randomDelayBeforeRetry (unsigned int maxSeconds);
+
 // struct describing the probability of a given FASTA symbol,
 // and a negative binomial distribution over the associated quality score
 struct SymQualDist {

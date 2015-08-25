@@ -113,7 +113,7 @@ string join (const vector<string>& s, const char* sep) {
   return j;
 }
 
-string pipeToString (const char* command) {
+string pipeToString (const char* command, int* status) {
   string result;
   FILE* pipe = popen (command, "r");
   char line[PIPE_BUF_SIZE];
@@ -121,6 +121,10 @@ string pipeToString (const char* command) {
   while (fgets(line, PIPE_BUF_SIZE, pipe))
     result += line;
 
+  const int s = pclose (pipe);
+  if (status)
+    *status = s;
+  
   return result;
 }
 

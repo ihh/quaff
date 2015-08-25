@@ -456,6 +456,8 @@ string QuaffOverlapTask::delegate (const RemoteServer& remote) {
     } catch (SocketException& e) {
       cerr << e.what() << endl;
     }
+
+    randomDelayBeforeRetry (10);
   }
   return response;
 }

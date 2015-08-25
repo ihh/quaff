@@ -3,8 +3,10 @@
 #include <sstream>
 #include <regex>
 #include <thread>
+#include <random>
 #include <cmath>
 #include <cstdlib>
+#include <unistd.h>
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_roots.h>
 #include "qmodel.h"
@@ -86,6 +88,19 @@ vguard<size_t> readSortOrder (const string& orderString) {
     s = sm.suffix();
   }
   return sortOrder;
+}
+
+void randomDelayBeforeRetry (unsigned int maxSeconds) {
+  random_device rd;
+  mt19937 gen(rd());
+  uniform_int_distribution<int> dist(1, 10);
+
+  const int delay = dist(gen);
+    
+  if (LogThisAt(3))
+    logger << "Retrying in " << plural(delay,"second") << "..." << endl;
+
+  usleep (delay * 1000000);
 }
 
 SymQualDist::SymQualDist()
@@ -839,6 +854,7 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
 void QuaffDPConfig::setServerArgs (const char* serverType, const string& args) {
   remoteServerArgs = string(serverType)
     + args
+    + logger.args()
     + (sparse
        ? (string(" -kmatchband ") + to_string(bandSize)
 	  + " -kmatch " + to_string(kmerLen)
@@ -915,7 +931,7 @@ void QuaffDPConfig::stopRemoteServers() {
 // buffer size for popen
 #define PIPE_BUF_SIZE 1024
 void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob* remoteJob) {
-  string sshCmd = config->sshPath;
+  string sshCmd = config->sshPath + " -oBatchMode=yes";
   if (remoteJob->user.size())
     sshCmd += " -l " + remoteJob->user;
   if (config->sshKey.size())
@@ -932,8 +948,12 @@ void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob*
     if (LogThisAt(4))
       logger << line << flush;
 
+  const int status = pclose (pipe);
+  
   if (LogThisAt(4))
     logger << "Server process terminated: " << remoteJob->toString() << endl;
+
+  Assert (status == EXIT_SUCCESS, "Server command failed: %s\nExit code: %d", sshCmd.c_str(), status);
 }
 
 double QuaffDPMatrixContainer::dummy = -numeric_limits<double>::infinity();
@@ -1932,8 +1952,7 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
       cerr << e.what() << endl;
     }
 
-    if (LogThisAt(3))
-      logger << "Retrying..." << endl;
+    randomDelayBeforeRetry (10);
   }
 }
 
@@ -2269,8 +2288,7 @@ string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
       cerr << e.what() << endl;
     }
 
-    if (LogThisAt(3))
-      logger << "Retrying..." << endl;
+    randomDelayBeforeRetry (10);
   }
 
   return response;

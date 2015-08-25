@@ -37,7 +37,7 @@ std::string plural (long n, const char* singular);
 #define TOSTRING(x) STRINGIFY(x)
 
 /* pipe to string */
-std::string pipeToString (const char* command);
+std::string pipeToString (const char* command, int* status = NULL);
 
 /* temp file */
 struct TempFile {

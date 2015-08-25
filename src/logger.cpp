@@ -72,6 +72,17 @@ bool Logger::parseLogArgs (deque<string>& argvec) {
   return false;
 }
 
+string Logger::args() const {
+  string a;
+  if (verbosity > 0)
+    a += " -v" + to_string(verbosity);
+  for (const auto& t : logTags)
+    a += " -log " + t;
+  if (!useAnsiColor)
+    a += " -nocolor";
+  return a;
+}
+
 Logger& Logger::lockAndPrint (bool showHeader) {
   thread::id myId = this_thread::get_id();
   if (!(mxLocked && mxOwner == myId)) {
