@@ -1,7 +1,6 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <regex>
 #include <thread>
 #include <random>
 #include <cmath>
@@ -922,7 +921,7 @@ void QuaffDPConfig::startRemoteServers() {
 string QuaffDPConfig::ec2StartupScript() const {
   return aws.bashHeader()
     + "yum -y update\n"
-    + "yum -y install git gcc clang gsl-devel zlib-devel\n"
+    + "yum -y install git gcc clang gsl-devel zlib-devel boost-devel\n"
     + "cd /usr/local;git clone https://github.com/ihh/quaff.git;cd quaff;make install\n";
 }
 

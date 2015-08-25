@@ -10,8 +10,24 @@ endif
 GSLFLAGS = -I$(GSLPREFIX)/include -L$(GSLPREFIX)/lib
 GSLLIBS = -lgsl -lgslcblas
 
-CPPFLAGS = -DUSE_VECTOR_GUARDS -std=c++11 -g
-LIBFLAGS = -lstdc++ -lz $(GSLLIBS)
+# figure out whether to use Boost
+BOOSTPREFIX = /usr
+ifeq (,$(wildcard $(BOOSTPREFIX)/include/boost/regex.h))
+BOOSTPREFIX := /usr/local
+ifeq (,$(wildcard $(BOOSTPREFIX)/include/boost/regex.h))
+BOOSTPREFIX :=
+endif
+endif
+
+BOOSTFLAGS =
+BOOSTLIBS =
+ifneq (,$(BOOSTPREFIX))
+BOOSTFLAGS := -DUSE_BOOST -I$(BOOSTPREFIX)/include -L$(BOOSTPREFIX)/lib
+BOOSTLIBS := -lboost_regex
+endif
+
+CPPFLAGS = -DUSE_VECTOR_GUARDS -std=c++11 -g $(GSLFLAGS) $(BOOSTFLAGS)
+LIBFLAGS = -lstdc++ -lz $(GSLLIBS) $(BOOSTLIBS)
 
 CPPFILES = $(wildcard src/*.cpp)
 
@@ -37,7 +53,7 @@ test: testfast testquaffio testlogsumexp testnegbinom testdiagenv testregex
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
-	$(CPP) $(CPPFLAGS) $(GSLFLAGS) $(LIBFLAGS) -o $@ t/$*.cpp $(CPPFILES)
+	$(CPP) $(CPPFLAGS) $(LIBFLAGS) -o $@ t/$*.cpp $(CPPFILES)
 
 testfast: bin/testfasta bin/testfastq
 	perl/testexpect.pl bin/testfasta data/tiny.fasta data/tiny.fasta
@@ -61,7 +77,7 @@ testdiagenv: bin/testdiagenv
 	bin/testdiagenv data/c8f30.fastq.gz data/c8f30.fastq.gz 6 14 64
 
 testregex: t/testregex.cpp
-	$(CPP) $(CPPFLAGS) $(GSLFLAGS) $(LIBFLAGS) -o bin/$@ $<
+	$(CPP) $(CPPFLAGS) $(LIBFLAGS) -o bin/$@ $<
 	bin/$@
 
 # testaws should be run separately (it needs secret keys, could cost money, etc)

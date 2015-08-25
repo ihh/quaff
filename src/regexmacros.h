@@ -1,11 +1,17 @@
 #ifndef REGEXMACROS_INCLUDED
 #define REGEXMACROS_INCLUDED
 
-// POSIX basic regular expressions are required for backwards compatibility.
-// Sadly, older versions of g++ do not support ECMAScript regexes.
-// These older versions are still on the Amazon EC2 AMI at the time of writing (8/2015),
-// whereas clang is not.
-// So, here we are: building up regexes with C macros. Sigh.
+#ifdef USE_BOOST
+#include <boost/regex.hpp>
+using namespace boost;
+#else
+#include <regex>
+using namespace std;
+#endif
+
+// POSIX basic regular expressions are used for maximum compatibility,
+// since g++ does not stably support ECMAScript regexes yet,
+// so we resort to boost.
 
 #define RE_CHAR_CLASS(STR) "[" STR "]"
 #define RE_PLUS(CLASS) CLASS CLASS "*"
