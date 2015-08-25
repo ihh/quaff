@@ -88,6 +88,7 @@ public:
   Logger& unlockSilently();
 
   string getThreadName (thread::id id);
+  void setThreadName (thread::id id, const string& name);
   void nameLastThread (const list<thread>& threads, const char* prefix);
   void eraseThreadName (const thread& thr);
   

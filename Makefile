@@ -16,6 +16,9 @@ install: bin/quaff
 	cp $< /usr/local/bin
 	chmod a+x /usr/local/bin/quaff
 
+uninstall:
+	rm /usr/local/bin/quaff
+
 clean:
 	rm -rf bin/*
 

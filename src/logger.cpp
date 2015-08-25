@@ -17,6 +17,8 @@ Logger::Logger()
     logAnsiColor.push_back (ansiEscape(30 + col) + ansiEscape(40));
   threadAnsiColor = ansiEscape(37) + ansiEscape(41);  // white on red
   ansiColorOff = ansiEscape(0);
+
+  setThreadName (this_thread::get_id(), "main thread");
 }
 
 void Logger::addTag (const char* tag) {
@@ -138,8 +140,13 @@ string Logger::getThreadName (thread::id id) {
   return iter->second;
 }
 
+void Logger::setThreadName (thread::id id, const string& name) {
+  threadName[id] = name;
+}
+
 void Logger::nameLastThread (const list<thread>& threads, const char* prefix) {
-  threadName[threads.back().get_id()] = string(prefix) + " thread #" + to_string(threads.size());
+  setThreadName (threads.back().get_id(),
+		 string(prefix) + " thread #" + to_string(threads.size()));
 }
 
 void Logger::eraseThreadName (const thread& thr) {

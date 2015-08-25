@@ -120,13 +120,15 @@ vguard<string> AWS::getInstanceAddresses (const vguard<string>& ids) const {
 }
 
 void AWS::terminateInstances (const vguard<string>& ids) {
-  if (LogThisAt(1))
-    logger << "Terminating instances: " << join(ids) << endl;
-  const string termOut = terminateInstancesSilently (ids);
-  if (LogThisAt(2))
-    logger << termOut << flush;
-  for (const auto& id : ids)
-    runningInstanceIds.erase (id);
+  if (ids.size()) {
+    if (LogThisAt(1))
+      logger << "Terminating instances: " << join(ids) << endl;
+    const string termOut = terminateInstancesSilently (ids);
+    if (LogThisAt(2))
+      logger << termOut << flush;
+    for (const auto& id : ids)
+      runningInstanceIds.erase (id);
+  }
 }
 
 string AWS::terminateInstancesSilently (const vguard<string>& ids) {

@@ -643,7 +643,13 @@ RemoteServerJob::RemoteServerJob (const string& user, const string& addr, unsign
 { }
 
 string RemoteServerJob::toString() const {
-  return (user.size() ? (user+'@') : string()) + addr + ':' + to_string(port) + '-' + to_string(port+threads-1);
+  return (user.size()
+	  ? (user+'@')
+	  : string())
+    + addr + ':' + to_string(port)
+    + (threads == 1
+       ? string()
+       : (string("-") + to_string(port+threads-1)));
 }
 
 bool QuaffDPConfig::parseServerConfigArgs (deque<string>& argvec) {
@@ -1949,7 +1955,8 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
       }
 
     } catch (SocketException& e) {
-      cerr << e.what() << endl;
+      if (LogThisAt(2))
+	logger << e.what() << endl;
     }
 
     randomDelayBeforeRetry (10);
@@ -2285,7 +2292,8 @@ string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
       break;
 
     } catch (SocketException& e) {
-      cerr << e.what() << endl;
+      if (LogThisAt(2))
+	logger << e.what() << endl;
     }
 
     randomDelayBeforeRetry (10);

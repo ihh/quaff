@@ -25,6 +25,9 @@
 // Default server port
 #define DefaultServerPort 8000
 
+// Default place to find quaff binary
+#define DefaultQuaffPath "/usr/local/bin/quaff"
+
 // Default size of receive buffer for sockets
 #define RCVBUFSIZE 1024
 
@@ -240,7 +243,7 @@ struct QuaffDPConfig {
       threads(1),
       serverPort(DefaultServerPort),
       sshPath("ssh"),
-      remoteQuaffPath("quaff"),
+      remoteQuaffPath(DefaultQuaffPath),
       ec2Instances(0),
       ec2Ami(AWS_DEFAULT_AMI),
       ec2Type(AWS_DEFAULT_INSTANCE_TYPE),
