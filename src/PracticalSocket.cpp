@@ -35,6 +35,7 @@
 
 #include <errno.h>             // For errno
 #include <cstdlib>             // for atoi, stoi
+#include <cstring>             // for strerror
 
 using namespace std;
 

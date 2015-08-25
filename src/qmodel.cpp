@@ -1605,7 +1605,7 @@ double QuaffNullParams::logLikelihood (const FastSeq& s) const {
       if (s.hasQual())
 	ll += null[tok[i]].logQualProb (s.getQualScoreAt(i));
 #if defined(NAN_DEBUG)
-      if (isnan(ll)) {
+      if (std::isnan(ll)) {
 	cerr << "NaN error in QuaffNullParams::logLikelihood" << endl;
 	throw;
       }

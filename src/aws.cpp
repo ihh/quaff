@@ -1,5 +1,6 @@
 #include <cstring>
 #include <cstdlib>
+#include <signal.h>
 #include "aws.h"
 #include "gason.h"
 #include "util.h"

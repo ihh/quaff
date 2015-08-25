@@ -42,7 +42,7 @@ double log_sum_exp (double a, double b) {
   else { max = a; diff = a - b; }
   ret = max + log_sum_exp_unary (diff);
 #if defined(NAN_DEBUG)
-  if (isnan(ret)) {
+  if (std::isnan(ret)) {
     cerr << "NaN error in log_sum_exp" << endl;
     throw;
   }
@@ -65,7 +65,7 @@ double log_sum_exp_slow (double a, double b) {
   diff = max - min;
   ret = max + log_sum_exp_unary_slow (diff);
 #if defined(NAN_DEBUG)
-  if (isnan(ret)) {
+  if (std::isnan(ret)) {
     cerr << "NaN error in log_sum_exp" << endl;
     throw;
   }
@@ -87,7 +87,7 @@ double log_sum_exp_unary (double x) {
 #else /* LOGSUMEXP_DEBUG */
   int n;
   double dx, f0, f1, df;
-  if (x >= LOG_SUM_EXP_LOOKUP_MAX || isnan(x) || isinf(x))
+  if (x >= LOG_SUM_EXP_LOOKUP_MAX || std::isnan(x) || std::isinf(x))
     return 0;
   if (x < 0) {  /* really dumb approximation for x < 0. Should never be encountered, so issue a warning */
     cerr << "Called log_sum_exp_unary(x) for negative x = " << x << endl;
