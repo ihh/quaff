@@ -1,6 +1,12 @@
 .SECONDARY:
 
-GSLPREFIX ?= /usr/local
+# try to figure out where GSL is
+# autoconf would be better but we just need a quick hack for now :)
+GSLPREFIX ?= /usr
+ifeq (,$(wildcard $(GSLPREFIX)/include/gsl.h))
+GSLPREFIX := /usr/local
+endif
+
 GSLFLAGS = -I$(GSLPREFIX)/include -L$(GSLPREFIX)/lib
 GSLLIBS = -lgsl -lgslcblas
 
