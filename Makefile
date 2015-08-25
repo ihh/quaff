@@ -1,11 +1,11 @@
 .SECONDARY:
 
-# find brew-installed stuff on OSX
-BREWPREFIX = /usr/local
-BREWFLAGS = -I$(BREWPREFIX)/include -L$(BREWPREFIX)/lib
+GSLPREFIX ?= /usr/local
+GSLFLAGS = -I$(GSLPREFIX)/include -L$(GSLPREFIX)/lib
+GSLLIBS = -lgsl -lgslcblas
 
 CPPFLAGS = -DUSE_VECTOR_GUARDS -std=c++11 -g
-LIBFLAGS = -lstdc++ -lz -lgsl
+LIBFLAGS = -lstdc++ -lz $(GSLLIBS)
 
 CPPFILES = $(wildcard src/*.cpp)
 
@@ -28,7 +28,7 @@ test: testfast testquaffio testlogsumexp testnegbinom testdiagenv
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
-	clang++ $(CPPFLAGS) $(BREWFLAGS) $(LIBFLAGS) -o $@ t/$*.cpp $(CPPFILES)
+	clang++ $(CPPFLAGS) $(GSLFLAGS) $(LIBFLAGS) -o $@ t/$*.cpp $(CPPFILES)
 
 testfast: bin/testfasta bin/testfastq
 	perl/testexpect.pl bin/testfasta data/tiny.fasta data/tiny.fasta
