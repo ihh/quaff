@@ -125,8 +125,12 @@ int main (int argc, char** argv) {
   const string singleRemotePortRegex (".*:" RE_NUMERIC_GROUP);
   const string multiRemotePortRegex (".*:" RE_NUMERIC_GROUP "-" RE_NUMERIC_GROUP);
 
-  match (RE_GROUP(RE_CHAR_CLASS("abc")), "a");
-  match (RE_GROUP(RE_CHAR_CLASS("abc")), "b");
+  match (RE_CHAR_CLASS("abc"), "a");
+  match (RE_CHAR_CLASS("abc"), "b");
+  nomatch (RE_CHAR_CLASS("abc"), "d");
+
+  matchgroup (RE_GROUP(RE_CHAR_CLASS("abc")), "a", 1, "a");
+  matchgroup (RE_GROUP(RE_CHAR_CLASS("abc")), "b", 1, "b");
   nomatch (RE_GROUP(RE_CHAR_CLASS("abc")), "d");
 
   match ("a*", "");
