@@ -917,7 +917,8 @@ void QuaffDPConfig::startRemoteServers() {
 
 string QuaffDPConfig::ec2StartupScript() const {
   return aws.bashHeader()
-    + "yum -y install clang gsl libz git\n"
+    + "yum -y update\n"
+    + "yum -y install git gcc clang gsl-devel zlib-devel\n"
     + "cd /usr/local;git clone https://github.com/ihh/quaff.git;cd quaff;make install\n";
 }
 

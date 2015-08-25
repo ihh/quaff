@@ -1,7 +1,8 @@
 .SECONDARY:
 
-GSL_PREFIX = /usr/local
-GSLFLAGS = -I$(GSL_PREFIX)/include -L$(GSL_PREFIX)/lib
+# find brew-installed stuff on OSX
+BREWPREFIX = /usr/local
+BREWFLAGS = -I$(BREWPREFIX)/include -L$(BREWPREFIX)/lib
 
 CPPFLAGS = -DUSE_VECTOR_GUARDS -std=c++11 -g
 LIBFLAGS = -lstdc++ -lz -lgsl
@@ -27,7 +28,7 @@ test: testfast testquaffio testlogsumexp testnegbinom testdiagenv
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
-	clang++ $(CPPFLAGS) $(GSLFLAGS) $(LIBFLAGS) -o $@ t/$*.cpp $(CPPFILES)
+	clang++ $(CPPFLAGS) $(BREWFLAGS) $(LIBFLAGS) -o $@ t/$*.cpp $(CPPFILES)
 
 testfast: bin/testfasta bin/testfastq
 	perl/testexpect.pl bin/testfasta data/tiny.fasta data/tiny.fasta

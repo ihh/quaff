@@ -1,3 +1,4 @@
+#include <cstring>
 #include <cstdlib>
 #include "aws.h"
 #include "gason.h"
