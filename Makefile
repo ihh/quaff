@@ -3,7 +3,7 @@
 # try to figure out where GSL is
 # autoconf would be better but we just need a quick hack for now :)
 GSLPREFIX ?= /usr
-ifeq (,$(wildcard $(GSLPREFIX)/include/gsl.h))
+ifeq (,$(wildcard $(GSLPREFIX)/include/gsl/gsl_sf.h))
 GSLPREFIX := /usr/local
 endif
 
