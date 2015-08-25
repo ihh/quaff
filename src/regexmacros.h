@@ -11,7 +11,12 @@ using namespace std;
 
 // POSIX basic regular expressions are used for maximum compatibility,
 // since g++ does not stably support ECMAScript regexes yet,
-// so we resort to boost.
+// so we resort to boost where clang is not available
+// (e.g. Amazon EC2 AMI/yum, at time of writing: 8/25/2015).
+
+// These macros use an ultra-minimal subset of POSIX basic syntax:
+// character classes [], repetition *, wildcards ., groups \\( \\)
+// NB literal hyphens must appear at the start of a character class.
 
 #define RE_CHAR_CLASS(STR) "[" STR "]"
 #define RE_PLUS(CLASS) CLASS CLASS "*"
