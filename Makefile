@@ -11,6 +11,7 @@ GSLFLAGS = -I$(GSLPREFIX)/include -L$(GSLPREFIX)/lib
 GSLLIBS = -lgsl -lgslcblas
 
 # figure out whether to use Boost
+# Boost is optional -- it's only needed for regexes with gcc
 BOOSTPREFIX = /usr
 ifeq (,$(wildcard $(BOOSTPREFIX)/include/boost/regex.h))
 BOOSTPREFIX := /usr/local
@@ -26,11 +27,13 @@ BOOSTFLAGS := -DUSE_BOOST -I$(BOOSTPREFIX)/include -L$(BOOSTPREFIX)/lib
 BOOSTLIBS := -lboost_regex
 endif
 
+# other flags
 CPPFLAGS = -DUSE_VECTOR_GUARDS -std=c++11 -g $(GSLFLAGS) $(BOOSTFLAGS)
 LIBFLAGS = -lstdc++ -lz $(GSLLIBS) $(BOOSTLIBS)
 
 CPPFILES = $(wildcard src/*.cpp)
 
+# change this to g++ if using gcc
 CPP = clang++
 
 
