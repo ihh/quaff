@@ -48,14 +48,14 @@ vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const st
   const string base64UserDataScript = base64_encode (userDataScript.c_str(), (unsigned int) userDataScript.size());
   const string runCmd = string("aws ec2 run-instances --enable-api-termination --key-name ") + keyPair + " --security-groups " + securityGroup + " --instance-type " + instanceType + " --count " + to_string(nInstances) + ':' + to_string(nInstances) + " --image-id " + ami + " --user-data " + base64UserDataScript;
 
-  if (LogThisAt(9))
+  if (LogThisAt(4))
     logger << "Executing: " << runCmd << endl;
 
   const string runOut = pipeToString (runCmd.c_str());
   char* runOutCStr = new char [runOut.length()+1];
   strcpy (runOutCStr, runOut.c_str());
 
-  if (LogThisAt(9))
+  if (LogThisAt(4))
     logger << "Output: " << runOut << endl;
 
   char *endPtr;

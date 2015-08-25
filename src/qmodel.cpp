@@ -937,7 +937,7 @@ void QuaffDPConfig::stopRemoteServers() {
 // buffer size for popen
 #define PIPE_BUF_SIZE 1024
 void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob* remoteJob) {
-  string sshCmd = config->sshPath + " -oBatchMode=yes";
+  string sshCmd = config->sshPath + " -oBatchMode=yes -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no";
   if (remoteJob->user.size())
     sshCmd += " -l " + remoteJob->user;
   if (config->sshKey.size())

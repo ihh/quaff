@@ -27,7 +27,7 @@ test: testfast testquaffio testlogsumexp testnegbinom testdiagenv
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
-	g++ $(CPPFLAGS) $(GSLFLAGS) $(LIBFLAGS) -o $@ t/$*.cpp $(CPPFILES)
+	clang++ $(CPPFLAGS) $(GSLFLAGS) $(LIBFLAGS) -o $@ t/$*.cpp $(CPPFILES)
 
 testfast: bin/testfasta bin/testfastq
 	perl/testexpect.pl bin/testfasta data/tiny.fasta data/tiny.fasta
