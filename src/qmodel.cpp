@@ -934,9 +934,9 @@ void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned 
 }
 
 void QuaffDPConfig::startRemoteServers() {
+  for (const auto& fa : fileArgs)
+    syncToBucket (fa.second);
   if (ec2Instances > 0) {
-    for (const auto& fa : fileArgs)
-      syncToBucket (fa.second);
     ec2InstanceIds = aws.launchInstancesWithScript (ec2Instances, ec2Type, ec2Ami, ec2StartupScript());
     ec2InstanceAddresses = aws.getInstanceAddresses (ec2InstanceIds);
     for (const auto& addr : ec2InstanceAddresses) {
