@@ -115,7 +115,7 @@ void searchgroup (const string& re, const char* s, int n, const char* g) {
 
 int main (int argc, char** argv) {
 
-  const string paramValRegex (" *" RE_VARNAME_GROUP " *: *" RE_GROUP(RE_NONWHITE_CHAR_CLASS ".*"));
+  const string paramValRegex (" *" RE_VARNAME_GROUP " *: *" RE_GROUP(RE_NONWHITE_CHAR_CLASS RE_DOT_STAR));
   const string lineRegex (RE_DOT_GROUP);
   const string orderRegex (RE_NUMERIC_GROUP);
   const string countRegex (RE_NUMERIC_GROUP " *: *" RE_FLOAT_GROUP);
@@ -128,6 +128,7 @@ int main (int argc, char** argv) {
   const string numeric_v ("-v" RE_NUMERIC_GROUP);
 
   const string nonwhite (RE_NONWHITE_CHAR_CLASS);
+  const string dot (RE_DOT);
   
   match (RE_CHAR_CLASS("abc"), "a");
   match (RE_CHAR_CLASS("abc"), "b");
@@ -174,6 +175,14 @@ int main (int argc, char** argv) {
   match (nonwhite, "\"");
   nomatch (nonwhite, " ");
 
+  match (dot, " ");
+  match (dot, "A");
+  match (dot, "z");
+  match (dot, "~");
+  nomatch (dot, "\n");
+
+  searchgroup (lineRegex, "abc\n", 1, "abc");
+  
   cout << "ok" << endl;
   return EXIT_SUCCESS;
 }
