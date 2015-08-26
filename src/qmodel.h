@@ -226,6 +226,7 @@ struct QuaffDPConfig {
   int kmerLen, kmerThreshold, bandSize;
   size_t maxSize;
   unsigned int threads;
+  bool threadsSpecified;
   int serverPort;
   list<RemoteServer> remotes;
   list<RemoteServerJob> remoteJobs;
@@ -245,6 +246,7 @@ struct QuaffDPConfig {
       maxSize(0),
       bandSize(DEFAULT_BAND_SIZE),
       threads(1),
+      threadsSpecified(false),
       serverPort(DefaultServerPort),
       sshPath("ssh"),
       remoteQuaffPath(DefaultQuaffPath),

@@ -744,6 +744,7 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       const char* val = argvec[1].c_str();
       threads = atoi (val);
+      threadsSpecified = true;
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -755,6 +756,7 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
 	threads = 1;
       } else if (LogThisAt(2))
 	logger << "Running in " << plural(threads,"thread") << endl;
+      threadsSpecified = true;
       argvec.pop_front();
       return true;
 
@@ -780,6 +782,8 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       } else
 	Fail ("Can't parse server port range: %s", remoteStr.c_str());
       addRemote (user, addr, minPort, maxPort + 1 - minPort);
+      if (!threadsSpecified)
+	threads = 0;
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -850,6 +854,8 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
     } else if (arg == "-ec2instances") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       ec2Instances = atoi (argvec[1].c_str());
+      if (!threadsSpecified)
+	threads = 0;
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -1736,7 +1742,7 @@ vguard<vguard<size_t> > QuaffTrainer::defaultSortOrder (const vguard<FastSeq>& x
 QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner) {
   QuaffCountingScheduler qcs (x, y, params, nullModel, allowNullModel, config, sortOrder, banner, VFUNCFILE(2));
   list<thread> yThreads;
-  Require (config.threads > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
+  Require (config.threads > 0 || config.ec2Instances > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffCountingTasks, &qcs));
     logger.nameLastThread (yThreads, "DP");
@@ -2191,7 +2197,7 @@ string QuaffAligner::serverArgs() const {
 void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config) {
   QuaffAlignmentScheduler qas (x, y, params, nullModel, config, printAllAlignments, out, *this, VFUNCFILE(2));
   list<thread> yThreads;
-  Require (config.threads > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
+  Require (config.threads > 0 || config.ec2Instances > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
   config.startRemoteServers();
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffAlignmentTasks, &qas));
