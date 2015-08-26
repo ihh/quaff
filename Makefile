@@ -57,7 +57,7 @@ clean:
 # AWS
 # NB pseudotarget runs make again, to re-test $(BOOST)
 aws-install: aws-dep
-	make install
+	make PREFIX=$(PREFIX) install
 
 aws-dep:
 	yum -y install gcc clang gsl-devel zlib-devel boost-devel
@@ -65,7 +65,7 @@ aws-dep:
 # OS X
 # NB pseudotarget runs make again, to re-test $(BOOST)
 osx-install: osx-dep
-	make install
+	make PREFIX=$(PREFIX) install
 
 osx-dep:
 	brew install gsl boost awscli
