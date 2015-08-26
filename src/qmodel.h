@@ -51,7 +51,7 @@
 // useful helper methods
 string readQuaffStringFromSocket (TCPSocket* sock, int bufSize = RCVBUFSIZE);
 map<string,string> readQuaffParamFile (istream& in);
-map<string,string> readQuaffParamFile (TCPSocket* sock);
+map<string,string> readQuaffParamFile (const string& s);
 
 void randomDelayBeforeRetry (unsigned int minSeconds, unsigned int maxSeconds);
 

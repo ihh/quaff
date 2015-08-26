@@ -74,8 +74,8 @@ map<string,string> readQuaffParamFile (istream& in) {
   return val;
 }
 
-map<string,string> readQuaffParamFile (TCPSocket* sock) {
-  string msg = readQuaffStringFromSocket (sock);
+map<string,string> readQuaffParamFile (const string& s) {
+  string msg = s;
   map<string,string> val;
   smatch sm;
   while (regex_search (msg, sm, lineRegex)) {
@@ -1831,7 +1831,8 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
     if (LogThisAt(1))
       logger << "Handling request from " << sock->getForeignAddress() << endl;
 
-    auto paramVal = readQuaffParamFile (sock);
+    auto msg = readQuaffStringFromSocket (sock);
+    auto paramVal = readQuaffParamFile (msg);
 
     if (paramVal.find("quit") != paramVal.end()) {
       delete sock;
@@ -1878,7 +1879,7 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
 	logger << "Request completed" << endl;
 
     } else if (LogThisAt(1))
-      logger << "Bad request, ignoring" << endl;
+      logger << "Bad request, ignoring:" << endl << msg << endl;
 	
     delete sock;
   }
@@ -2272,7 +2273,8 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
     if (LogThisAt(1))
       logger << "Handling request from " << sock->getForeignAddress() << endl;
 
-    auto paramVal = readQuaffParamFile (sock);
+    auto msg = readQuaffStringFromSocket (sock);
+    auto paramVal = readQuaffParamFile (msg);
 
     if (paramVal.find("quit") != paramVal.end()) {
       delete sock;
@@ -2301,7 +2303,7 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
 	logger << "Request completed" << endl;
 
     } else if (LogThisAt(1))
-      logger << "Bad request, ignoring" << endl;
+      logger << "Bad request, ignoring:" << endl << msg << endl;
 	
     delete sock;
   }
