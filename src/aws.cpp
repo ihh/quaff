@@ -55,7 +55,7 @@ string AWS::runCommandAndTestStatus (const string& cmd) {
   int cmdStatus = -1;
   const string cmdOut = pipeToString (cmd.c_str(), &cmdStatus);
 
-  if (output.size() && LogThisAt(4))
+  if (cmdOut.size() && LogThisAt(4))
     logger << "Output:" << endl << cmdOut << endl;
 
   if (cmdStatus != 0)
