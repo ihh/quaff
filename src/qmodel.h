@@ -34,6 +34,12 @@
 // Default size of receive buffer for sockets
 #define RCVBUFSIZE 1024
 
+// Number of attempts for ssh
+#define MaxQuaffSshAttempts 3
+
+// Max retry delay
+#define MaxQuaffRetryDelay 10
+
 // Terminator string for socket messages
 #define SocketTerminatorString "# EOF"
 
