@@ -2188,7 +2188,7 @@ void QuaffAlignmentPrinter::writeAlignmentHeader (ostream& out, const vguard<Fas
 }
 
 void QuaffAlignmentPrinter::writeAlignment (ostream& out, const Alignment& align) const {
-  ostream& alignOut (usingOutputFile() ? (ostream&) alignFile : out);
+  ostream& alignOut = alignmentOutputStream (out);
   if (align.score >= logOddsThreshold) {
     FastSeq ref;
     switch (format) {
@@ -2405,7 +2405,7 @@ void QuaffAlignmentPrintingScheduler::printAlignments (const QuaffAlignmentPrint
 void QuaffAlignmentPrintingScheduler::printAlignments (const string& alignStr) {
   outMx.lock();
   logger.lockSilently();  // to avoid interleaving clog & cout
-  out << alignStr;
+  printer.alignmentOutputStream(out) << alignStr;
   logger.unlockSilently();
   outMx.unlock();
 }

@@ -489,6 +489,7 @@ struct QuaffAlignmentPrinter {
   void writeAlignmentHeader (ostream& out, const vguard<FastSeq>& refs, bool groupByQuery);
   void writeAlignment (ostream& out, const Alignment& align) const;
   bool usingOutputFile() const { return !alignFilename.empty(); }
+  ostream& alignmentOutputStream (ostream& defaultOut) const { return usingOutputFile() ? (ostream&) alignFile : defaultOut; }
 };
 
 struct QuaffAligner : QuaffAlignmentPrinter {
