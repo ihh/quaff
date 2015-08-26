@@ -29,7 +29,7 @@
 #define DefaultQuaffPath "/usr/local/bin/quaff"
 
 // Directory where AWS instances will put files downloaded from buckets
-#define BucketStagingDir "/tmp"
+#define BucketStagingDir "/tmp/quaff"
 
 // Default size of receive buffer for sockets
 #define RCVBUFSIZE 1024

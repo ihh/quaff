@@ -945,6 +945,8 @@ string QuaffDPConfig::ec2StartupScript() const {
   return aws.bashBang
     + "yum -y update\n"
     + "yum -y install git gcc clang gsl-devel zlib-devel boost-devel\n"
+    + "mkdir -p " BucketStagingDir "\n"
+    + "chmod a+rwx " BucketStagingDir "\n"
     + "cd /usr/local;git clone https://github.com/ihh/quaff.git;cd quaff;make install\n";
 }
 

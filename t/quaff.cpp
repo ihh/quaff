@@ -519,7 +519,6 @@ bool SeqList::parseSeqFilename() {
     if (arg == tag) {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
       filenames.push_back (argvec[1]);
-      serverArgs += ' ' + arg + ' ' + argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
