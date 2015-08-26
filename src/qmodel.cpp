@@ -950,6 +950,11 @@ void QuaffDPConfig::startRemoteServers() {
     remoteServerThreads.push_back (thread (&startRemoteQuaffServer, this, &remoteJob));
     logger.nameLastThread (remoteServerThreads, "ssh");
   }
+  // give server threads time to connect...
+  const int delay = 2;
+  if (LogThisAt(5))
+    logger << "Allowing server threads " << plural(delay,"second") << " to connect" << endl;
+  usleep (delay * 1000000);
 }
 
 string QuaffDPConfig::makeServerCommand (const RemoteServerJob& job) const {
