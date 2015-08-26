@@ -42,6 +42,8 @@ struct SeqList {
   bool parseQualScoreArgs();
   void loadSequences (const QuaffDPConfig& config);
   void loadSequencesForAligner (const QuaffDPConfig& config, const QuaffAlignmentPrinter& aligner);
+  SeqList& syncBucket (const QuaffDPConfig& config);
+  SeqList& addFileArgs (QuaffDPConfig& config);
 };
 
 struct QuaffParamsIn : QuaffParams {
@@ -58,6 +60,8 @@ struct QuaffParamsIn : QuaffParams {
   void requireParamsOrUseDefaults (const QuaffDPConfig& config);
   void requireParamsOrUsePrior (const QuaffDPConfig& config, const QuaffParamCounts& prior);
   bool initialized() const { return !loadFilename.empty(); }
+  QuaffParamsIn& syncBucket (const QuaffDPConfig& config);
+  QuaffParamsIn& addFileArgs (QuaffDPConfig& config);
 };
 
 struct QuaffNullParamsIn : QuaffNullParams {
@@ -73,6 +77,8 @@ struct QuaffNullParamsIn : QuaffNullParams {
   void loadNullModel (const QuaffDPConfig& config);
   void requireNullModelOrFit (const QuaffDPConfig& config, const SeqList& seqList);
   bool initialized() const { return !loadFilename.empty(); }
+  QuaffNullParamsIn& syncBucket (const QuaffDPConfig& config);
+  QuaffNullParamsIn& addFileArgs (QuaffDPConfig& config);
 };
 
 struct QuaffPriorIn : QuaffParamCounts {
@@ -132,10 +138,10 @@ int main (int argc, char** argv) {
 	     || usage.parseUnknown())
 	{ }
 
-      reads.loadSequencesForAligner (config, aligner);
-      refs.loadSequencesForAligner (config, aligner);
-      params.requireParamsOrUseDefaults (config);
-      nullModel.requireNullModelOrFit (config, reads);
+      reads.addFileArgs(config).loadSequencesForAligner (config, aligner);
+      refs.addFileArgs(config).loadSequencesForAligner (config, aligner);
+      params.addFileArgs(config).requireParamsOrUseDefaults (config);
+      nullModel.addFileArgs(config).requireNullModelOrFit (config, reads);
 
       config.setServerArgs ("align", aligner.serverArgs() + refs.serverArgs + reads.serverArgs);
     
@@ -221,9 +227,9 @@ int main (int argc, char** argv) {
 	     || usage.parseUnknown())
 	{ }
 
-      reads.loadSequencesForAligner (config, aligner);
-      params.requireParamsOrUseDefaults (config);
-      nullModel.requireNullModelOrFit (config, reads);
+      reads.addFileArgs(config).loadSequencesForAligner (config, aligner);
+      params.addFileArgs(config).requireParamsOrUseDefaults (config);
+      nullModel.addFileArgs(config).requireNullModelOrFit (config, reads);
 
       config.setServerArgs ("overlap", aligner.serverArgs() + reads.serverArgs);
 
@@ -252,10 +258,10 @@ int main (int argc, char** argv) {
 	       || usage.parseUnknown())
 	  { }
 
-	reads.loadSequencesForAligner (config, aligner);
-	refs.loadSequencesForAligner (config, aligner);
-	params.requireParamsOrUseDefaults (config);
-	nullModel.requireNullModelOrFit (config, reads);
+	reads.syncBucket(config).loadSequencesForAligner (config, aligner);
+	refs.syncBucket(config).loadSequencesForAligner (config, aligner);
+	params.syncBucket(config).requireParamsOrUseDefaults (config);
+	nullModel.syncBucket(config).requireNullModelOrFit (config, reads);
     
 	aligner.serveAlignments (refs.seqs, reads.seqs, params, nullModel, config);
 
@@ -275,8 +281,8 @@ int main (int argc, char** argv) {
 	       || usage.parseUnknown())
 	  { }
 
-	reads.loadSequences (config);
-	refs.loadSequences (config);
+	reads.syncBucket(config).loadSequences (config);
+	refs.syncBucket(config).loadSequences (config);
 
 	trainer.serveCounts (refs.seqs, reads.seqs, config);
     
@@ -298,11 +304,12 @@ int main (int argc, char** argv) {
 	       || usage.parseUnknown())
 	  { }
 
-	reads.loadSequencesForAligner (config, aligner);
-	params.requireParamsOrUseDefaults (config);
-	nullModel.requireNullModelOrFit (config, reads);
+	reads.syncBucket(config).loadSequencesForAligner (config, aligner);
+	params.syncBucket(config).requireParamsOrUseDefaults (config);
+	nullModel.syncBucket(config).requireNullModelOrFit (config, reads);
 
 	aligner.serveAlignments (reads.seqs, reads.nOriginals, params, nullModel, config);
+
       } else {
 	cerr << "Unrecognized server command: " << serverCommand << endl;
 	return EXIT_FAILURE;
@@ -336,6 +343,18 @@ bool QuaffParamsIn::parseParamFilename() {
     }
   }
   return false;
+}
+
+QuaffParamsIn& QuaffParamsIn::syncBucket (const QuaffDPConfig& config) {
+  if (initialized())
+    config.syncFromBucket (loadFilename);
+  return *this;
+}
+
+QuaffParamsIn& QuaffParamsIn::addFileArgs (QuaffDPConfig& config) {
+  if (initialized())
+    config.addFileArg ("-params", loadFilename);
+  return *this;
 }
 
 void QuaffParamsIn::loadParams (const QuaffDPConfig& config) {
@@ -391,6 +410,18 @@ void QuaffNullParamsIn::loadNullModel (const QuaffDPConfig& config) {
     Require (!inFile.fail(), "Couldn't open %s", loadFilename.c_str());
     read (inFile);
   }
+}
+
+QuaffNullParamsIn& QuaffNullParamsIn::syncBucket (const QuaffDPConfig& config) {
+  if (initialized())
+    config.syncFromBucket (loadFilename);
+  return *this;
+}
+
+QuaffNullParamsIn& QuaffNullParamsIn::addFileArgs (QuaffDPConfig& config) {
+  if (initialized())
+    config.addFileArg ("-null", loadFilename);
+  return *this;
 }
 
 void QuaffNullParamsIn::requireNullModelOrFit (const QuaffDPConfig& config, const SeqList& seqList) {
@@ -521,6 +552,18 @@ bool SeqList::parseQualScoreArgs() {
     }
   }
   return false;
+}
+
+SeqList& SeqList::syncBucket (const QuaffDPConfig& config) {
+  for (const auto& s : filenames)
+    config.syncFromBucket (s);
+  return *this;
+}
+
+SeqList& SeqList::addFileArgs (QuaffDPConfig& config) {
+  for (const auto& s : filenames)
+    config.addFileArg (tag.c_str(), s);
+  return *this;
 }
 
 void SeqList::loadSequencesForAligner (const QuaffDPConfig& config, const QuaffAlignmentPrinter& aligner) {

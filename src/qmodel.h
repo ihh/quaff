@@ -28,6 +28,9 @@
 // Default place to find quaff binary
 #define DefaultQuaffPath "/usr/local/bin/quaff"
 
+// Directory where AWS instances will put files downloaded from buckets
+#define BucketStagingDir "/tmp"
+
 // Default size of receive buffer for sockets
 #define RCVBUFSIZE 1024
 
@@ -229,6 +232,7 @@ struct QuaffDPConfig {
   list<thread> remoteServerThreads;
   string bucket, sshPath, sshKey, remoteQuaffPath;
   string remoteServerArgs;
+  vguard<pair<string,string> > fileArgs;
   unsigned int ec2Instances, ec2Cores, ec2Port;
   vguard<string> ec2InstanceIds, ec2InstanceAddresses;
   string ec2Ami, ec2Type, ec2User;
@@ -255,14 +259,16 @@ struct QuaffDPConfig {
   bool parseGeneralConfigArgs (deque<string>& argvec);
   bool parseServerConfigArgs (deque<string>& argvec);
   void setServerArgs (const char* serverType, const string& args);
+  void addFileArg (const char* tag, const string& filename);
   DiagonalEnvelope makeEnvelope (const FastSeq& x, const KmerIndex& yKmerIndex, size_t cellSize) const;
   size_t effectiveMaxSize() const;  // takes threading into account
-  void loadFromBucket (const string& filename) const;
-  void saveToBucket (const string& filename) const;
+  void syncFromBucket (const string& filename) const;
+  void syncToBucket (const string& filename) const;
   void addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads);
   void startRemoteServers();
   void stopRemoteServers();
   string ec2StartupScript() const;
+  string makeServerArgs() const;
 };
 
 // thread entry point

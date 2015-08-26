@@ -32,25 +32,31 @@ bool AWS::cleanupCalled = false;
 
 AWS aws;
 
+string AWS::basename (const string& filename) {
+  char *f = new char [filename.size() + 1];
+  strcpy (f, filename.c_str());
+  const string n = ::basename(f);
+  delete[] f;
+  return n;
+}
+
+string AWS::dirname (const string& filename) {
+  char *f = new char [filename.size() + 1];
+  strcpy (f, filename.c_str());
+  const string n = ::dirname(f);
+  delete[] f;
+  return n;
+}
+
 void AWS::syncFromBucket (const string& bucket, const string& filename) {
-  char *file1 = new char [filename.size() + 1], *file2 = new char [filename.size() + 1];
-  strcpy (file1, filename.c_str());
-  strcpy (file2, filename.c_str());
-  const string cmd = string("aws s3 sync s3://") + bucket + ' ' + dirname(file1) + " --exclude '*' --include " + basename(file2);
-  delete[] file1;
-  delete[] file2;
+  const string cmd = string("aws s3 sync s3://") + bucket + ' ' + dirname(filename) + " --exclude '*' --include " + basename(filename);
   const int status = system (cmd.c_str());
   if (status != 0)
     Warn ("Return code %d attempting to sync file %s from S3 bucket %s", status, filename.c_str(), bucket.c_str());
 }
 
 void AWS::syncToBucket (const string& filename, const string& bucket) {
-  char *file1 = new char [filename.size() + 1], *file2 = new char [filename.size() + 1];
-  strcpy (file1, filename.c_str());
-  strcpy (file2, filename.c_str());
-  const string cmd = string("aws s3 sync ") + dirname(file1) + " s3://" + bucket + " --exclude '*' --include " + basename(file2);
-  delete[] file1;
-  delete[] file2;
+  const string cmd = string("aws s3 sync ") + dirname(filename) + " s3://" + bucket + " --exclude '*' --include " + basename(filename);
   const int status = system (cmd.c_str());
   if (status != 0)
     Warn ("Return code %d attempting to sync file %s to S3 bucket %s", status, filename.c_str(), bucket.c_str());

@@ -331,7 +331,6 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
     logger.eraseThreadName (t);
   }
   config.stopRemoteServers();
-  config.saveToBucket (alignFilename);
 }
 
 void QuaffOverlapAligner::serveAlignments (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
@@ -345,7 +344,6 @@ void QuaffOverlapAligner::serveAlignments (const vguard<FastSeq>& seqs, size_t n
     t.join();
     logger.eraseThreadName (t);
   }
-  config.saveToBucket (alignFilename);
 }
 
 void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* paligner, const vguard<FastSeq>* pseqs, size_t nOriginals, const QuaffParams* pparams, const QuaffNullParams* pnullModel, const QuaffDPConfig* pconfig, unsigned int port) {

@@ -42,6 +42,8 @@ public:
   // config
   bool parseAWSConfigArgs (deque<string>& argvec);
   // S3
+  static string basename (const string& filename);
+  static string dirname (const string& filename);
   void syncFromBucket (const string& bucket, const string& filename);
   void syncToBucket (const string& filename, const string& bucket);
   // EC2

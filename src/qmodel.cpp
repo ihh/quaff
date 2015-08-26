@@ -876,6 +876,21 @@ void QuaffDPConfig::setServerArgs (const char* serverType, const string& args) {
     logger << "Remote server arguments: " << remoteServerArgs << endl;
 }
 
+void QuaffDPConfig::addFileArg (const char* tag, const string& filename) {
+  fileArgs.push_back (pair<string,string> (string(tag), filename));
+}
+
+string QuaffDPConfig::makeServerArgs() const {
+  string s = remoteServerArgs;
+  if (bucket.size())
+    for (const auto& fa : fileArgs)
+      s += ' ' + fa.first + ' ' + BucketStagingDir + '/' + AWS::basename(fa.second);
+  else
+    for (const auto& fa : fileArgs)
+      s += ' ' + fa.first + ' ' + fa.second;
+  return s;
+}
+
 DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const KmerIndex& yKmerIndex, size_t cellSize) const {
   DiagonalEnvelope env (x, yKmerIndex.seq);
   if (sparse)
@@ -889,12 +904,12 @@ size_t QuaffDPConfig::effectiveMaxSize() const {
   return autoMemSize ? (maxSize / threads) : maxSize;
 }
 
-void QuaffDPConfig::loadFromBucket (const string& filename) const {
+void QuaffDPConfig::syncFromBucket (const string& filename) const {
   if (bucket.size() && filename.size())
     aws.syncFromBucket (bucket, filename);
 }
 
-void QuaffDPConfig::saveToBucket (const string& filename) const {
+void QuaffDPConfig::syncToBucket (const string& filename) const {
   if (bucket.size() && filename.size())
     aws.syncToBucket (filename, bucket);
 }
@@ -907,6 +922,8 @@ void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned 
 
 void QuaffDPConfig::startRemoteServers() {
   if (ec2Instances > 0) {
+    for (const auto& fa : fileArgs)
+      syncToBucket (fa.second);
     ec2InstanceIds = aws.launchInstancesWithScript (ec2Instances, ec2Type, ec2Ami, ec2StartupScript());
     ec2InstanceAddresses = aws.getInstanceAddresses (ec2InstanceIds);
     for (const auto& addr : ec2InstanceAddresses)
@@ -946,7 +963,7 @@ void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob*
     sshCmd += " -l " + remoteJob->user;
   if (config->sshKey.size())
     sshCmd += " -i " + config->sshKey;
-  sshCmd += ' ' + remoteJob->addr + ' ' + config->remoteQuaffPath + " server " + config->remoteServerArgs + " -port " + to_string(remoteJob->port) + " -threads " + to_string(remoteJob->threads) + " 2>&1";
+  sshCmd += ' ' + remoteJob->addr + ' ' + config->remoteQuaffPath + " server " + config->makeServerArgs() + " -port " + to_string(remoteJob->port) + " -threads " + to_string(remoteJob->threads) + " 2>&1";
 
   if (LogThisAt(4))
     logger << "Executing " << sshCmd << endl;
