@@ -47,7 +47,7 @@ void DiagonalEnvelope::initSparse (const KmerIndex& yKmerIndex, unsigned int ban
   if (LogThisAt(7)) {
     logger << "Distribution of " << kmerLen << "-mer matches per diagonal for " << px->name << " vs " << py->name << ':' << endl;
     for (const auto& countDistribElt : countDistrib)
-      logger << countDistribElt.second.size() << " diagonals have " << countDistribElt.first << " matches" << endl;
+      logger << countDistribElt.second.size() << " diagonals have " << plural(countDistribElt.first,"match") << endl;
   }
 
   set<int> diags, storageDiags;
