@@ -169,7 +169,7 @@ string AWS::terminateCommand (const vguard<string>& ids) const {
   return string("aws ec2 terminate-instances --instance-id ") + join(ids);
 }
 
-string AWS::bashHeader() const {
+string AWS::bashEnvPrefix() const {
   const char* keyid = getenv("AWS_ACCESS_KEY_ID");
   Assert (keyid != NULL, "AWS_ACCESS_KEY_ID undefined");
 
@@ -178,10 +178,10 @@ string AWS::bashHeader() const {
 
   const char* region = getenv("AWS_DEFAULT_REGION");
 
-  return bashBang + "export AWS_ACCESS_KEY_ID=" + keyid
-    + "\nexport AWS_SECRET_ACCESS_KEY=" + secretkey
-    + (region == NULL ? string() : (string("\nexport AWS_DEFAULT_REGION=") + region))
-    + "\n";
+  return string("env AWS_ACCESS_KEY_ID=") + keyid
+    + " AWS_SECRET_ACCESS_KEY=" + secretkey
+    + (region == NULL ? string() : (string(" AWS_DEFAULT_REGION=") + region))
+    + " ";
 }
 
 void AWS::cleanup() {

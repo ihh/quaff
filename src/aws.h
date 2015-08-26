@@ -53,8 +53,8 @@ public:
   void terminateInstances (const vguard<string>& instanceIDs);
   void terminateInstancesSilently (const vguard<string>& instanceIDs);
   string terminateCommand (const vguard<string>& instanceIDs) const;
-  // AWS environment helper for constructing user-data scripts
-  string bashHeader() const;
+  // helper for setting AWS credentials
+  string bashEnvPrefix() const;
 };
 
 // singleton

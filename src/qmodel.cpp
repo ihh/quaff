@@ -942,7 +942,7 @@ void QuaffDPConfig::startRemoteServers() {
 }
 
 string QuaffDPConfig::ec2StartupScript() const {
-  return aws.bashHeader()
+  return aws.bashBang
     + "yum -y update\n"
     + "yum -y install git gcc clang gsl-devel zlib-devel boost-devel\n"
     + "cd /usr/local;git clone https://github.com/ihh/quaff.git;cd quaff;make install\n";
@@ -969,7 +969,7 @@ void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob*
     sshCmd += " -l " + remoteJob->user;
   if (config->sshKey.size())
     sshCmd += " -i " + config->sshKey;
-  sshCmd += ' ' + remoteJob->addr + ' ' + config->remoteQuaffPath + " server " + config->makeServerArgs() + " -port " + to_string(remoteJob->port) + " -threads " + to_string(remoteJob->threads) + " 2>&1";
+  sshCmd += ' ' + remoteJob->addr + ' ' + aws.bashEnvPrefix() + config->remoteQuaffPath + " server " + config->makeServerArgs() + " -port " + to_string(remoteJob->port) + " -threads " + to_string(remoteJob->threads) + " 2>&1";
 
   if (LogThisAt(4))
     logger << "Executing " << sshCmd << endl;
