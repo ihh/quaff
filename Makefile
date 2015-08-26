@@ -99,7 +99,7 @@ testnegbinom: bin/testnegbinom
 testdiagenv: bin/testdiagenv
 	bin/testdiagenv data/c8f30.fastq.gz data/c8f30.fastq.gz 6 14 64
 
-testregex: t/testregex.cpp
+testregex: t/testregex.cpp src/regexmacros.h
 	$(CPP) $(CPPFLAGS) $(LIBFLAGS) -o bin/$@ $<
 	bin/$@
 

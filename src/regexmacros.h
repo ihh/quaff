@@ -15,21 +15,24 @@ using namespace std;
 // (e.g. Amazon EC2 AMI/yum, at time of writing: 8/25/2015).
 
 // These macros use an ultra-minimal subset of POSIX basic syntax:
-// character classes [], repetition *, wildcards ., groups \\( \\)
+// character classes [], ranges a-z, repetition *, wildcards ., groups \\( \\)
 // NB literal hyphens must appear at the start of a character class.
 
 #define RE_CHAR_CLASS(STR) "[" STR "]"
 #define RE_PLUS(CLASS) CLASS CLASS "*"
 #define RE_GROUP(EXPR) "\\(" EXPR "\\)"
 
-#define RE_NUMERIC_RANGE "0123456789"
-#define RE_ALPHA_RANGE "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+#define RE_NUMERIC_RANGE "0-9"
+#define RE_ALPHA_RANGE "A-Za-z"
 #define RE_ALPHANUM_RANGE RE_ALPHA_RANGE RE_NUMERIC_RANGE
+
+#define RE_NONWHITE_RANGE "!-~"
 
 #define RE_NUMERIC_CHAR_CLASS RE_CHAR_CLASS(RE_NUMERIC_RANGE)
 #define RE_VARNAME_CHAR_CLASS RE_CHAR_CLASS(RE_ALPHANUM_RANGE "_")
 #define RE_DNS_CHAR_CLASS RE_CHAR_CLASS("-" RE_ALPHANUM_RANGE "\\.")
 #define RE_FLOAT_CHAR_CLASS RE_CHAR_CLASS("-" RE_NUMERIC_RANGE "eE+\\.")
+#define RE_NONWHITE_CHAR_CLASS RE_CHAR_CLASS(RE_NONWHITE_RANGE)
 
 #define RE_NUMERIC_GROUP RE_GROUP(RE_PLUS(RE_NUMERIC_CHAR_CLASS))
 #define RE_VARNAME_GROUP RE_GROUP(RE_PLUS(RE_VARNAME_CHAR_CLASS))

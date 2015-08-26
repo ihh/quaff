@@ -115,7 +115,7 @@ void searchgroup (const string& re, const char* s, int n, const char* g) {
 
 int main (int argc, char** argv) {
 
-  const string paramValRegex (" *" RE_VARNAME_GROUP " *: *" RE_DOT_GROUP);
+  const string paramValRegex (" *" RE_VARNAME_GROUP " *: *" RE_GROUP(RE_NONWHITE_CHAR_CLASS ".*"));
   const string lineRegex (RE_DOT_GROUP);
   const string orderRegex (RE_NUMERIC_GROUP);
   const string countRegex (RE_NUMERIC_GROUP " *: *" RE_FLOAT_GROUP);
@@ -127,6 +127,8 @@ int main (int argc, char** argv) {
   const string all_v ("-" RE_PLUS("v"));
   const string numeric_v ("-v" RE_NUMERIC_GROUP);
 
+  const string nonwhite (RE_NONWHITE_CHAR_CLASS);
+  
   match (RE_CHAR_CLASS("abc"), "a");
   match (RE_CHAR_CLASS("abc"), "b");
   nomatch (RE_CHAR_CLASS("abc"), "d");
@@ -144,9 +146,7 @@ int main (int argc, char** argv) {
 
   matchgroup (paramValRegex, "  a :b  ", 1, "a");
   matchgroup (paramValRegex, "  a :b  ", 2, "b  ");
-
-  // fails under boost:
-  //  matchgroup (paramValRegex, "  a : b  ", 2, " b  ");
+  matchgroup (paramValRegex, "  a : b  ", 2, "b  ");
 
   match (RE_DNS_CHAR_CLASS, "a");
   match (RE_DNS_CHAR_CLASS, "1");
@@ -164,7 +164,16 @@ int main (int argc, char** argv) {
 
   match (all_v, "-vvv");
   matchgroup (numeric_v, "-v5", 1, "5");
-  
+
+  match (nonwhite, "a");
+  match (nonwhite, "-");
+  match (nonwhite, ".");
+  match (nonwhite, "[");
+  match (nonwhite, "]");
+  match (nonwhite, "\\");
+  match (nonwhite, "\"");
+  nomatch (nonwhite, " ");
+
   cout << "ok" << endl;
   return EXIT_SUCCESS;
 }
