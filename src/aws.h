@@ -44,13 +44,15 @@ public:
   // S3
   static string basename (const string& filename);
   static string dirname (const string& filename);
+  static string runCommandAndTestStatus (const string& command);
   void syncFromBucket (const string& bucket, const string& filename);
   void syncToBucket (const string& filename, const string& bucket);
   // EC2
   vguard<string> launchInstancesWithScript (unsigned int nInstances, const string& instanceType, const string& ami, const string& userDataScript);
   vguard<string> getInstanceAddresses (const vguard<string>& instanceIDs) const;
   void terminateInstances (const vguard<string>& instanceIDs);
-  string terminateInstancesSilently (const vguard<string>& instanceIDs);
+  void terminateInstancesSilently (const vguard<string>& instanceIDs);
+  string terminateCommand (const vguard<string>& instanceIDs) const;
   // AWS environment helper for constructing user-data scripts
   string bashHeader() const;
 };

@@ -48,28 +48,32 @@ string AWS::dirname (const string& filename) {
   return n;
 }
 
-void AWS::syncFromBucket (const string& bucket, const string& filename) {
-  const string cmd = string("aws s3 sync s3://") + bucket + ' ' + dirname(filename) + " --exclude '*' --include " + basename(filename);
-
+string AWS::runCommandAndTestStatus (const string& cmd) {
   if (LogThisAt(4))
     logger << "Executing: " << cmd << endl;
 
-  const int status = system (cmd.c_str());
+  int cmdStatus = -1;
+  const string cmdOut = pipeToString (cmd.c_str(), &cmdStatus);
 
-  if (status != 0)
-    Warn ("Return code %d attempting to sync file %s from S3 bucket %s", status, filename.c_str(), bucket.c_str());
+  if (LogThisAt(4))
+    logger << "Output:" << endl << cmdOut << endl;
+
+  if (cmdStatus != 0)
+    Warn ("Return code %d attempting %s\n%s", cmdStatus, cmd.c_str(), cmdOut.c_str());
+
+  return cmdOut;
+}
+
+void AWS::syncFromBucket (const string& bucket, const string& filename) {
+  const string cmd = string("aws s3 sync s3://") + bucket + ' ' + dirname(filename) + " --exclude '*' --include " + basename(filename);
+
+  (void) runCommandAndTestStatus (cmd);
 }
 
 void AWS::syncToBucket (const string& filename, const string& bucket) {
   const string cmd = string("aws s3 sync ") + dirname(filename) + " s3://" + bucket + " --exclude '*' --include " + basename(filename);
 
-  if (LogThisAt(4))
-    logger << "Executing: " << cmd << endl;
-
-  const int status = system (cmd.c_str());
-
-  if (status != 0)
-    Warn ("Return code %d attempting to sync file %s to S3 bucket %s", status, filename.c_str(), bucket.c_str());
+  (void) runCommandAndTestStatus (cmd);
 }
 
 vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const string& instanceType, const string& ami, const string& userDataScript) {
@@ -77,15 +81,10 @@ vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const st
   const string base64UserDataScript = base64_encode (userDataScript.c_str(), (unsigned int) userDataScript.size());
   const string runCmd = string("aws ec2 run-instances --enable-api-termination --key-name ") + keyPair + " --security-groups " + securityGroup + " --instance-type " + instanceType + " --count " + to_string(nInstances) + ':' + to_string(nInstances) + " --image-id " + ami + " --user-data " + base64UserDataScript;
 
-  if (LogThisAt(4))
-    logger << "Executing: " << runCmd << endl;
+  const string runOut = runCommandAndTestStatus (runCmd);
 
-  const string runOut = pipeToString (runCmd.c_str());
   char* runOutCStr = new char [runOut.length()+1];
   strcpy (runOutCStr, runOut.c_str());
-
-  if (LogThisAt(4))
-    logger << "Output: " << runOut << endl;
 
   char *endPtr;
   JsonValue value;
@@ -100,6 +99,7 @@ vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const st
     Assert (instanceId.getTag() == JSON_STRING, "JSON parsing error: Instances->InstanceId is not a string");
     ids.push_back (instanceId.toString());
   }
+
   delete[] runOutCStr;
 
   for (const auto& id : ids)
@@ -109,8 +109,8 @@ vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const st
     logger << "Waiting for EC2 instance-status-ok: " << join(ids) << endl;
 
   const string waitCmd = string("aws ec2 wait instance-status-ok --instance-id ") + join(ids);
-  const int waitStatus = system(waitCmd.c_str());
-  Assert (waitStatus == 0, "Failed: %s", waitCmd.c_str());
+
+  (void) runCommandAndTestStatus (waitCmd);
 
   if (LogThisAt(3))
     logger << "EC2 instances running: " << join(ids) << endl;
@@ -120,7 +120,8 @@ vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const st
 
 vguard<string> AWS::getInstanceAddresses (const vguard<string>& ids) const {
   const string describeCmd = string("aws ec2 describe-instances --instance-id ") + join(ids);
-  const string describeOut = pipeToString (describeCmd.c_str());
+  const string describeOut = runCommandAndTestStatus (describeCmd);
+
   char* describeOutCStr = new char [describeOut.length()+1];
   strcpy (describeOutCStr, describeOut.c_str());
 
@@ -152,17 +153,20 @@ void AWS::terminateInstances (const vguard<string>& ids) {
   if (ids.size()) {
     if (LogThisAt(1))
       logger << "Terminating instances: " << join(ids) << endl;
-    const string termOut = terminateInstancesSilently (ids);
-    if (LogThisAt(2))
-      logger << termOut << flush;
+    const string termCmd = terminateCommand (ids);
+    (void) runCommandAndTestStatus (termCmd);
     for (const auto& id : ids)
       runningInstanceIds.erase (id);
   }
 }
 
-string AWS::terminateInstancesSilently (const vguard<string>& ids) {
-  const string termCmd = string("aws ec2 terminate-instances --instance-id ") + join(ids);
-  return pipeToString (termCmd.c_str());
+void AWS::terminateInstancesSilently (const vguard<string>& ids) {
+  const string termCmd = terminateCommand (ids);
+  (void) pipeToString (termCmd.c_str());
+}
+
+string AWS::terminateCommand (const vguard<string>& ids) const {
+  return string("aws ec2 terminate-instances --instance-id ") + join(ids);
 }
 
 string AWS::bashHeader() const {
@@ -186,7 +190,7 @@ void AWS::cleanup() {
     if (!runningInstanceIds.empty()) {
       cerr << "Terminating EC2 instances..." << endl;
       const vguard<string> ids (runningInstanceIds.begin(), runningInstanceIds.end());
-      (void) aws.terminateInstancesSilently (ids);
+      aws.terminateInstancesSilently (ids);
     }
   }
 }

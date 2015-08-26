@@ -198,7 +198,7 @@ void ProgressLogger::logProgress (double completedFraction, const char* desc, ..
     const double estimatedHoursLeft = estimatedMinutesLeft / 60;
     const double estimatedDaysLeft = estimatedHoursLeft / 24;
 
-    if (logger.testVerbosityOrLogTagsWithLock (verbosity, function, file)) {
+    if (completedFraction > 0 && logger.testVerbosityOrLogTagsWithLock (verbosity, function, file)) {
       char *progMsg;
       va_start (argptr, desc);
       vasprintf (&progMsg, desc, argptr);
