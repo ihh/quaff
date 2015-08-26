@@ -48,6 +48,12 @@ install: bin/quaff
 uninstall:
 	rm /usr/local/bin/quaff
 
+aws-install: aws-dep install
+
+aws-dep:
+	yum -y update
+	yum -y install git gcc clang gsl-devel zlib-devel boost-devel
+
 clean:
 	rm -rf bin/*
 

@@ -943,11 +943,7 @@ void QuaffDPConfig::startRemoteServers() {
 
 string QuaffDPConfig::ec2StartupScript() const {
   return aws.bashBang
-    + "yum -y update\n"
-    + "yum -y install git gcc clang gsl-devel zlib-devel boost-devel\n"
-    + "mkdir -p " BucketStagingDir "\n"
-    + "chmod a+rwx " BucketStagingDir "\n"
-    + "cd /usr/local;git clone https://github.com/ihh/quaff.git;cd quaff;make install\n";
+    + "mkdir -p -m a=rwx " BucketStagingDir "\n";
 }
 
 void QuaffDPConfig::stopRemoteServers() {
@@ -973,13 +969,15 @@ void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob*
     sshCmd += " -i " + config->sshKey;
   sshCmd += ' ' + remoteJob->addr + ' ' + aws.bashEnvPrefix() + config->remoteQuaffPath + " server " + config->makeServerArgs() + " -port " + to_string(remoteJob->port) + " -threads " + to_string(remoteJob->threads) + " 2>&1";
 
+  const string fullSshCmd = string("'git clone https://github.com/ihh/quaff.git && cd quaff && sudo make aws-install && ") + sshCmd + "'";
+  
   int attempts = 0;
   while (true) {
   
     if (LogThisAt(4))
-      logger << "Executing " << sshCmd << endl;
+      logger << "Executing " << fullSshCmd << endl;
 
-    FILE* pipe = popen (sshCmd.c_str(), "r");
+    FILE* pipe = popen (fullSshCmd.c_str(), "r");
     char line[PIPE_BUF_SIZE];
     deque<string> lastLines;
     const int linesToKeep = 3;
