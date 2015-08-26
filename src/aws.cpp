@@ -50,14 +50,24 @@ string AWS::dirname (const string& filename) {
 
 void AWS::syncFromBucket (const string& bucket, const string& filename) {
   const string cmd = string("aws s3 sync s3://") + bucket + ' ' + dirname(filename) + " --exclude '*' --include " + basename(filename);
+
+  if (LogThisAt(4))
+    logger << "Executing: " << cmd << endl;
+
   const int status = system (cmd.c_str());
+
   if (status != 0)
     Warn ("Return code %d attempting to sync file %s from S3 bucket %s", status, filename.c_str(), bucket.c_str());
 }
 
 void AWS::syncToBucket (const string& filename, const string& bucket) {
   const string cmd = string("aws s3 sync ") + dirname(filename) + " s3://" + bucket + " --exclude '*' --include " + basename(filename);
+
+  if (LogThisAt(4))
+    logger << "Executing: " << cmd << endl;
+
   const int status = system (cmd.c_str());
+
   if (status != 0)
     Warn ("Return code %d attempting to sync file %s to S3 bucket %s", status, filename.c_str(), bucket.c_str());
 }
