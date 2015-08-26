@@ -32,18 +32,18 @@ bool AWS::cleanupCalled = false;
 
 AWS aws;
 
-string AWS::basename (const string& filename) {
+string AWS::basenameStr (const string& filename) {
   char *f = new char [filename.size() + 1];
   strcpy (f, filename.c_str());
-  const string n = ::basename(f);
+  const string n = basename(f);
   delete[] f;
   return n;
 }
 
-string AWS::dirname (const string& filename) {
+string AWS::dirnameStr (const string& filename) {
   char *f = new char [filename.size() + 1];
   strcpy (f, filename.c_str());
-  const string n = ::dirname(f);
+  const string n = dirname(f);
   delete[] f;
   return n;
 }
@@ -65,13 +65,13 @@ string AWS::runCommandAndTestStatus (const string& cmd) {
 }
 
 void AWS::syncFromBucket (const string& bucket, const string& filename) {
-  const string cmd = string("aws s3 sync s3://") + bucket + ' ' + dirname(filename) + " --exclude '*' --include " + basename(filename);
+  const string cmd = string("aws s3 sync s3://") + bucket + ' ' + dirnameStr(filename) + " --exclude '*' --include " + basenameStr(filename);
 
   (void) runCommandAndTestStatus (cmd);
 }
 
 void AWS::syncToBucket (const string& filename, const string& bucket) {
-  const string cmd = string("aws s3 sync ") + dirname(filename) + " s3://" + bucket + " --exclude '*' --include " + basename(filename);
+  const string cmd = string("aws s3 sync ") + dirnameStr(filename) + " s3://" + bucket + " --exclude '*' --include " + basenameStr(filename);
 
   (void) runCommandAndTestStatus (cmd);
 }

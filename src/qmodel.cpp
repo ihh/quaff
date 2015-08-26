@@ -890,7 +890,7 @@ string QuaffDPConfig::makeServerArgs() const {
   string s = remoteServerArgs;
   if (bucket.size())
     for (const auto& fa : fileArgs)
-      s += ' ' + fa.first + ' ' + BucketStagingDir + '/' + AWS::basename(fa.second);
+      s += ' ' + fa.first + ' ' + BucketStagingDir + '/' + AWS::basenameStr(fa.second);
   else
     for (const auto& fa : fileArgs)
       s += ' ' + fa.first + ' ' + fa.second;
