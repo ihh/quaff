@@ -1829,7 +1829,7 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
   if (LogThisAt(8)) {
     logger << "Known read names:";
     for (const auto& s : *py)
-      logger << ' ' << s.name;
+      logger << " \"" << s.name << "\"";
     logger << endl;
   }
   
@@ -1893,7 +1893,7 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
 	logger << "Request completed" << endl;
 
     } else if (LogThisAt(1))
-      logger << "Bad request, ignoring" << endl << "sortOrder: " << join(sortOrder) << endl << "yName: " << yName << endl << "Request follows:" << endl << msg << endl;
+      logger << "Bad request, ignoring" << endl << "sortOrder = (" << join(sortOrder) << ')' << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << msg << endl;
 	
     delete sock;
   }
@@ -2280,7 +2280,7 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
   if (LogThisAt(8)) {
     logger << "Known read names:";
     for (const auto& s : *py)
-      logger << ' ' << s.name;
+      logger << " \"" << s.name << "\"";
     logger << endl;
   }
 
@@ -2326,7 +2326,7 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
 	logger << "Request completed" << endl;
 
     } else if (LogThisAt(1))
-      logger << "Bad request, ignoring" << endl << "yName: " << yName << endl << "Request follows:" << endl << msg << endl;
+      logger << "Bad request, ignoring" << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << msg << endl;
 	
     delete sock;
   }

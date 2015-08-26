@@ -354,7 +354,7 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
   if (LogThisAt(8)) {
     logger << "Known read names:";
     for (const auto& s : *pseqs)
-      logger << ' ' << s.name;
+      logger << " \"" << s.name << "\"";
     logger << endl;
   }
 
@@ -404,7 +404,7 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
 	logger << "Request completed" << endl;
 
     } else if (LogThisAt(1))
-      logger << "Bad request, ignoring" << endl << "xName: " << xName << endl << "yName: " << yName << endl << "yComp: " << yComp << endl << "Request follows:" << endl << msg << endl;
+      logger << "Bad request, ignoring" << endl << "xName = \"" << xName << "\"" << endl << "yName = \"" << yName << "\"" << endl << "yComp = \"" << yComp << "\"" << endl << "Request follows:" << endl << msg << endl;
 	
     delete sock;
   }
