@@ -55,17 +55,17 @@ clean:
 	rm -rf bin/*
 
 # AWS
-aws-install: aws install
-
-aws: aws-dep quaff
+# NB pseudotarget runs make again, to re-test $(BOOST)
+aws-install: aws-dep
+	make install
 
 aws-dep:
 	yum -y install gcc clang gsl-devel zlib-devel boost-devel
 
 # OS X
-osx-install: osx install
-
-osx: osx-dep quaff
+# NB pseudotarget runs make again, to re-test $(BOOST)
+osx-install: osx-dep
+	make install
 
 osx-dep:
 	brew install gsl boost awscli
