@@ -941,7 +941,7 @@ void QuaffDPConfig::startRemoteServers() {
     ec2InstanceAddresses = aws.getInstanceAddresses (ec2InstanceIds);
     for (const auto& addr : ec2InstanceAddresses) {
       addRemote (ec2User, addr, ec2Port, ec2Cores);
-      const string testCmd = makeSshCommand (string ("'while ! test -e " BucketStagingDir "; do sleep 1; done'"), remoteJobs.back());
+      const string testCmd = makeSshCommand (string ("while ! test -e " BucketStagingDir "; do sleep 1; done"), remoteJobs.back());
       const bool bucketStagingDirExists = execWithRetries(testCmd,MaxQuaffSshAttempts);
       Assert (bucketStagingDirExists, "Cloud initialization failed");
     }
@@ -962,7 +962,7 @@ string QuaffDPConfig::makeSshCommand (const string& cmd, const RemoteServerJob& 
     sshCmd += " -l " + job.user;
   if (sshKey.size())
     sshCmd += " -i " + sshKey;
-  sshCmd += ' ' + job.addr + ' ' + cmd;
+  sshCmd += ' ' + job.addr + " '" + cmd + "' 2>&1";
   return sshCmd;
 }
 
