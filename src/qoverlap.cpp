@@ -351,6 +351,13 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
   for (const auto& s : *pseqs)
     seqDict[s.name] = &s;
 
+  if (LogThisAt(8)) {
+    logger << "Known read names:";
+    for (const auto& s : *pseqs)
+      logger << ' ' << s.name;
+    logger << endl;
+  }
+
   TCPServerSocket servSock (port);
   if (LogThisAt(1))
     logger << "(listening on port " << port << ')' << endl;
@@ -361,9 +368,12 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
     if (LogThisAt(1))
       logger << "Handling request from " << sock->getForeignAddress() << endl;
 
-    auto paramVal = readQuaffParamFile (sock);
+    auto msg = readQuaffStringFromSocket (sock);
+    auto paramVal = readQuaffParamFile (msg);
 
     if (paramVal.find("quit") != paramVal.end()) {
+      if (LogThisAt(1))
+	logger << "(quit)" << endl;
       delete sock;
       break;
     }
@@ -394,7 +404,7 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
 	logger << "Request completed" << endl;
 
     } else if (LogThisAt(1))
-      logger << "Bad request, ignoring" << endl;
+      logger << "Bad request, ignoring" << endl << "xName: " << xName << endl << "yName: " << yName << endl << "yComp: " << yComp << endl << "Request follows:" << endl << msg << endl;
 	
     delete sock;
   }

@@ -1826,6 +1826,13 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
   for (const auto& s : *py)
     yDict[s.name] = &s;
 
+  if (LogThisAt(8)) {
+    logger << "Known read names:";
+    for (const auto& s : *py)
+      logger << ' ' << s.name;
+    logger << endl;
+  }
+  
   TCPServerSocket servSock (port);
   if (LogThisAt(1))
     logger << "(listening on port " << port << ')' << endl;
@@ -1840,6 +1847,8 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
     auto paramVal = readQuaffParamFile (msg);
 
     if (paramVal.find("quit") != paramVal.end()) {
+      if (LogThisAt(1))
+	logger << "(quit)" << endl;
       delete sock;
       break;
     }
@@ -1884,7 +1893,7 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
 	logger << "Request completed" << endl;
 
     } else if (LogThisAt(1))
-      logger << "Bad request, ignoring:" << endl << msg << endl;
+      logger << "Bad request, ignoring" << endl << "sortOrder: " << join(sortOrder) << endl << "yName: " << yName << endl << "Request follows:" << endl << msg << endl;
 	
     delete sock;
   }
@@ -2268,6 +2277,13 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
   for (const auto& s : *py)
     yDict[s.name] = &s;
 
+  if (LogThisAt(8)) {
+    logger << "Known read names:";
+    for (const auto& s : *py)
+      logger << ' ' << s.name;
+    logger << endl;
+  }
+
   TCPServerSocket servSock (port);
   if (LogThisAt(1))
     logger << "(listening on port " << port << ')' << endl;
@@ -2282,6 +2298,8 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
     auto paramVal = readQuaffParamFile (msg);
 
     if (paramVal.find("quit") != paramVal.end()) {
+      if (LogThisAt(1))
+	logger << "(quit)" << endl;
       delete sock;
       break;
     }
@@ -2308,7 +2326,7 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
 	logger << "Request completed" << endl;
 
     } else if (LogThisAt(1))
-      logger << "Bad request, ignoring:" << endl << msg << endl;
+      logger << "Bad request, ignoring" << endl << "yName: " << yName << endl << "Request follows:" << endl << msg << endl;
 	
     delete sock;
   }
