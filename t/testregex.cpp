@@ -162,8 +162,8 @@ int main (int argc, char** argv) {
   match (remoteAddrRegex, "localhost:8000");
   match (remoteAddrRegex, "localhost");
 
-  group (all_v, "-v", 1, "v");
-  group (numeric_v, "-v5", 1, "5");
+  matchgroup (all_v, "-v", 1, "v");
+  matchgroup (numeric_v, "-v5", 1, "5");
   
   cout << "ok" << endl;
   return EXIT_SUCCESS;
