@@ -22,15 +22,15 @@ const double MAX_FRACTIONAL_FWDBACK_ERROR = .0001;
 // Threshold for dropping poorly-matching refseqs
 const double MAX_TRAINING_LOG_DELTA = 20;
 
-const regex eofRegex (SocketTerminatorString, regex::basic);
-const regex paramValRegex (" *" RE_VARNAME_GROUP " *: *" RE_DOT_GROUP, regex::basic);
-const regex lineRegex (RE_DOT_GROUP, regex::basic);
-const regex orderRegex (RE_NUMERIC_GROUP, regex::basic);
-const regex countRegex (RE_NUMERIC_GROUP " *: *" RE_FLOAT_GROUP, regex::basic);
-const regex remoteUserAddrRegex (RE_DOT_GROUP "@" RE_DNS_GROUP ".*", regex::basic);
-const regex remoteAddrRegex (RE_DNS_GROUP ".*", regex::basic);
-const regex singleRemotePortRegex (".*:" RE_NUMERIC_GROUP, regex::basic);
-const regex multiRemotePortRegex (".*:" RE_NUMERIC_GROUP "-" RE_NUMERIC_GROUP, regex::basic);
+const regex eofRegex (SocketTerminatorString, regex_constants::basic);
+const regex paramValRegex (" *" RE_VARNAME_GROUP " *: *" RE_DOT_GROUP, regex_constants::basic);
+const regex lineRegex (RE_DOT_GROUP, regex_constants::basic);
+const regex orderRegex (RE_NUMERIC_GROUP, regex_constants::basic);
+const regex countRegex (RE_NUMERIC_GROUP " *: *" RE_FLOAT_GROUP, regex_constants::basic);
+const regex remoteUserAddrRegex (RE_DOT_GROUP "@" RE_DNS_GROUP ".*", regex_constants::basic);
+const regex remoteAddrRegex (RE_DNS_GROUP ".*", regex_constants::basic);
+const regex singleRemotePortRegex (".*:" RE_NUMERIC_GROUP, regex_constants::basic);
+const regex multiRemotePortRegex (".*:" RE_NUMERIC_GROUP "-" RE_NUMERIC_GROUP, regex_constants::basic);
 
 // useful helper methods
 double logBetaPdf (double prob, double yesCount, double noCount);

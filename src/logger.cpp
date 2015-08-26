@@ -8,8 +8,8 @@
 Logger logger;
 
 // POSIX basic regular expressions
-const regex all_v ("-" RE_GROUP(RE_PLUS("v")), regex::basic);
-const regex numeric_v ("-v" RE_NUMERIC_GROUP, regex::basic);
+const regex all_v ("-" RE_PLUS("v"), regex_constants::basic);
+const regex numeric_v ("-v" RE_NUMERIC_GROUP, regex_constants::basic);
 
 // functions
 string ansiEscape (int code) {
