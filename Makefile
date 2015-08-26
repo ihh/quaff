@@ -27,6 +27,9 @@ BOOSTFLAGS := -DUSE_BOOST -I$(BOOSTPREFIX)/include -L$(BOOSTPREFIX)/lib
 BOOSTLIBS := -lboost_regex
 endif
 
+# install dir
+PREFIX ?= /usr/local
+
 # other flags
 CPPFLAGS = -DUSE_VECTOR_GUARDS -std=c++11 -g $(GSLFLAGS) $(BOOSTFLAGS)
 LIBFLAGS = -lstdc++ -lz $(GSLLIBS) $(BOOSTLIBS)
@@ -42,21 +45,32 @@ all: quaff
 quaff: bin/quaff
 
 install: bin/quaff
-	cp $< /usr/local/bin
-	chmod a+x /usr/local/bin/quaff
+	cp $< $(PREFIX)/bin
+	chmod a+x $(PREFIX)/bin/quaff
 
 uninstall:
-	rm /usr/local/bin/quaff
-
-aws-install: aws-dep install
-
-aws-dep:
-	yum -y update
-	yum -y install git gcc clang gsl-devel zlib-devel boost-devel
+	rm $(PREFIX)/bin/quaff
 
 clean:
 	rm -rf bin/*
 
+# AWS
+aws-install: aws install
+
+aws: aws-dep quaff
+
+aws-dep:
+	yum -y install gcc clang gsl-devel zlib-devel boost-devel
+
+# OS X
+osx-install: osx install
+
+osx: osx-dep quaff
+
+osx-dep:
+	brew install gsl boost awscli
+
+# Tests
 # testaws is not included in the top-level 'make test' target
 test: testfast testquaffio testlogsumexp testnegbinom testdiagenv testregex
 

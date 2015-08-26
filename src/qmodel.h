@@ -26,7 +26,11 @@
 #define DefaultServerPort 8000
 
 // Default place to find quaff binary
-#define DefaultQuaffPath "/usr/local/bin/quaff"
+#define DefaultQuaffInstallPrefix "/usr/local"
+#define DefaultQuaffPath DefaultQuaffInstallPrefix "/bin/quaff"
+
+// Quaff git repository
+#define QuaffGitRepository "https://github.com/ihh/quaff.git"
 
 // Directory where AWS instances will put files downloaded from buckets
 #define BucketStagingDir "/tmp/quaff"
@@ -37,8 +41,9 @@
 // Number of attempts for ssh
 #define MaxQuaffSshAttempts 3
 
-// Max retry delay
-#define MaxQuaffRetryDelay 10
+// Retry delay
+#define MinQuaffRetryDelay 5
+#define MaxQuaffRetryDelay 15
 
 // Terminator string for socket messages
 #define SocketTerminatorString "# EOF"
@@ -48,7 +53,7 @@ string readQuaffStringFromSocket (TCPSocket* sock, int bufSize = RCVBUFSIZE);
 map<string,string> readQuaffParamFile (istream& in);
 map<string,string> readQuaffParamFile (TCPSocket* sock);
 
-void randomDelayBeforeRetry (unsigned int maxSeconds);
+void randomDelayBeforeRetry (unsigned int minSeconds, unsigned int maxSeconds);
 
 // struct describing the probability of a given FASTA symbol,
 // and a negative binomial distribution over the associated quality score
@@ -277,6 +282,9 @@ struct QuaffDPConfig {
   void stopRemoteServers();
   string ec2StartupScript() const;
   string makeServerArgs() const;
+  string makeServerCommand (const RemoteServerJob& job) const;
+  string makeSshCommand (const string& cmd, const RemoteServerJob& job) const;
+  bool execWithRetries (const string& cmd, int maxAttempts) const;
 };
 
 // thread entry point

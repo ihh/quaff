@@ -456,7 +456,7 @@ string QuaffOverlapTask::delegate (const RemoteServer& remote) {
 	logger << e.what() << endl;
     }
 
-    randomDelayBeforeRetry (10);
+    randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
   }
   return response;
 }

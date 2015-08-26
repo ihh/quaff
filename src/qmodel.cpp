@@ -96,10 +96,10 @@ vguard<size_t> readSortOrder (const string& orderString) {
   return sortOrder;
 }
 
-void randomDelayBeforeRetry (unsigned int maxSeconds) {
+void randomDelayBeforeRetry (unsigned int minSeconds, unsigned int maxSeconds) {
   random_device rd;
   mt19937 gen(rd());
-  uniform_int_distribution<int> dist(1, 10);
+  uniform_int_distribution<int> dist (minSeconds, maxSeconds);
 
   const int delay = dist(gen);
     
@@ -932,8 +932,12 @@ void QuaffDPConfig::startRemoteServers() {
       syncToBucket (fa.second);
     ec2InstanceIds = aws.launchInstancesWithScript (ec2Instances, ec2Type, ec2Ami, ec2StartupScript());
     ec2InstanceAddresses = aws.getInstanceAddresses (ec2InstanceIds);
-    for (const auto& addr : ec2InstanceAddresses)
+    for (const auto& addr : ec2InstanceAddresses) {
       addRemote (ec2User, addr, ec2Port, ec2Cores);
+      const string testCmd = makeSshCommand (string ("'while ! test -e " BucketStagingDir "; do sleep 1; done'"), remoteJobs.back());
+      const bool bucketStagingDirExists = execWithRetries(testCmd,MaxQuaffSshAttempts);
+      Assert (bucketStagingDirExists, "Cloud initialization failed");
+    }
   }
   for (const auto& remoteJob : remoteJobs) {
     remoteServerThreads.push_back (thread (&startRemoteQuaffServer, this, &remoteJob));
@@ -941,9 +945,26 @@ void QuaffDPConfig::startRemoteServers() {
   }
 }
 
+string QuaffDPConfig::makeServerCommand (const RemoteServerJob& job) const {
+  return aws.bashEnvPrefix() + remoteQuaffPath + " server " + makeServerArgs() + " -port " + to_string(job.port) + " -threads " + to_string(job.threads) + " 2>&1";
+}
+
+string QuaffDPConfig::makeSshCommand (const string& cmd, const RemoteServerJob& job) const {
+  string sshCmd = sshPath + " -oBatchMode=yes -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no";
+  if (job.user.size())
+    sshCmd += " -l " + job.user;
+  if (sshKey.size())
+    sshCmd += " -i " + sshKey;
+  sshCmd += ' ' + job.addr + ' ' + cmd;
+  return sshCmd;
+}
+
 string QuaffDPConfig::ec2StartupScript() const {
   return aws.bashBang
-    + "mkdir -p -m a=rwx " BucketStagingDir "\n";
+    + "yum -y update\n"
+    + "yum -y install git\n"
+    + "cd " DefaultQuaffInstallPrefix " && git clone " QuaffGitRepository " && cd quaff && make PREFIX=" DefaultQuaffInstallPrefix " -i aws-install\n"
+    + "mkdir -p -m a=rwx " BucketStagingDir "\n";  // create this last, as it is used as a test for startup completion
 }
 
 void QuaffDPConfig::stopRemoteServers() {
@@ -961,23 +982,14 @@ void QuaffDPConfig::stopRemoteServers() {
 
 // buffer size for popen
 #define PIPE_BUF_SIZE 1024
-void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob* remoteJob) {
-  string sshCmd = config->sshPath + " -oBatchMode=yes -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no";
-  if (remoteJob->user.size())
-    sshCmd += " -l " + remoteJob->user;
-  if (config->sshKey.size())
-    sshCmd += " -i " + config->sshKey;
-  sshCmd += ' ' + remoteJob->addr + ' ' + aws.bashEnvPrefix() + config->remoteQuaffPath + " server " + config->makeServerArgs() + " -port " + to_string(remoteJob->port) + " -threads " + to_string(remoteJob->threads) + " 2>&1";
-
-  const string fullSshCmd = string("'git clone https://github.com/ihh/quaff.git && cd quaff && sudo make aws-install && ") + sshCmd + "'";
-  
+bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts) const {
   int attempts = 0;
   while (true) {
   
     if (LogThisAt(4))
-      logger << "Executing " << fullSshCmd << endl;
+      logger << "Executing " << cmd << endl;
 
-    FILE* pipe = popen (fullSshCmd.c_str(), "r");
+    FILE* pipe = popen (cmd.c_str(), "r");
     char line[PIPE_BUF_SIZE];
     deque<string> lastLines;
     const int linesToKeep = 3;
@@ -991,20 +1003,25 @@ void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob*
     }
 
     const int status = pclose (pipe);
-  
-    if (LogThisAt(4) || LogThisIf(status != EXIT_SUCCESS))
-      logger << "Server process terminated: " << remoteJob->toString() << endl;
-
     if (status == EXIT_SUCCESS)
       break;
 
-    Warn ("Server command failed: %s\nExit code: %d\nLast output:\n%s", sshCmd.c_str(), status, join(lastLines).c_str());
+    Warn ("Command failed: %s\nExit code: %d\nLast output:\n%s", cmd.c_str(), status, join(lastLines).c_str());
 
-    if (++attempts >= MaxQuaffSshAttempts)
-      Fail ("Too many failed attempts to connect; exiting");
+    if (++attempts >= maxAttempts) {
+      Warn ("Too many failed attempts to connect");
+      return false;
+    }
     
-    randomDelayBeforeRetry (MaxQuaffRetryDelay);
+    randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
   }
+
+  return true;
+}
+
+void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob* remoteJob) {
+  const string sshCmd = config->makeSshCommand (config->makeServerCommand(*remoteJob), *remoteJob);
+  config->execWithRetries (sshCmd, MaxQuaffSshAttempts);
 }
 
 double QuaffDPMatrixContainer::dummy = -numeric_limits<double>::infinity();
@@ -2000,7 +2017,7 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
 	logger << e.what() << endl;
     }
 
-    randomDelayBeforeRetry (MaxQuaffRetryDelay);
+    randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
   }
 }
 
@@ -2336,7 +2353,7 @@ string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
 	logger << e.what() << endl;
     }
 
-    randomDelayBeforeRetry (MaxQuaffRetryDelay);
+    randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
   }
 
   return response;
