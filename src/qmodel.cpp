@@ -1021,7 +1021,8 @@ bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts) const {
 
 void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob* remoteJob) {
   const string sshCmd = config->makeSshCommand (config->makeServerCommand(*remoteJob), *remoteJob);
-  config->execWithRetries (sshCmd, MaxQuaffSshAttempts);
+  const bool remoteServerStarted = config->execWithRetries (sshCmd, MaxQuaffSshAttempts);
+  Assert (remoteServerStarted, "Failed to start remote server");
 }
 
 double QuaffDPMatrixContainer::dummy = -numeric_limits<double>::infinity();
