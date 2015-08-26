@@ -1,6 +1,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <signal.h>
+#include <libgen.h>
 #include "aws.h"
 #include "gason.h"
 #include "util.h"
@@ -31,18 +32,28 @@ bool AWS::cleanupCalled = false;
 
 AWS aws;
 
-void AWS::copyFromBucket (const string& bucket, const string& filename) {
-  const string cmd = string("aws s3 cp s3://") + bucket + '/' + filename + ' ' + filename;
+void AWS::syncFromBucket (const string& bucket, const string& filename) {
+  char *file1 = new char [filename.size() + 1], *file2 = new char [filename.size() + 1];
+  strcpy (file1, filename.c_str());
+  strcpy (file2, filename.c_str());
+  const string cmd = string("aws s3 sync s3://") + bucket + ' ' + dirname(file1) + " --exclude '*' --include " + basename(file2);
+  delete[] file1;
+  delete[] file2;
   const int status = system (cmd.c_str());
   if (status != 0)
-    Warn ("Return code %d attempting to copy file %s from S3 bucket %s", status, filename.c_str(), bucket.c_str());
+    Warn ("Return code %d attempting to sync file %s from S3 bucket %s", status, filename.c_str(), bucket.c_str());
 }
 
-void AWS::copyToBucket (const string& filename, const string& bucket) {
-  const string cmd = string("aws s3 cp ") + filename + " s3://" + bucket + '/' + filename;
+void AWS::syncToBucket (const string& filename, const string& bucket) {
+  char *file1 = new char [filename.size() + 1], *file2 = new char [filename.size() + 1];
+  strcpy (file1, filename.c_str());
+  strcpy (file2, filename.c_str());
+  const string cmd = string("aws s3 sync ") + dirname(file1) + " s3://" + bucket + " --exclude '*' --include " + basename(file2);
+  delete[] file1;
+  delete[] file2;
   const int status = system (cmd.c_str());
   if (status != 0)
-    Warn ("Return code %d attempting to copy file %s to S3 bucket %s", status, filename.c_str(), bucket.c_str());
+    Warn ("Return code %d attempting to sync file %s to S3 bucket %s", status, filename.c_str(), bucket.c_str());
 }
 
 vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const string& instanceType, const string& ami, const string& userDataScript) {

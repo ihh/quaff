@@ -891,12 +891,12 @@ size_t QuaffDPConfig::effectiveMaxSize() const {
 
 void QuaffDPConfig::loadFromBucket (const string& filename) const {
   if (bucket.size() && filename.size())
-    aws.copyFromBucket (bucket, filename);
+    aws.syncFromBucket (bucket, filename);
 }
 
 void QuaffDPConfig::saveToBucket (const string& filename) const {
   if (bucket.size() && filename.size())
-    aws.copyToBucket (filename, bucket);
+    aws.syncToBucket (filename, bucket);
 }
 
 void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads) {
@@ -1746,7 +1746,6 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
   double logLike;
   config.startRemoteServers();
   const QuaffParamCounts counts = getCounts (x, y, params, nullModel, config, sortOrder, logLike, "");
-  config.saveToBucket (rawCountsFilename);
   config.stopRemoteServers();
   return counts;
 }
@@ -1879,9 +1878,6 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     }
   }
   config.stopRemoteServers();
-  config.saveToBucket (saveParamsFilename);
-  config.saveToBucket (rawCountsFilename);
-  config.saveToBucket (countsWithPriorFilename);
   return qp;
 }
 
@@ -2193,7 +2189,6 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
     logger.eraseThreadName (t);
   }
   config.stopRemoteServers();
-  config.saveToBucket (alignFilename);
 }
 
 void QuaffAligner::serveAlignments (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {

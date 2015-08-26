@@ -42,8 +42,8 @@ public:
   // config
   bool parseAWSConfigArgs (deque<string>& argvec);
   // S3
-  void copyFromBucket (const string& bucket, const string& filename);
-  void copyToBucket (const string& filename, const string& bucket);
+  void syncFromBucket (const string& bucket, const string& filename);
+  void syncToBucket (const string& filename, const string& bucket);
   // EC2
   vguard<string> launchInstancesWithScript (unsigned int nInstances, const string& instanceType, const string& ami, const string& userDataScript);
   vguard<string> getInstanceAddresses (const vguard<string>& instanceIDs) const;

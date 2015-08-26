@@ -340,7 +340,6 @@ bool QuaffParamsIn::parseParamFilename() {
 
 void QuaffParamsIn::loadParams (const QuaffDPConfig& config) {
   if (initialized()) {
-    config.loadFromBucket (loadFilename);
     ifstream inFile (loadFilename);
     Require (!inFile.fail(), "Couldn't open %s", loadFilename.c_str());
     read (inFile);
@@ -388,7 +387,6 @@ bool QuaffNullParamsIn::parseNullModelFilename() {
 
 void QuaffNullParamsIn::loadNullModel (const QuaffDPConfig& config) {
   if (initialized()) {
-    config.loadFromBucket (loadFilename);
     ifstream inFile (loadFilename);
     Require (!inFile.fail(), "Couldn't open %s", loadFilename.c_str());
     read (inFile);
@@ -450,7 +448,6 @@ bool QuaffPriorIn::parsePriorArgs() {
 
 void QuaffPriorIn::loadPrior (const QuaffDPConfig& config) {
   if (initialized()) {
-    config.loadFromBucket (loadFilename);
     ifstream inFile (loadFilename);
     Require (!inFile.fail(), "Couldn't open %s", loadFilename.c_str());
     read (inFile);
@@ -543,7 +540,6 @@ void SeqList::loadSequences (const QuaffDPConfig& config) {
   Require (filenames.size() > 0, "Please specify at least one %s file using %s", type.c_str(), tag.c_str());
 
   for (const auto& s : filenames) {
-    config.loadFromBucket (s);
     vguard<FastSeq> fsvec = readFastSeqs (s.c_str());
     for (auto& fs: fsvec) {
       if (wantQualScores)
