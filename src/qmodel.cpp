@@ -69,7 +69,9 @@ map<string,string> readQuaffParamFile (istream& in) {
   while (!in.eof()) {
     string line;
     getline(in,line);
-    readQuaffParamFileLine (val, line);
+    smatch sm;
+    if (regex_search (line, sm, lineRegex))  // chomp off newline
+      readQuaffParamFileLine (val, sm.str(1));
   }
   return val;
 }
@@ -79,7 +81,7 @@ map<string,string> readQuaffParamFile (const string& s) {
   map<string,string> val;
   smatch sm;
   while (regex_search (msg, sm, lineRegex)) {
-    readQuaffParamFileLine (val, sm.str(1).c_str());
+    readQuaffParamFileLine (val, sm.str(1));
     msg = sm.suffix().str();
   }
   return val;
