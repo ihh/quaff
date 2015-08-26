@@ -52,6 +52,7 @@
 string readQuaffStringFromSocket (TCPSocket* sock, int bufSize = RCVBUFSIZE);
 map<string,string> readQuaffParamFile (istream& in);
 map<string,string> readQuaffParamFile (const string& s);
+map<string,string> readQuaffParamFile (TCPSocket* sock);
 
 void randomDelayBeforeRetry (unsigned int minSeconds, unsigned int maxSeconds);
 

@@ -85,6 +85,11 @@ map<string,string> readQuaffParamFile (const string& s) {
   return val;
 }
 
+map<string,string> readQuaffParamFile (TCPSocket* sock) {
+  string msg = readQuaffStringFromSocket (sock);
+  return readQuaffParamFile (msg);
+}
+
 vguard<size_t> readSortOrder (const string& orderString) {
   string s = orderString;
   smatch sm;
