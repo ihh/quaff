@@ -124,7 +124,7 @@ int main (int argc, char** argv) {
   const string singleRemotePortRegex (".*:" RE_NUMERIC_GROUP);
   const string multiRemotePortRegex (".*:" RE_NUMERIC_GROUP "-" RE_NUMERIC_GROUP);
 
-  const string all_v ("-" RE_GROUP(RE_PLUS("v")));
+  const string all_v ("-" RE_PLUS("v"));
   const string numeric_v ("-v" RE_NUMERIC_GROUP);
 
   match (RE_CHAR_CLASS("abc"), "a");
@@ -162,7 +162,7 @@ int main (int argc, char** argv) {
   match (remoteAddrRegex, "localhost:8000");
   match (remoteAddrRegex, "localhost");
 
-  matchgroup (all_v, "-v", 1, "v");
+  match (all_v, "-vvv");
   matchgroup (numeric_v, "-v5", 1, "5");
   
   cout << "ok" << endl;
