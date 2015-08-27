@@ -16,7 +16,8 @@ with the following features:
   binomial distribution), and also uses k-mer context for modeling
   substitution and/or gap-opening probabilities
 
-- it's threaded for speed
+- it's highly parallel: it's multithreaded, can run remote servers,
+  and can even spin up its own temporary Amazon EC2 cluster
 
 <pre><code>
 Usage: quaff {help,train,align,overlap} [options]
@@ -77,7 +78,34 @@ General options (for all commands, except where indicated):
    -kmatchmax      Set kmer threshold to use all available memory (slow)
    -kmatchoff      No kmer threshold, do full DP (typically very slow)
 
-   -threads &lt;n&gt;, -maxthreads
-                   Specify number of threads, or use all cores available
+Parallel procesing options:
+   -threads &lt;N&gt;, -maxthreads
+                   Use N threads, or use all cores available
+   -remote [user@]host[:port[-maxport]]
+                   Start a (multithreaded) remote quaff server via SSH
+   -sshpath &lt;p&gt;    Path to local SSH executable
+   -sshkey &lt;file&gt;  SSH private key file
+   -remotepath &lt;p&gt; Path to remote executable (default /usr/local/bin/quaff)
+   -s3bucket &lt;B&gt;   Client/server will sync data files to/from bucket B
+   -ec2instances &lt;N&gt;
+                   Launch N temporary EC2 instances as servers
+   -ec2ami &lt;AMI&gt;, -ec2type &lt;type&gt;, -ec2cores &lt;numberOfCores&gt;,
+   -ec2user &lt;user&gt;, -ec2key &lt;keypair&gt;, -ec2group &lt;group&gt;, -ec2port &lt;port&gt;
+                   Control various aspects of the launched instances
+                    (defaults: ami-1ecae776, m3.medium, 1,
+                               ec2-user, quaff, quaff, 8000)
+
+By default, quaff assumes all data files are in the same place on the server.
+You will typically need to copy them across, or use NFS, or -s3bucket.
+
+For AWS, ensure aws CLI tools are installed and credentials are set
+(i.e. AWS_ACCESS_KEY_ID & AWS_SECRET_ACCESS_KEY environment variables).
+You must use an AMI consistent with your AWS_DEFAULT_REGION
+(the default AMI is a standard Amazon EC2 Linux for us-east-1).
+A standard AMI should be fine: quaff downloads prereqs and builds itself.
+Also ensure that security group &lt;group&gt; allows incoming connections
+on ports 22 (ssh) and the range from &lt;port&gt; .. &lt;port&gt; + &lt;numberOfCores&gt; - 1.
+Any problems can often be diagnosed by turning up the logging to -v5 or so.
+Quaff makes every effort to clean up rogue EC2 instances, but please check!
 
 </code></pre>
