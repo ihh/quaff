@@ -183,6 +183,10 @@ void SymQualCounts::write (ostream& out, const string& prefix) const {
   }
 }
 
+ostream& SymQualCounts::writeJson (ostream& out) const {
+  return out << "[ " << join (qualCount, ", ") << " ]";
+}
+
 bool SymQualCounts::read (map<string,string>& paramVal, const string& param) {
   Desire (paramVal.find(param) != paramVal.end(), "Couldn't read %s", param.c_str());
   string c = paramVal[param];
@@ -294,9 +298,9 @@ void QuaffParams::write (ostream& out) const {
       match[i][j].write (out, matchContext.matchParamName(i,j));
 }
 
-#define QuaffParamWriteJson(X) out << "  \"" << #X "\": " << X << "," << endl
+#define QuaffParamWriteJson(X) out << "  \"" << #X "\": " << X
 #define QuaffParamWriteJsonKmer(X,KMER) out << (KMER == 0 ? "" : ",") << " \"" << indelContext.kmerString(KMER) << "\": " << X[KMER]
-#define QuaffParamWriteJsonKmers(X,END) out << "  \"" << #X << "\": {"; for (Kmer j = 0; j < indelContext.numKmers; ++j) QuaffParamWriteJsonKmer(X,j); out << " }"; out << END
+#define QuaffParamWriteJsonKmers(X) out << "  \"" << #X << "\": {"; for (Kmer j = 0; j < indelContext.numKmers; ++j) QuaffParamWriteJsonKmer(X,j); out << " }"
 ostream& QuaffParams::writeJson (ostream& out) const {
   out << '{' << endl;
   matchContext.writeJsonKmerLen (out);
@@ -305,10 +309,10 @@ ostream& QuaffParams::writeJson (ostream& out) const {
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     out << " \"" << dnaAlphabet[i] << "\": " << refBase[i]
 	<< (i==dnaAlphabetSize-1 ? " },\n" : ",");
-  QuaffParamWriteJsonKmers(beginInsert,",\n");
-  QuaffParamWriteJsonKmers(beginDelete,",\n");
-  QuaffParamWriteJson(extendInsert);
-  QuaffParamWriteJson(extendDelete);
+  QuaffParamWriteJsonKmers(beginInsert) << "," << endl;
+  QuaffParamWriteJsonKmers(beginDelete) << "," << endl;
+  QuaffParamWriteJson(extendInsert) << "," << endl;
+  QuaffParamWriteJson(extendDelete) << "," << endl;
   out << "  \"insert\": {" << endl;
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     insert[i].writeJson(out << "    \"" << dnaAlphabet[i] << "\": ")
@@ -407,11 +411,61 @@ QuaffScores::QuaffScores (const QuaffParams& qp)
   i2m = log(1-qp.extendInsert);
 }
 
-QuaffCounts::QuaffCounts (unsigned int matchKmerLen, unsigned int indelKmerLen)
+QuaffEmitCounts::QuaffEmitCounts (unsigned int matchKmerLen, unsigned int indelKmerLen)
   : matchContext(matchKmerLen),
     indelContext(indelKmerLen),
     insert (dnaAlphabetSize),
-    match (dnaAlphabetSize, vguard<SymQualCounts> (matchContext.numKmers)),
+    match (dnaAlphabetSize, vguard<SymQualCounts> (matchContext.numKmers))
+{ }
+
+QuaffEmitCounts::QuaffEmitCounts (const QuaffEmitCounts& c)
+  : matchContext(c.matchContext.kmerLen),
+    indelContext(c.indelContext.kmerLen),
+    insert (dnaAlphabetSize),
+    match (dnaAlphabetSize, vguard<SymQualCounts> (matchContext.numKmers))
+{ }
+
+void QuaffEmitCounts::write (ostream& out) const {
+  matchContext.writeKmerLen (out);
+  indelContext.writeKmerLen (out);
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    insert[i].write (out, matchContext.insertParamName(i));
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    for (Kmer j = 0; j < matchContext.numKmers; ++j)
+      match[i][j].write (out, matchContext.matchParamName(i,j));
+}
+
+ostream& QuaffEmitCounts::writeJson (ostream& out) const {
+  matchContext.writeJsonKmerLen (out);
+  indelContext.writeJsonKmerLen (out);
+  out << "  \"insert\": {" << endl;
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    insert[i].writeJson(out << "    \"" << dnaAlphabet[i] << "\": ")
+      << (i == dnaAlphabetSize-1 ? " }," : ",")
+      << endl;
+  out << "  \"match\": {" << endl;
+  for (Kmer jPrefix = 0; jPrefix < matchContext.numKmers; jPrefix += dnaAlphabetSize) {
+    out << "    \"" << matchContext.kmerPrefix(jPrefix) << "\": {" << endl;
+    for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
+      out << "    \"" << dnaAlphabet[i] << "\": {" << endl;
+      for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix)
+	match[i][jPrefix+jSuffix].writeJson(out << "      \"" << dnaAlphabet[jSuffix] << "\": ")
+	  << (jSuffix == dnaAlphabetSize-1 ? " }" : ",\n");
+      out << (i == dnaAlphabetSize-1 ? " }" : ",\n");
+    }
+    out << (jPrefix == matchContext.numKmers - dnaAlphabetSize ? " }" : ",") << endl;
+  }
+  out << "}" << endl;
+  return out;
+}
+
+
+void QuaffEmitCounts::resize() {
+  match = vguard<vguard<SymQualCounts> > (dnaAlphabetSize, vguard<SymQualCounts> (matchContext.numKmers));
+}
+
+QuaffCounts::QuaffCounts (unsigned int matchKmerLen, unsigned int indelKmerLen)
+  : QuaffEmitCounts(matchKmerLen,indelKmerLen),
     m2m(indelContext.numKmers,0),
     m2i(indelContext.numKmers,0),
     m2d(indelContext.numKmers,0),
@@ -422,9 +476,14 @@ QuaffCounts::QuaffCounts (unsigned int matchKmerLen, unsigned int indelKmerLen)
     i2m(0)
 { }
 
+void QuaffCounts::writeToLog() const {
+  logger.lock();
+  write(clog);
+  logger.unlock();
+}
+
 void QuaffCounts::write (ostream& out) const {
-  matchContext.writeKmerLen (out);
-  indelContext.writeKmerLen (out);
+  QuaffEmitCounts::write (out);
   for (Kmer j = 0; j < indelContext.numKmers; ++j) {
     QuaffParamWriteK(m2m,j);
     QuaffParamWriteK(m2i,j);
@@ -435,41 +494,32 @@ void QuaffCounts::write (ostream& out) const {
   QuaffParamWrite(d2m);
   QuaffParamWrite(i2i);
   QuaffParamWrite(i2m);
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].write (out, matchContext.insertParamName(i));
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer j = 0; j < matchContext.numKmers; ++j)
-      match[i][j].write (out, matchContext.matchParamName(i,j));
 }
 
-void QuaffCounts::writeToLog() const {
-  logger.lock();
-  write(clog);
-  logger.unlock();
+ostream& QuaffCounts::writeJson (ostream& out) const {
+  out << "{" << endl;
+  QuaffEmitCounts::writeJson (out);
+  QuaffParamWriteJsonKmers(m2m) << "," << endl;
+  QuaffParamWriteJsonKmers(m2i) << "," << endl;
+  QuaffParamWriteJsonKmers(m2d) << "," << endl;
+  QuaffParamWriteJsonKmers(m2e) << "," << endl;
+  QuaffParamWriteJson(d2d) << "," << endl;
+  QuaffParamWriteJson(d2m) << "," << endl;
+  QuaffParamWriteJson(i2i) << "," << endl;
+  QuaffParamWriteJson(i2m) << endl;
+  out << "}" << endl;
+  return out;
 }
 
 QuaffParamCounts::QuaffParamCounts (unsigned int matchKmerLen, unsigned int indelKmerLen)
-  : matchContext(matchKmerLen),
-    indelContext(indelKmerLen),
-    insert (dnaAlphabetSize)
+  : QuaffEmitCounts(matchKmerLen,indelKmerLen)
 {
   resize();
   zeroCounts();
 }
 
-void QuaffParamCounts::resize() {
-  match = vguard<vguard<SymQualCounts> > (dnaAlphabetSize, vguard<SymQualCounts> (matchContext.numKmers));
-  beginInsertNo = vguard<double> (indelContext.numKmers, 0);
-  beginInsertYes = vguard<double> (indelContext.numKmers, 0);
-  beginDeleteNo = vguard<double> (indelContext.numKmers, 0);
-  beginDeleteYes = vguard<double> (indelContext.numKmers, 0);
-}
-
 QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
-  : matchContext(counts.matchContext.kmerLen),
-    indelContext(counts.indelContext.kmerLen),
-    insert (counts.insert),
-    match (counts.match),
+  : QuaffEmitCounts(counts),
     beginInsertNo (vector_sum (counts.m2m, counts.m2d)),
     beginInsertYes (vector_sum (counts.m2i, counts.m2e)),
     extendInsertNo (counts.i2m),
@@ -479,6 +529,14 @@ QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
     extendDeleteNo (counts.d2m),
     extendDeleteYes (counts.d2d)
 { }
+
+void QuaffParamCounts::resize() {
+  QuaffEmitCounts::resize();
+  beginInsertNo = vguard<double> (indelContext.numKmers, 0);
+  beginInsertYes = vguard<double> (indelContext.numKmers, 0);
+  beginDeleteNo = vguard<double> (indelContext.numKmers, 0);
+  beginDeleteYes = vguard<double> (indelContext.numKmers, 0);
+}
 
 void QuaffParamCounts::zeroCounts() {
   initCounts (0, 0, 0, 0, NULL);
@@ -512,8 +570,7 @@ void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, d
 }
 
 void QuaffParamCounts::write (ostream& out) const {
-  matchContext.writeKmerLen (out);
-  indelContext.writeKmerLen (out);
+  QuaffEmitCounts::write (out);
   for (Kmer j = 0; j < indelContext.numKmers; ++j) {
     QuaffParamWriteK(beginInsertNo,j);
     QuaffParamWriteK(beginInsertYes,j);
@@ -524,11 +581,21 @@ void QuaffParamCounts::write (ostream& out) const {
   QuaffParamWrite(extendInsertYes);
   QuaffParamWrite(extendDeleteNo);
   QuaffParamWrite(extendDeleteYes);
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].write (out, matchContext.insertParamName(i));
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer j = 0; j < matchContext.numKmers; ++j)
-      match[i][j].write (out, matchContext.matchParamName(i,j));
+}
+
+ostream& QuaffParamCounts::writeJson (ostream& out) const {
+  out << "{" << endl;
+  QuaffEmitCounts::writeJson (out);
+  QuaffParamWriteJsonKmers(beginInsertNo) << "," << endl;
+  QuaffParamWriteJsonKmers(beginInsertYes) << "," << endl;
+  QuaffParamWriteJsonKmers(beginDeleteNo) << "," << endl;
+  QuaffParamWriteJsonKmers(beginDeleteYes) << "," << endl;
+  QuaffParamWriteJson(extendInsertNo) << "," << endl;
+  QuaffParamWriteJson(extendInsertYes) << "," << endl;
+  QuaffParamWriteJson(extendDeleteNo) << "," << endl;
+  QuaffParamWriteJson(extendDeleteYes) << "," << endl;
+  out << "}" << endl;
+  return out;
 }
 
 void QuaffParamCounts::writeToLog() const {
@@ -1739,6 +1806,16 @@ double QuaffNullParams::logLikelihood (const FastSeq& s) const {
 #endif
     }
   return ll;
+}
+
+ostream& QuaffNullParams::writeJson (ostream& out) const {
+  QuaffParamWriteJson(nullEmit);
+  out << "  \"refBase\": {" << endl;
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    null[i].writeJson (out << " \"" << dnaAlphabet[i] << "\": ")
+      << (i == dnaAlphabetSize-1 ? " }" : ",");
+  out << endl;
+  return out;
 }
 
 void QuaffNullParams::write (ostream& out) const {

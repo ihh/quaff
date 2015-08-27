@@ -65,8 +65,8 @@ struct SymQualDist {
   double logQualProb (QualScore k) const;
   double logQualProb (const vguard<double>& kFreq) const;
   void write (ostream& out, const string& prefix) const;
-  ostream& writeJson (ostream& out) const;
   bool read (map<string,string>& paramVal, const string& prefix);
+  ostream& writeJson (ostream& out) const;
 };
 
 // Memo-ized log scores for a SymQualDist
@@ -87,6 +87,7 @@ struct SymQualCounts {
   double symCount() const { return accumulate (qualCount.begin(), qualCount.end(), 0.); }
   void write (ostream& out, const string& prefix) const;
   bool read (map<string,string>& paramVal, const string& param);
+  ostream& writeJson (ostream& out) const;
 };
 
 // Classes to manage kmer-dependence of various parameters
@@ -132,9 +133,9 @@ struct QuaffParams {
   void resize();  // call after changing kmerLen
   void writeToLog() const;
   void write (ostream& out) const;
-  ostream& writeJson (ostream& out) const;
   void read (istream& in);
   bool read (map<string,string>& paramVal);
+  ostream& writeJson (ostream& out) const;
   void fitRefSeqs (const vguard<FastSeq>& refs);
 };
 
@@ -149,6 +150,7 @@ struct QuaffNullParams {
   void write (ostream& out) const;
   void read (istream& in);
   bool read (map<string,string>& paramVal);
+  ostream& writeJson (ostream& out) const;
 };
 
 // Memo-ized scores for transitions & emissions in quaff HMM
@@ -165,24 +167,29 @@ struct QuaffScores {
 };
 
 // Summary statistics for a quaff model
-struct QuaffCounts {
+struct QuaffEmitCounts {
   QuaffMatchKmerContext matchContext;
   QuaffIndelKmerContext indelContext;
   vguard<SymQualCounts> insert;
   vguard<vguard<SymQualCounts> > match;
+  QuaffEmitCounts (unsigned int matchKmerLen, unsigned int indelKmerLen);
+  QuaffEmitCounts (const QuaffEmitCounts& c);
+  void resize();  // call after changing kmerLen
+  void write (ostream& out) const;
+  ostream& writeJson (ostream& out) const;
+};
+
+struct QuaffCounts : QuaffEmitCounts {
   vguard<double> m2m, m2i, m2d, m2e;
   double d2d, d2m;
   double i2i, i2m;
   QuaffCounts (unsigned int matchKmerLen, unsigned int indelKmerLen);
   void writeToLog() const;
   void write (ostream& out) const;
+  ostream& writeJson (ostream& out) const;
 };
 
-struct QuaffParamCounts {
-  QuaffMatchKmerContext matchContext;
-  QuaffIndelKmerContext indelContext;
-  vguard<SymQualCounts> insert;
-  vguard<vguard<SymQualCounts> > match;
+struct QuaffParamCounts : QuaffEmitCounts {
   vguard<double> beginInsertNo, beginInsertYes, beginDeleteNo, beginDeleteYes;
   double extendInsertNo, extendInsertYes, extendDeleteNo, extendDeleteYes;
   QuaffParamCounts (unsigned int matchKmerLen = DefaultMatchKmerContext, unsigned int indelKmerLen = DefaultIndelKmerContext);
@@ -194,6 +201,7 @@ struct QuaffParamCounts {
   void write (ostream& out) const;
   void read (istream& in);
   bool read (map<string,string>& paramVal);
+  ostream& writeJson (ostream& out) const;
   void addWeighted (const QuaffParamCounts& counts, double weight);
   QuaffParamCounts operator+ (const QuaffParamCounts& counts) const;
   QuaffParams fit() const;  // maximum-likelihood fit
