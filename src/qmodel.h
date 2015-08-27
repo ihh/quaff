@@ -65,6 +65,7 @@ struct SymQualDist {
   double logQualProb (QualScore k) const;
   double logQualProb (const vguard<double>& kFreq) const;
   void write (ostream& out, const string& prefix) const;
+  ostream& writeJson (ostream& out) const;
   bool read (map<string,string>& paramVal, const string& prefix);
 };
 
@@ -99,6 +100,7 @@ struct QuaffKmerContext {
   string insertParamName (AlphTok i) const;
   void readKmerLen (map<string,string>& paramVal);
   void writeKmerLen (ostream& out) const;
+  void writeJsonKmerLen (ostream& out) const;
 };
 
 struct QuaffMatchKmerContext : QuaffKmerContext {
@@ -106,6 +108,8 @@ struct QuaffMatchKmerContext : QuaffKmerContext {
     : QuaffKmerContext ("match", kmerLen)
   { }
   string matchParamName (AlphTok i, Kmer j) const;
+  string kmerPrefix (Kmer j) const;
+  char kmerSuffix (Kmer j) const;
 };
 
 struct QuaffIndelKmerContext : QuaffKmerContext {
@@ -128,6 +132,7 @@ struct QuaffParams {
   void resize();  // call after changing kmerLen
   void writeToLog() const;
   void write (ostream& out) const;
+  ostream& writeJson (ostream& out) const;
   void read (istream& in);
   bool read (map<string,string>& paramVal);
   void fitRefSeqs (const vguard<FastSeq>& refs);

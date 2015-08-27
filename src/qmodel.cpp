@@ -132,6 +132,15 @@ void SymQualDist::write (ostream& out, const string& prefix) const {
       << endl;
 }
 
+ostream& SymQualDist::writeJson (ostream& out) const {
+  return
+    out << "{ \"p\": " << qualTrialSuccessProb
+	<< ", \"r\": " << qualNumSuccessfulTrials
+	<< ", \"m\": " << negativeBinomialMean(qualTrialSuccessProb,qualNumSuccessfulTrials)
+	<< ", \"sd\": " << sqrt(negativeBinomialVariance(qualTrialSuccessProb,qualNumSuccessfulTrials))
+	<< " }";
+}
+
 bool SymQualDist::read (map<string,string>& paramVal, const string& prefix) {
   const string qp = prefix + "qp", qr = prefix + "qr";
   Desire (paramVal.find(prefix) != paramVal.end(), "Missing parameter: %s", prefix.c_str());
@@ -211,6 +220,11 @@ void QuaffKmerContext::writeKmerLen (ostream& out) const {
     out << prefix << "Order: " << kmerLen << endl;
 }
 
+void QuaffKmerContext::writeJsonKmerLen (ostream& out) const {
+  if (kmerLen != defaultKmerLen)
+    out << prefix << "  \"Order\": " << kmerLen << ',' << endl;
+}
+
 string QuaffKmerContext::kmerString (Kmer kmer) const {
   return kmerToString (kmer, kmerLen, dnaAlphabet);
 }
@@ -220,11 +234,20 @@ string QuaffKmerContext::insertParamName (AlphTok i) const {
 }
 
 string QuaffMatchKmerContext::matchParamName (AlphTok i, Kmer j) const {
-  const string ks = kmerString(j);
   string name = "match";
   if (kmerLen > 1)
-    name += ks.substr(0,kmerLen-1) + "_";
-  return name + dnaAlphabet[i] + ks.back();
+    name += kmerPrefix(j) + "_";
+  return name + dnaAlphabet[i] + kmerSuffix(j);
+}
+
+string QuaffMatchKmerContext::kmerPrefix (Kmer j) const {
+  const string ks = kmerString(j);
+  return ks.substr(0,kmerLen-1);
+}
+
+char QuaffMatchKmerContext::kmerSuffix (Kmer j) const {
+  const string ks = kmerString(j);
+  return ks.back();
 }
 
 string QuaffIndelKmerContext::booleanParamName (const char* tag, Kmer j) const {
@@ -269,6 +292,42 @@ void QuaffParams::write (ostream& out) const {
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     for (Kmer j = 0; j < matchContext.numKmers; ++j)
       match[i][j].write (out, matchContext.matchParamName(i,j));
+}
+
+#define QuaffParamWriteJson(X) out << "  \"" << #X "\": " << X << "," << endl
+#define QuaffParamWriteJsonKmer(X,KMER) out << (KMER == 0 ? "" : ",") << " \"" << indelContext.kmerString(KMER) << "\": " << X[KMER]
+#define QuaffParamWriteJsonKmers(X,END) out << "  \"" << #X << "\": {"; for (Kmer j = 0; j < indelContext.numKmers; ++j) QuaffParamWriteJsonKmer(X,j); out << " }"; out << END
+ostream& QuaffParams::writeJson (ostream& out) const {
+  out << '{' << endl;
+  matchContext.writeJsonKmerLen (out);
+  indelContext.writeJsonKmerLen (out);
+  out << "  \"refBase\": {";
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    out << " \"" << dnaAlphabet[i] << "\": " << refBase[i]
+	<< (i==dnaAlphabetSize-1 ? " },\n" : ",");
+  QuaffParamWriteJsonKmers(beginInsert,",\n");
+  QuaffParamWriteJsonKmers(beginDelete,",\n");
+  QuaffParamWriteJson(extendInsert);
+  QuaffParamWriteJson(extendDelete);
+  out << "  \"insert\": {" << endl;
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
+    insert[i].writeJson(out << "    \"" << dnaAlphabet[i] << "\": ")
+      << (i == dnaAlphabetSize-1 ? " }," : ",")
+      << endl;
+  out << "  \"match\": {" << endl;
+  for (Kmer jPrefix = 0; jPrefix < matchContext.numKmers; jPrefix += dnaAlphabetSize) {
+    out << "    \"" << matchContext.kmerPrefix(jPrefix) << "\": {" << endl;
+    for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
+      out << "    \"" << dnaAlphabet[i] << "\": {" << endl;
+      for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix)
+	match[i][jPrefix+jSuffix].writeJson(out << "      \"" << dnaAlphabet[jSuffix] << "\": ")
+	  << (jSuffix == dnaAlphabetSize-1 ? " }" : ",\n");
+      out << (i == dnaAlphabetSize-1 ? " }" : ",\n");
+    }
+    out << (jPrefix == matchContext.numKmers - dnaAlphabetSize ? " }" : ",") << endl;
+  }
+  out << "}" << endl;
+  return out;
 }
 
 void QuaffParams::writeToLog() const {
