@@ -3,27 +3,10 @@
 #include <signal.h>
 #include <libgen.h>
 #include "aws.h"
-#include "gason.h"
+#include "jsonutil.h"
 #include "util.h"
 #include "logger.h"
 #include "base64.h"
-
-JsonValue* jsonFind (JsonValue& parent, const char* key);
-JsonValue& jsonFindOrDie (JsonValue& parent, const char* key);
-  
-JsonValue* jsonFind (JsonValue& parent, const char* key) {
-  Assert (parent.getTag() == JSON_OBJECT, "JSON value is not an object");
-  for (auto i : parent)
-    if (strcmp (i->key, key) == 0)
-      return &i->value;
-  return NULL;
-}
-
-JsonValue& jsonFindOrDie (JsonValue& parent, const char* key) {
-  JsonValue* val = jsonFind (parent, key);
-  Assert (val != NULL, "Couldn't find JSON tag %s", key);
-  return *val;
-}
 
 int AWS::objectCount = 0;
 set<string> AWS::runningInstanceIds;
@@ -96,10 +79,10 @@ vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const st
   const int parseStatus = jsonParse(runOutCStr, &endPtr, &value, allocator);
   Assert (parseStatus == JSON_OK, "JSON parsing error: %s at byte %zd of output of %s\n%s\n", jsonStrError(parseStatus), endPtr - runOutCStr, runCmd.c_str(), endPtr);
 
-  JsonValue& instanceList = jsonFindOrDie (value, "Instances");
+  JsonValue& instanceList = JsonUtil::findOrDie (value, "Instances");
   Assert (instanceList.getTag() == JSON_ARRAY, "JSON parsing error: Instances is not a list");
   for (auto inst : instanceList) {
-    JsonValue& instanceId = jsonFindOrDie (inst->value, "InstanceId");
+    JsonValue& instanceId = JsonUtil::findOrDie (inst->value, "InstanceId");
     Assert (instanceId.getTag() == JSON_STRING, "JSON parsing error: Instances->InstanceId is not a string");
     ids.push_back (instanceId.toString());
   }
@@ -135,15 +118,15 @@ vguard<string> AWS::getInstanceAddresses (const vguard<string>& ids) const {
   const int parseStatus = jsonParse(describeOutCStr, &endPtr, &value, allocator);
   Assert (parseStatus == JSON_OK, "JSON parsing error: %s at byte %zd of output of %s\n%s\n", jsonStrError(parseStatus), endPtr - describeOutCStr, describeCmd.c_str(), endPtr);
 
-  JsonValue& reservationList = jsonFindOrDie (value, "Reservations");
+  JsonValue& reservationList = JsonUtil::findOrDie (value, "Reservations");
   Assert (reservationList.getTag() == JSON_ARRAY, "JSON parsing error: Reservations is not a list");
 
   vguard<string> addr;
   for (auto res : reservationList) {
-    JsonValue& instanceList = jsonFindOrDie (res->value, "Instances");
+    JsonValue& instanceList = JsonUtil::findOrDie (res->value, "Instances");
     Assert (instanceList.getTag() == JSON_ARRAY, "JSON parsing error: Reservations->Instances is not a list");
     for (auto inst : instanceList) {
-      JsonValue& publicIp = jsonFindOrDie (inst->value, "PublicIpAddress");
+      JsonValue& publicIp = JsonUtil::findOrDie (inst->value, "PublicIpAddress");
       Assert (publicIp.getTag() == JSON_STRING, "JSON parsing error: Reservations->Instances->PublicIpAddress is not a string");
       addr.push_back (publicIp.toString());
     }

@@ -84,7 +84,7 @@ std::vector<size_t> orderedIndices (std::vector<T> const& values) {
 
 /* vector sum */
 template <typename T>
-std::vector<T> vector_sum(const std::vector<T>& a, const std::vector<T>& b)
+std::vector<T> vectorSum(const std::vector<T>& a, const std::vector<T>& b)
 {
   assert(a.size() == b.size());
 
@@ -98,13 +98,44 @@ std::vector<T> vector_sum(const std::vector<T>& a, const std::vector<T>& b)
 
 /* vector-scalar product */
 template <typename T>
-std::vector<T> vector_scale(const T x, const std::vector<T>& a)
+std::vector<T> vectorScale(const T x, const std::vector<T>& a)
 {
   std::vector<T> result = a;
   for (auto& y : result)
     y *= x;
 
   return result;
+}
+
+/* escaping a string
+   http://stackoverflow.com/questions/2417588/escaping-a-c-string
+ */
+template<class OutIter>
+OutIter writeEscaped(std::string const& s, OutIter out) {
+  *out++ = '"';
+  for (std::string::const_iterator i = s.begin(), end = s.end(); i != end; ++i) {
+    unsigned char c = *i;
+    if (' ' <= c and c <= '~' and c != '\\' and c != '"') {
+      *out++ = c;
+    }
+    else {
+      *out++ = '\\';
+      switch(c) {
+      case '"':  *out++ = '"';  break;
+      case '\\': *out++ = '\\'; break;
+      case '\t': *out++ = 't';  break;
+      case '\r': *out++ = 'r';  break;
+      case '\n': *out++ = 'n';  break;
+      default:
+        char const* const hexdig = "0123456789ABCDEF";
+        *out++ = 'x';
+        *out++ = hexdig[c >> 4];
+        *out++ = hexdig[c & 0xF];
+      }
+    }
+  }
+  *out++ = '"';
+  return out;
 }
     
 #endif /* UTIL_INCLUDED */

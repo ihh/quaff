@@ -520,8 +520,8 @@ QuaffParamCounts::QuaffParamCounts (unsigned int matchKmerLen, unsigned int inde
 
 QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
   : QuaffEmitCounts(counts),
-    beginInsertNo (vector_sum (counts.m2m, counts.m2d)),
-    beginInsertYes (vector_sum (counts.m2i, counts.m2e)),
+    beginInsertNo (vectorSum (counts.m2m, counts.m2d)),
+    beginInsertYes (vectorSum (counts.m2i, counts.m2e)),
     extendInsertNo (counts.i2m),
     extendInsertYes (counts.i2i),
     beginDeleteNo (counts.m2m),
@@ -1592,10 +1592,10 @@ void QuaffParamCounts::addWeighted (const QuaffParamCounts& counts, double weigh
       for (Kmer j = 0; j < matchContext.numKmers; ++j)
 	match[i][j].qualCount[q] += weight * counts.match[i][j].qualCount[q];
     }
-  beginInsertNo = vector_sum (beginInsertNo, vector_scale (weight, counts.beginInsertNo));
-  beginInsertYes = vector_sum (beginInsertYes, vector_scale (weight, counts.beginInsertYes));
-  beginDeleteNo = vector_sum (beginDeleteNo, vector_scale (weight, counts.beginDeleteNo));
-  beginDeleteYes = vector_sum (beginDeleteYes, vector_scale (weight, counts.beginDeleteYes));
+  beginInsertNo = vectorSum (beginInsertNo, vectorScale (weight, counts.beginInsertNo));
+  beginInsertYes = vectorSum (beginInsertYes, vectorScale (weight, counts.beginInsertYes));
+  beginDeleteNo = vectorSum (beginDeleteNo, vectorScale (weight, counts.beginDeleteNo));
+  beginDeleteYes = vectorSum (beginDeleteYes, vectorScale (weight, counts.beginDeleteYes));
   extendInsertNo += weight * counts.extendInsertNo;
   extendInsertYes += weight * counts.extendInsertYes;
   extendDeleteNo += weight * counts.extendDeleteNo;
