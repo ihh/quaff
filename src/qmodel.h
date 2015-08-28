@@ -62,7 +62,7 @@ struct SymQualDist {
   void write (ostream& out, const string& prefix) const;
   bool read (map<string,string>& paramVal, const string& prefix);
   ostream& writeJson (ostream& out) const;
-  void readJson (const JsonValue& val);
+  bool readJson (const JsonValue& val);
 };
 
 // Memo-ized log scores for a SymQualDist
@@ -84,7 +84,7 @@ struct SymQualCounts {
   void write (ostream& out, const string& prefix) const;
   bool read (map<string,string>& paramVal, const string& param);
   ostream& writeJson (ostream& out) const;
-  void readJson (const JsonValue& value);
+  bool readJson (const JsonValue& val);
 };
 
 // Classes to manage kmer-dependence of various parameters
@@ -134,6 +134,9 @@ struct QuaffParams {
   void read (istream& in);
   bool read (map<string,string>& paramVal);
   ostream& writeJson (ostream& out) const;
+  bool readJson (const JsonValue& val);
+  bool readJson (const JsonMap& jm);
+  void readJson (istream& in);
   void fitRefSeqs (const vguard<FastSeq>& refs);
 };
 

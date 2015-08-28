@@ -31,9 +31,21 @@ JsonValue& JsonMap::operator[] (const string& key) const {
   return *i->second;
 }
 
-ParsedJson::ParsedJson (const string& s)
-  : str(s), buf(new char[s.size() + 1])
-{
+ParsedJson::ParsedJson (const string& s) {
+  parse (s);
+}
+
+ParsedJson::ParsedJson (istream& in) {
+  parse (JsonUtil::readStringFromStream (in));
+}
+
+ParsedJson::ParsedJson (TCPSocket* sock, const regex& terminatorRegex, int bufSize) {
+  parse (JsonUtil::readStringFromSocket (sock, terminatorRegex, bufSize));
+}
+
+void ParsedJson::parse (const string& s) {
+  str = s;
+  buf = new char[str.size() + 1];
   strcpy (buf, str.c_str());
   status = jsonParse (buf, &endPtr, &value, allocator);
   Assert (status == JSON_OK, "JSON parsing error: %s at byte %zd\n%s\n", jsonStrError(status), endPtr - buf, endPtr);
@@ -94,18 +106,10 @@ string JsonUtil::readStringFromSocket (TCPSocket* sock, const regex& terminatorR
 
 string JsonUtil::readStringFromStream (istream& in) {
   string s;
-  while (!in.eof()) {
+  while (in && !in.eof()) {
     string line;
     getline(in,line);
     s += line;
   }
   return s;
-}
-
-ParsedJson* JsonUtil::readJson (istream& in) {
-  return new ParsedJson (readStringFromStream (in));
-}
-
-ParsedJson* JsonUtil::readJson (TCPSocket* sock, const regex& terminatorRegex, int bufSize) {
-  return new ParsedJson (readStringFromSocket (sock, terminatorRegex, bufSize));
 }

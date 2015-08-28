@@ -30,7 +30,7 @@ struct JsonMap {
 };
 
 // wrapper for JsonValue with parent string
-class ParsedJson : JsonMap {
+class ParsedJson : public JsonMap {
 private:
   ParsedJson (const ParsedJson&) = delete;
 public:
@@ -40,7 +40,10 @@ public:
   JsonAllocator allocator;
   int status;
   ParsedJson (const string& s);
+  ParsedJson (istream& in);
+  ParsedJson (TCPSocket* sock, const regex& terminatorRegex = eofRegex, int bufSize = RCVBUFSIZE);
   ~ParsedJson();
+  void parse (const string& s);
 };
 
 // (mostly) JSON-related utility functions
@@ -50,10 +53,7 @@ struct JsonUtil {
   static vector<double> doubleVec (const JsonValue& arr);
   static string quoteEscaped (const string& str);
 
-  static ParsedJson* readJson (istream& in);
-  static ParsedJson* readJson (TCPSocket* sock, const regex& terminatorRegex = eofRegex, int bufSize = RCVBUFSIZE);
-
-  // helper
+  // helpers
   static string readStringFromStream (istream& in);
   static string readStringFromSocket (TCPSocket* sock, const regex& terminatorRegex = eofRegex, int bufSize = RCVBUFSIZE);
 };

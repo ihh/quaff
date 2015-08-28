@@ -89,6 +89,9 @@ testfast: bin/testfasta bin/testfastq
 testquaffio: bin/testquaffio
 	perl/testexpect.pl bin/testquaffio data/testquaffparams.yaml data/testquaffparams.yaml
 
+testquaffjsonio: bin/testquaffjsonio
+	perl/testexpect.pl bin/testquaffjsonio data/testquaffparams.json data/testquaffparams.json
+
 testlogsumexp: bin/testlogsumexp
 	bin/testlogsumexp -slow >data/logsumexp.txt
 	perl/testexpect.pl bin/testlogsumexp -fast data/logsumexp.txt

@@ -128,10 +128,12 @@ ostream& SymQualDist::writeJson (ostream& out) const {
 	<< " }";
 }
 
-void SymQualDist::readJson (const JsonValue& val) {
+bool SymQualDist::readJson (const JsonValue& val) {
   const JsonMap jm (val);
+  Desire (jm.contains("p") && jm.contains("r"), "Missing negative binomial parameters");
   qualTrialSuccessProb = jm["p"].toNumber();
   qualNumSuccessfulTrials = jm["r"].toNumber();
+  return true;
 }
 
 bool SymQualDist::read (map<string,string>& paramVal, const string& prefix) {
@@ -180,8 +182,11 @@ ostream& SymQualCounts::writeJson (ostream& out) const {
   return out << "[ " << join (qualCount, ", ") << " ]";
 }
 
-void SymQualCounts::readJson (const JsonValue& value) {
+bool SymQualCounts::readJson (const JsonValue& value) {
+  Desire (value.getTag() == JSON_ARRAY, "Not an array");
   qualCount = JsonUtil::doubleVec (value);
+  Desire (qualCount.size() == FastSeq::qualScoreRange, "FASTQ counts array is wrong size");
+  return true;
 }
 
 bool SymQualCounts::read (map<string,string>& paramVal, const string& param) {
@@ -337,6 +342,63 @@ ostream& QuaffParams::writeJson (ostream& out) const {
   }
   out << "}" << endl;
   return out;
+}
+
+#define QuaffParamReadJson(X) do { Desire(jm.contains(#X),"Missing parameter: \"" #X "\""); X = jm[#X].toNumber(); } while(0)
+#define QuaffParamReadJsonKmer(X,JMX,KMER) do { const string tmpParamName = indelContext.kmerString(KMER); Desire(JMX.contains(tmpParamName),"Missing parameter: \"%s\".\"%s\"",#X,tmpParamName.c_str()); X[KMER] = JMX[tmpParamName].toNumber(); } while(0)
+#define QuaffParamReadJsonKmers(X) do { Desire(jm.contains(#X),"Missing parameter: \"" #X "\""); JsonMap jmx (jm[#X]); for (Kmer j = 0; j < indelContext.numKmers; ++j) QuaffParamReadJsonKmer(X,jmx,j); } while(0)
+
+bool QuaffParams::readJson (const JsonValue& val) {
+  const JsonMap jm (val);
+  return readJson (jm);
+}
+
+bool QuaffParams::readJson (const JsonMap& jm) {
+  matchContext.readJsonKmerLen (jm);
+  indelContext.readJsonKmerLen (jm);
+  resize();
+  
+  QuaffParamReadJsonKmers (beginInsert);
+  QuaffParamReadJsonKmers (beginDelete);
+  QuaffParamReadJson (extendInsert);
+  QuaffParamReadJson (extendDelete);
+
+  Desire (jm.contains ("insert"), "Missing parameter: \"insert\"");
+  const JsonValue& ins = jm["insert"];
+  const JsonMap& jmIns (ins);
+  for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
+    const string iKey (1, dnaAlphabet[i]);
+    Desire (jmIns.contains(iKey), "Missing parameter: \"insert\".\"%s\"", iKey.c_str());
+    Desire (insert[i].readJson (jmIns[iKey]), "Couldn't read \"insert\".\"%s\"", iKey.c_str());
+  }
+
+  Desire (jm.contains ("match"), "Missing parameter: \"match\"");
+  const JsonValue& mat = jm["match"];
+  const JsonMap jmMat (mat);
+  for (Kmer jPrefix = 0; jPrefix < matchContext.numKmers; jPrefix += dnaAlphabetSize) {
+    const string jPrefixKey (matchContext.kmerPrefix(jPrefix));
+    Desire (jmMat.contains (jPrefixKey), "Missing parameter: \"match\".\"%s\"", jPrefixKey.c_str());
+    const JsonValue& matJ = jmMat[jPrefixKey];
+    const JsonMap jmMatJ (matJ);
+    for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
+      const string iKey (1, dnaAlphabet[i]);
+      Desire (jmMatJ.contains (iKey), "Missing parameter: \"match\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str());
+      const JsonValue& matJI = jmMatJ[iKey];
+      const JsonMap jmMatJI (matJI);
+      for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix) {
+	const string jSuffixKey (1, dnaAlphabet[jSuffix]);
+	Desire (jmMatJI.contains (jSuffixKey), "Missing parameter: \"match\".\"%s\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str(), jSuffixKey.c_str());
+	Desire (match[i][jPrefix+jSuffix].readJson (jmMatJI[jSuffixKey]), "Couldn't read \"match\".\"%s\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str(), jSuffixKey.c_str());
+      }
+    }
+  }
+
+  return true;
+}
+
+void QuaffParams::readJson (istream& in) {
+  ParsedJson pj (in);
+  Require (readJson(pj), "Couldn't read parameters");
 }
 
 void QuaffParams::writeToLog() const {
