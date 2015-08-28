@@ -368,44 +368,56 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
     if (LogThisAt(1))
       logger << "Handling request from " << sock->getForeignAddress() << endl;
 
-    auto msg = readQuaffStringFromSocket (sock);
-    auto paramVal = readQuaffParamFile (msg);
+    ParsedJson pj (sock, false);
 
-    if (paramVal.find("quit") != paramVal.end()) {
-      if (LogThisAt(1))
-	logger << "(quit)" << endl;
-      delete sock;
-      break;
+    if (pj.parsedOk()) {
+
+      if (LogThisAt(9))
+	logger << "(parsed as valid JSON)" << endl;
+      
+      if (pj.contains("quit")) {
+	if (LogThisAt(1))
+	  logger << "(quit)" << endl;
+	delete sock;
+	break;
+      }
+
+      if (pj.containsType("xName",JSON_STRING)
+	  && pj.containsType("yName",JSON_STRING)
+	  && pj.containsType("yComplemented",JSON_NUMBER)) {
+    
+	const string& xName = pj["xName"].toString();
+	const string& yName = pj["yName"].toString();
+	const int yComp = (int) pj["yComplemented"].toNumber();
+
+	if (seqDict.find(xName) != seqDict.end()
+	    && seqDict.find(yName) != seqDict.end()) {
+
+	  if (LogThisAt(2))
+	    logger << "Aligning " << xName << " to " << yName << endl;
+
+	  QuaffOverlapTask task (*seqDict[xName], *seqDict[yName], yComp, *pparams, *pnullModel, *pconfig);
+	  task.run();
+
+	  ostringstream out;
+	  for (const auto& a : task.alignList)
+	    paligner->writeAlignment (out, a);
+	  out << SocketTerminatorString << endl;
+
+	  const string s = out.str();
+	  sock->send (s.c_str(), (int) s.size());
+
+	  if (LogThisAt(2))
+	    logger << "Request completed" << endl;
+
+	} else if (LogThisAt(1))
+	  logger << "Bad request, ignoring" << endl << "xName = \"" << xName << "\"" << endl << "yName = \"" << yName << "\"" << endl << "yComp = " << yComp << endl << "Request follows:" << endl << pj.str << endl;
+
+      } else if (LogThisAt(1))
+	logger << "Bad request, ignoring" << endl << "Request follows:" << endl << pj.str << endl;
+
     }
-
-    const string& xName = paramVal["xName"];
-    const string& yName = paramVal["yName"];
-    const string& yComp = paramVal["yComplemented"];
-
-    if (seqDict.find(xName) != seqDict.end()
-	&& seqDict.find(yName) != seqDict.end()
-	&& !yComp.empty()) {
-
-      if (LogThisAt(2))
-	logger << "Aligning " << xName << " to " << yName << endl;
-
-      QuaffOverlapTask task (*seqDict[xName], *seqDict[yName], atoi(yComp.c_str()), *pparams, *pnullModel, *pconfig);
-      task.run();
-
-      ostringstream out;
-      for (const auto& a : task.alignList)
-	paligner->writeAlignment (out, a);
-      out << SocketTerminatorString << endl;
-
-      const string s = out.str();
-      sock->send (s.c_str(), (int) s.size());
-
-      if (LogThisAt(2))
-	logger << "Request completed" << endl;
-
-    } else if (LogThisAt(1))
-      logger << "Bad request, ignoring" << endl << "xName = \"" << xName << "\"" << endl << "yName = \"" << yName << "\"" << endl << "yComp = \"" << yComp << "\"" << endl << "Request follows:" << endl << msg << endl;
-	
+    
     delete sock;
   }
 }
@@ -445,9 +457,9 @@ string QuaffOverlapTask::delegate (const RemoteServer& remote) {
   if (LogThisAt(3))
     logger << "Delegating " << xfs.name << " vs " << yfs.name << " to " << remote.toString() << endl;
   ostringstream out;
-  out << "xName: " << xfs.name << endl;
-  out << "yName: " << yfs.name << endl;
-  out << "yComplemented: " << yComplemented << endl;
+  out << "{ \"xName\": " << JsonUtil::quoteEscaped(xfs.name) << "," << endl;
+  out << "  \"yName\": " << JsonUtil::quoteEscaped(yfs.name) << "," << endl;
+  out << "  \"yComplemented\": " << yComplemented << " }" << endl;
   out << SocketTerminatorString << endl;
   
   const string msg = out.str();

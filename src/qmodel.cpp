@@ -34,7 +34,6 @@ const regex multiRemotePortRegex (RE_DOT_STAR ":" RE_NUMERIC_GROUP "-" RE_NUMERI
 // useful helper methods
 double logBetaPdf (double prob, double yesCount, double noCount);
 void readQuaffParamFileLine (map<string,string>& paramVal, const string& line);
-vguard<size_t> readSortOrder (const string& orderString);
 
 // main method bodies
 double logBetaPdf (double prob, double yesCount, double noCount) {
@@ -77,17 +76,6 @@ map<string,string> readQuaffParamFile (const string& s) {
 map<string,string> readQuaffParamFile (TCPSocket* sock) {
   string msg = readQuaffStringFromSocket (sock);
   return readQuaffParamFile (msg);
-}
-
-vguard<size_t> readSortOrder (const string& orderString) {
-  string s = orderString;
-  smatch sm;
-  vguard<size_t> sortOrder;
-  while (regex_search (s, sm, orderRegex)) {
-    sortOrder.push_back (atoi (sm.str(1).c_str()));
-    s = sm.suffix();
-  }
-  return sortOrder;
 }
 
 void randomDelayBeforeRetry (unsigned int minSeconds, unsigned int maxSeconds) {
@@ -338,9 +326,9 @@ ostream& QuaffParams::writeJson (ostream& out) const {
 	  << (jSuffix == dnaAlphabetSize-1 ? " }" : ",\n");
       out << (i == dnaAlphabetSize-1 ? " }" : ",\n");
     }
-    out << (jPrefix == matchContext.numKmers - dnaAlphabetSize ? " }" : ",") << endl;
+    out << (jPrefix == matchContext.numKmers - dnaAlphabetSize ? " }" : ",\n");
   }
-  out << "}" << endl;
+  out << " }";
   return out;
 }
 
@@ -572,7 +560,7 @@ ostream& QuaffCounts::writeJson (ostream& out) const {
   QuaffParamWriteJson(d2d) << "," << endl;
   QuaffParamWriteJson(d2m) << "," << endl;
   QuaffParamWriteJson(i2i) << "," << endl;
-  QuaffParamWriteJson(i2m) << " }" << endl;
+  QuaffParamWriteJson(i2m) << " }";
   return out;
 }
 
@@ -658,7 +646,7 @@ ostream& QuaffParamCounts::writeJson (ostream& out) const {
   QuaffParamWriteJson(extendInsertNo) << "," << endl;
   QuaffParamWriteJson(extendInsertYes) << "," << endl;
   QuaffParamWriteJson(extendDeleteNo) << "," << endl;
-  QuaffParamWriteJson(extendDeleteYes) << " }" << endl;
+  QuaffParamWriteJson(extendDeleteYes) << " }";
   return out;
 }
 
@@ -670,7 +658,7 @@ void QuaffParamCounts::readJson (istream& in) {
 bool QuaffParamCounts::readJson (const JsonValue& val) {
   Desire (val.getTag() == JSON_OBJECT, "JSON value is not an object");
   JsonMap jm (val);
-  return readJson (val);
+  return readJson (jm);
 }
 
 bool QuaffParamCounts::readJson (const JsonMap& jm) {
@@ -898,8 +886,8 @@ string RemoteServer::toString() const {
   return addr + ':' + to_string(port);
 }
 
-RemoteServerJob::RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads)
-  : user(user), addr(addr), port(port), threads(threads)
+RemoteServerJob::RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& cmdPrefix)
+  : user(user), addr(addr), port(port), threads(threads), cmdPrefix(cmdPrefix)
 { }
 
 string RemoteServerJob::toString() const {
@@ -1035,8 +1023,8 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
 	maxPort = atoi (sm.str(2).c_str());
 	Require (maxPort >= minPort, "Invalid port range (%u-%u)", minPort, maxPort);
       } else
-	Fail ("Can't parse server port range: %s", remoteStr.c_str());
-      addRemote (user, addr, minPort, maxPort + 1 - minPort);
+	minPort = maxPort = DefaultServerPort;
+      addRemote (user, addr, minPort, maxPort + 1 - minPort, string());
       if (!threadsSpecified)
 	threads = 0;
       argvec.pop_front();
@@ -1175,8 +1163,8 @@ void QuaffDPConfig::syncToBucket (const string& filename) const {
     aws.syncToBucket (filename, bucket);
 }
 
-void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads) {
-  remoteJobs.push_back (RemoteServerJob (user, addr, port, threads));
+void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& cmdPrefix) {
+  remoteJobs.push_back (RemoteServerJob (user, addr, port, threads, cmdPrefix));
   for (unsigned int p = port; p < port + threads; ++p)
     remotes.push_back (RemoteServer (addr, p));
 }
@@ -1188,7 +1176,7 @@ void QuaffDPConfig::startRemoteServers() {
     ec2InstanceIds = aws.launchInstancesWithScript (ec2Instances, ec2Type, ec2Ami, ec2StartupScript());
     ec2InstanceAddresses = aws.getInstanceAddresses (ec2InstanceIds);
     for (const auto& addr : ec2InstanceAddresses) {
-      addRemote (ec2User, addr, ec2Port, ec2Cores);
+      addRemote (ec2User, addr, ec2Port, ec2Cores, aws.bashEnvPrefix());
       const string testCmd = makeSshCommand (string ("while ! test -e " BucketStagingDir "; do sleep 1; done"), remoteJobs.back());
       const bool bucketStagingDirExists = execWithRetries(testCmd,MaxQuaffSshAttempts);
       Assert (bucketStagingDirExists, "Cloud initialization failed");
@@ -1208,7 +1196,7 @@ void QuaffDPConfig::startRemoteServers() {
 }
 
 string QuaffDPConfig::makeServerCommand (const RemoteServerJob& job) const {
-  return aws.bashEnvPrefix() + remoteQuaffPath + " server " + makeServerArgs() + " -port " + to_string(job.port) + " -threads " + to_string(job.threads) + " 2>&1";
+  return job.cmdPrefix + remoteQuaffPath + " server " + makeServerArgs() + " -port " + to_string(job.port) + " -threads " + to_string(job.threads);
 }
 
 string QuaffDPConfig::makeSshCommand (const string& cmd, const RemoteServerJob& job) const {
@@ -1232,7 +1220,7 @@ string QuaffDPConfig::ec2StartupScript() const {
 void QuaffDPConfig::stopRemoteServers() {
   for (const auto& remote : remotes) {
     TCPSocket sock (remote.addr, remote.port);
-    const string msg = string ("quit: 1\n") + SocketTerminatorString;
+    const string msg = string ("{ \"quit\": 1 }\n") + SocketTerminatorString;
     sock.send (msg.c_str(), (int) msg.size());
   }
   for (auto& t : remoteServerThreads) {
@@ -1916,13 +1904,13 @@ void QuaffNullParams::readJson (istream& in) {
 bool QuaffNullParams::readJson (const JsonValue& val) {
   Desire (val.getTag() == JSON_OBJECT, "JSON value is not an object");
   JsonMap jm (val);
-  return readJson (val);
+  return readJson (jm);
 }
 
 bool QuaffNullParams::readJson (const JsonMap& jm) {
   QuaffParamReadJson(nullEmit);
-  Desire (jm.contains("refBase"), "Missing parameter: \"refBase\"");
-  const JsonMap jmR (jm["refBase"]);
+  Desire (jm.contains("null"), "Missing parameter: \"refBase\"");
+  const JsonMap jmR (jm["null"]);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     const string iKey (1, dnaAlphabet[i]);
     Desire (jmR.contains (iKey), "Missing parameter: \"refBase\".%s", iKey.c_str());
@@ -1958,11 +1946,11 @@ double QuaffNullParams::logLikelihood (const FastSeq& s) const {
 ostream& QuaffNullParams::writeJson (ostream& out) const {
   out << "{" << endl;
   QuaffParamWriteJson(nullEmit) << "," << endl;
-  out << "  \"refBase\": {";
+  out << "  \"null\": {";
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     null[i].writeJson (out << " \"" << dnaAlphabet[i] << "\": ")
       << (i == dnaAlphabetSize-1 ? " }" : ",");
-  out << " }" << endl;
+  out << " }";
   return out;
 }
 
@@ -2134,58 +2122,68 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
     if (LogThisAt(1))
       logger << "Handling request from " << sock->getForeignAddress() << endl;
 
-    auto msg = readQuaffStringFromSocket (sock);
-    auto paramVal = readQuaffParamFile (msg);
+    ParsedJson pj (sock, false);
+    if (pj.parsedOk()) {
 
-    if (paramVal.find("quit") != paramVal.end()) {
-      if (LogThisAt(1))
-	logger << "(quit)" << endl;
-      delete sock;
-      break;
-    }
+      if (LogThisAt(9))
+	logger << "(parsed as valid JSON)" << endl;
+      
+      if (pj.contains("quit")) {
+	if (LogThisAt(1))
+	  logger << "(quit)" << endl;
+	delete sock;
+	break;
+      }
 
-    const string& yName = paramVal["yName"];
-    const string& xOrder = paramVal["xOrder"];
+      if (pj.containsType("yName",JSON_STRING)
+	  && pj.containsType("xOrder",JSON_ARRAY)
+	  && pj.containsType("params",JSON_OBJECT)
+	  && pj.containsType("null",JSON_OBJECT)) {
 
-    vguard<size_t> sortOrder = readSortOrder (xOrder);
+	const string yName = pj["yName"].toString();
+	const JsonValue& xOrder = pj["xOrder"];
 
-    QuaffParams params;
-    QuaffNullParams nullModel;
+	vguard<size_t> sortOrder = JsonUtil::indexVec (xOrder);
 
-    if (yDict.find(yName) != yDict.end()
-	&& sortOrder.size()
-	&& params.read (paramVal)
-	&& nullModel.read (paramVal)) {
+	QuaffParams params;
+	QuaffNullParams nullModel;
 
-      if (LogThisAt(2))
-	logger << "Aligning " << plural(sortOrder.size(),"reference") << " to " << yName << endl;
+	if (yDict.find(yName) != yDict.end()
+	    && sortOrder.size()
+	    && params.readJson (pj["params"])
+	    && nullModel.readJson (pj["null"])) {
+
+	  if (LogThisAt(2))
+	    logger << "Aligning " << plural(sortOrder.size(),"reference") << " to " << yName << endl;
     
-      const unsigned int matchKmerLen = params.matchContext.kmerLen;
-      const unsigned int indelKmerLen = params.indelContext.kmerLen;
-      QuaffParamCounts yCounts (matchKmerLen, indelKmerLen);
+	  const unsigned int matchKmerLen = params.matchContext.kmerLen;
+	  const unsigned int indelKmerLen = params.indelContext.kmerLen;
+	  QuaffParamCounts yCounts (matchKmerLen, indelKmerLen);
 
-      double yLogLike;
-      QuaffCountingTask task (*px, *yDict[yName], params, nullModel, useNullModel, *pconfig, sortOrder, yLogLike, yCounts);
-      task.run();
+	  double yLogLike;
+	  QuaffCountingTask task (*px, *yDict[yName], params, nullModel, useNullModel, *pconfig, sortOrder, yLogLike, yCounts);
+	  task.run();
 
-      ostringstream out;
-      out << "xOrder: { ";
-      for (size_t nx = 0; nx < sortOrder.size(); ++nx)
-	out << (nx == 0 ? "" : ", ") << sortOrder[nx];
-      out << " }" << endl;
-      out << "loglike: " << yLogLike << endl;
-      yCounts.write (out);
-      out << SocketTerminatorString << endl;
+	  ostringstream out;
+	  out << "{ \"xOrder\": [ " << to_string_join(sortOrder,", ") << "]," << endl;
+	  out << "  \"loglike\": " << yLogLike << "," << endl;
+	  yCounts.writeJson (out << "  \"counts\": ") << " }" << endl;
+	  out << SocketTerminatorString << endl;
 
-      const string s = out.str();
-      sock->send (s.c_str(), (int) s.size());
+	  const string s = out.str();
+	  sock->send (s.c_str(), (int) s.size());
 
-      if (LogThisAt(2))
-	logger << "Request completed" << endl;
+	  if (LogThisAt(2))
+	    logger << "Request completed" << endl;
 
-    } else if (LogThisAt(1))
-      logger << "Bad request, ignoring" << endl << "sortOrder = (" << join(sortOrder) << ')' << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << msg << endl;
-	
+	} else if (LogThisAt(1))
+	  logger << "Bad request, ignoring" << endl << "sortOrder = (" << to_string_join(sortOrder) << ')' << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << pj.str << endl;
+
+      } else if (LogThisAt(1))
+	logger << "Bad request, ignoring" << endl << "Request follows:" << endl << pj.str << endl;
+
+    }
+    
     delete sock;
   }
 }
@@ -2288,13 +2286,10 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
     if (LogThisAt(3))
       logger << "Delegating " << yfs.name << " to " << remote.toString() << endl;
     ostringstream out;
-    out << "yName: " << yfs.name << endl;
-    out << "xOrder: { ";
-    for (size_t nx = 0; nx < sortOrder.size(); ++nx)
-      out << (nx == 0 ? "" : ", ") << sortOrder[nx];
-    out << " }" << endl;
-    nullModel.write (out);
-    params.write (out);
+    out << "{ \"yName\": " << JsonUtil::quoteEscaped(yfs.name) << "," << endl;
+    out << "  \"xOrder\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
+    nullModel.writeJson (out << "  \"null\": ") << "," << endl;
+    params.writeJson (out << "  \"params\": ") << " }" << endl;
     out << SocketTerminatorString << endl;
 
     const string msg = out.str();
@@ -2303,22 +2298,27 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
       TCPSocket sock(remote.addr, remote.port);
       sock.send (msg.c_str(), (int) msg.size());
 
-      map<string,string> paramVal = readQuaffParamFile (&sock);
+      ParsedJson pj (&sock, false);
+      if (pj.parsedOk()) {
+      
+      if (LogThisAt(9))
+	logger << "(parsed as valid JSON)" << endl;
+      
+	if (LogThisAt(3))
+	  logger << "Parsing results from " << remote.toString() << endl;
 
-      if (LogThisAt(3))
-	logger << "Parsing results from " << remote.toString() << endl;
-
-      const string& xOrder = paramVal["xOrder"];
-      const string& yLogLikeStr = paramVal["loglike"];
-      if (xOrder.size()
-	  && yLogLikeStr.size()
-	  && yCounts.read (paramVal)) {
-
-	sortOrder = readSortOrder (xOrder);
-	yLogLike = atof (yLogLikeStr.c_str());
-	break;
+	if (pj.containsType("xOrder",JSON_ARRAY)
+	    && pj.containsType("loglike",JSON_NUMBER)
+	    && pj.containsType("counts",JSON_OBJECT)) {
+	  const JsonValue& xOrder = pj["xOrder"];
+	  yLogLike = pj["loglike"].toNumber();
+	  if (yCounts.readJson (pj["counts"])) {
+	    sortOrder = JsonUtil::indexVec (xOrder);
+	    break;
+	  }
+	}
       }
-
+      
     } catch (SocketException& e) {
       if (LogThisAt(3))
 	logger << e.what() << endl;
@@ -2585,40 +2585,49 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
     if (LogThisAt(1))
       logger << "Handling request from " << sock->getForeignAddress() << endl;
 
-    auto msg = readQuaffStringFromSocket (sock);
-    auto paramVal = readQuaffParamFile (msg);
+    ParsedJson pj (sock, false);
+    if (pj.parsedOk()) {
+    
+      if (LogThisAt(9))
+	logger << "(parsed as valid JSON)" << endl;
+      
+      if (pj.contains("quit")) {
+	if (LogThisAt(1))
+	  logger << "(quit)" << endl;
+	delete sock;
+	break;
+      }
 
-    if (paramVal.find("quit") != paramVal.end()) {
-      if (LogThisAt(1))
-	logger << "(quit)" << endl;
-      delete sock;
-      break;
+      if (pj.containsType("yName",JSON_STRING)) {
+
+	const string yName = pj["yName"].toString();
+
+	if (yDict.find(yName) != yDict.end()) {
+
+	  if (LogThisAt(2))
+	    logger << "Aligning " << yName << endl;
+
+	  QuaffAlignmentTask task (*px, *yDict[yName], *pparams, *pnullModel, *pconfig, paligner->printAllAlignments);
+	  task.run();
+
+	  ostringstream out;
+	  for (const auto& a : task.alignList)
+	    paligner->writeAlignment (out, a);
+	  out << SocketTerminatorString << endl;
+
+	  const string s = out.str();
+	  sock->send (s.c_str(), (int) s.size());
+
+	  if (LogThisAt(2))
+	    logger << "Request completed" << endl;
+
+	} else if (LogThisAt(1))
+	  logger << "Bad request, ignoring" << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << pj.str << endl;
+
+      } else if (LogThisAt(1))
+	logger << "Bad request, ignoring" << endl << pj.str << endl;
     }
-
-    const string& yName = paramVal["yName"];
-
-    if (yDict.find(yName) != yDict.end()) {
-
-      if (LogThisAt(2))
-	logger << "Aligning " << yName << endl;
-
-      QuaffAlignmentTask task (*px, *yDict[yName], *pparams, *pnullModel, *pconfig, paligner->printAllAlignments);
-      task.run();
-
-      ostringstream out;
-      for (const auto& a : task.alignList)
-	paligner->writeAlignment (out, a);
-      out << SocketTerminatorString << endl;
-
-      const string s = out.str();
-      sock->send (s.c_str(), (int) s.size());
-
-      if (LogThisAt(2))
-	logger << "Request completed" << endl;
-
-    } else if (LogThisAt(1))
-      logger << "Bad request, ignoring" << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << msg << endl;
-	
+    
     delete sock;
   }
 }
@@ -2651,7 +2660,7 @@ string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
   if (LogThisAt(3))
     logger << "Delegating " << yfs.name << " to " << remote.toString() << endl;
   ostringstream out;
-  out << "yName: " << yfs.name << endl;
+  out << "{ \"yName\": " << JsonUtil::quoteEscaped(yfs.name) << " }" << endl;
   out << SocketTerminatorString << endl;
   
   const string msg = out.str();

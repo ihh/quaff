@@ -1,5 +1,6 @@
 #include "jsonutil.h"
 #include "util.h"
+#include "logger.h"
 
 const regex eofRegex (SocketTerminatorString, regex_constants::basic);
 
@@ -21,6 +22,14 @@ bool JsonMap::contains (const string& key) const {
   return m.find(key) != m.end();
 }
 
+bool JsonMap::containsType (const char* key, JsonTag type) const {
+  return containsType (string(key), type);
+}
+
+bool JsonMap::containsType (const string& key, JsonTag type) const {
+  return contains(key) && (*this)[key].getTag() == type;
+}
+
 JsonValue& JsonMap::operator[] (const char* key) const {
   return (*this) [string (key)];
 }
@@ -31,26 +40,34 @@ JsonValue& JsonMap::operator[] (const string& key) const {
   return *i->second;
 }
 
-ParsedJson::ParsedJson (const string& s) {
-  parse (s);
+ParsedJson::ParsedJson (const string& s, bool parseOrDie) {
+  parse (s, parseOrDie);
 }
 
-ParsedJson::ParsedJson (istream& in) {
-  parse (JsonUtil::readStringFromStream (in));
+ParsedJson::ParsedJson (istream& in, bool parseOrDie) {
+  parse (JsonUtil::readStringFromStream (in), parseOrDie);
 }
 
-ParsedJson::ParsedJson (TCPSocket* sock, const regex& terminatorRegex, int bufSize) {
-  parse (JsonUtil::readStringFromSocket (sock, terminatorRegex, bufSize));
+ParsedJson::ParsedJson (TCPSocket* sock, bool parseOrDie, const regex& terminatorRegex, int bufSize) {
+  parse (JsonUtil::readStringFromSocket (sock, terminatorRegex, bufSize), parseOrDie);
 }
 
-void ParsedJson::parse (const string& s) {
+void ParsedJson::parse (const string& s, bool parseOrDie) {
+  if (LogThisAt(9))
+    logger << "Parsing string:\n" << s << endl;
   str = s;
   buf = new char[str.size() + 1];
   strcpy (buf, str.c_str());
   status = jsonParse (buf, &endPtr, &value, allocator);
-  Assert (status == JSON_OK, "JSON parsing error: %s at byte %zd\n%s\n", jsonStrError(status), endPtr - buf, endPtr);
-  if (value.getTag() == JSON_OBJECT)
-    initMap (value);
+  if (parsedOk()) {
+    if (value.getTag() == JSON_OBJECT)
+      initMap(value);
+  } else {
+    if (parseOrDie)
+      Fail ("JSON parsing error: %s at byte %zd", jsonStrError(status), endPtr - buf);
+    else
+      Warn ("JSON parsing error: %s at byte %zd", jsonStrError(status), endPtr - buf);
+  }
 }
 
 ParsedJson::~ParsedJson() {
@@ -81,10 +98,19 @@ vector<double> JsonUtil::doubleVec (const JsonValue& arr) {
   return v;
 }
 
+vector<size_t> JsonUtil::indexVec (const JsonValue& arr) {
+  vector<size_t> v;
+  Assert (arr.getTag() == JSON_ARRAY, "JSON value is not an array");
+  for (auto n : arr) {
+    Assert (n->value.getTag() == JSON_NUMBER, "JSON value is not a number");
+    v.push_back ((size_t) n->value.toNumber());
+  }
+  return v;
+}
+
 string JsonUtil::quoteEscaped (const string& str) {
-  string esc = "\"";
-  write_escaped (str, back_inserter(esc));
-  esc += "\"";
+  string esc;
+  write_quoted_escaped (str, back_inserter(esc));
   return esc;
 }
 

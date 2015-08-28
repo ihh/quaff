@@ -25,6 +25,8 @@ struct JsonMap {
   void initMap (const JsonValue& value);
   bool contains (const char* key) const;
   bool contains (const string& key) const;
+  bool containsType (const char* key, JsonTag type) const;
+  bool containsType (const string& key, JsonTag type) const;
   JsonValue& operator[] (const char* key) const;
   JsonValue& operator[] (const string& key) const;
 };
@@ -39,11 +41,12 @@ public:
   JsonValue value;
   JsonAllocator allocator;
   int status;
-  ParsedJson (const string& s);
-  ParsedJson (istream& in);
-  ParsedJson (TCPSocket* sock, const regex& terminatorRegex = eofRegex, int bufSize = RCVBUFSIZE);
+  ParsedJson (const string& s, bool parseOrDie = true);
+  ParsedJson (istream& in, bool parseOrDie = true);
+  ParsedJson (TCPSocket* sock, bool parseOrDie = true, const regex& terminatorRegex = eofRegex, int bufSize = RCVBUFSIZE);
   ~ParsedJson();
-  void parse (const string& s);
+  void parse (const string& s, bool parseOrDie = true);
+  bool parsedOk() const { return status == JSON_OK; }
 };
 
 // (mostly) JSON-related utility functions
@@ -51,6 +54,7 @@ struct JsonUtil {
   static JsonValue* find (const JsonValue& parent, const char* key);
   static JsonValue& findOrDie (const JsonValue& parent, const char* key);
   static vector<double> doubleVec (const JsonValue& arr);
+  static vector<size_t> indexVec (const JsonValue& arr);
   static string quoteEscaped (const string& str);
 
   // helpers

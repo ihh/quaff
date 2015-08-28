@@ -85,6 +85,11 @@ std::string plural (long n, const char* singular) {
   return s;
 }
 
+std::string plural (long n, const char* singular, const char* plural) {
+  std::string s = std::to_string(n) + " " + (n == 1 ? singular : plural);
+  return s;
+}
+
 const string TempFile::dir = "/tmp";
 unsigned int TempFile::count = 0;
 TempFile::TempFile (const std::string& contents, const char* filenamePrefix) {

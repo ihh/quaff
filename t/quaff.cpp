@@ -167,8 +167,8 @@ int main (int argc, char** argv) {
 	     || usage.parseUnknown())
 	{ }
 
-      reads.loadSequences (config);
-      refs.loadSequences (config);
+      reads.addFileArgs(config).loadSequences (config);
+      refs.addFileArgs(config).loadSequences (config);
 
       nullModel.requireNullModelOrFit (config, reads);
       prior.requirePriorOrUseNullModel (config, nullModel, params);
@@ -198,8 +198,8 @@ int main (int argc, char** argv) {
 	     || usage.parseUnknown())
 	{ }
 
-      reads.loadSequences (config);
-      refs.loadSequences (config);
+      reads.addFileArgs(config).loadSequences (config);
+      refs.addFileArgs(config).loadSequences (config);
 
       nullModel.requireNullModelOrFit (config, reads);
       params.requireParamsOrUseDefaults (config);

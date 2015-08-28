@@ -31,6 +31,7 @@ bool Test(int assertion, const char* error, ...);
 
 /* singular or plural? */
 std::string plural (long n, const char* singular);
+std::string plural (long n, const char* singular, const char* plural);
 
 /* stringify */
 #define STRINGIFY(x) #x
@@ -124,7 +125,7 @@ std::vector<T> vector_scale(const T x, const std::vector<T>& a)
    http://stackoverflow.com/questions/2417588/escaping-a-c-string
  */
 template<class OutIter>
-OutIter write_escaped(std::string const& s, OutIter out) {
+OutIter write_quoted_escaped(std::string const& s, OutIter out) {
   *out++ = '"';
   for (std::string::const_iterator i = s.begin(), end = s.end(); i != end; ++i) {
     unsigned char c = *i;
