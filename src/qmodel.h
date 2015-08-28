@@ -59,8 +59,6 @@ struct SymQualDist {
   SymQualDist();
   double logQualProb (QualScore k) const;
   double logQualProb (const vguard<double>& kFreq) const;
-  void write (ostream& out, const string& prefix) const;
-  bool read (map<string,string>& paramVal, const string& prefix);
   ostream& writeJson (ostream& out) const;
   bool readJson (const JsonValue& val);
 };
@@ -81,8 +79,6 @@ struct SymQualCounts {
   vguard<double> qualCount;  // no. of times each quality score seen
   SymQualCounts();
   double symCount() const { return accumulate (qualCount.begin(), qualCount.end(), 0.); }
-  void write (ostream& out, const string& prefix) const;
-  bool read (map<string,string>& paramVal, const string& param);
   ostream& writeJson (ostream& out) const;
   bool readJson (const JsonValue& val);
 };
@@ -96,8 +92,6 @@ struct QuaffKmerContext {
   QuaffKmerContext (const char* prefix, unsigned int kmerLen);
   string kmerString (Kmer kmer) const;
   string insertParamName (AlphTok i) const;
-  void readKmerLen (map<string,string>& paramVal);
-  void writeKmerLen (ostream& out) const;
   void writeJsonKmerLen (ostream& out) const;
   void readJsonKmerLen (const JsonMap& m);
 };
@@ -130,9 +124,6 @@ struct QuaffParams {
   QuaffParams (unsigned int matchKmerLen = DefaultMatchKmerContext, unsigned int indelKmerLen = DefaultIndelKmerContext);
   void resize();  // call after changing kmerLen
   void writeToLog() const;
-  void write (ostream& out) const;
-  void read (istream& in);
-  bool read (map<string,string>& paramVal);
   ostream& writeJson (ostream& out) const;
   bool readJson (const JsonValue& val);
   bool readJson (const JsonMap& jm);
@@ -148,9 +139,6 @@ struct QuaffNullParams {
   double logLikelihood (const FastSeq& seq) const;
   double logLikelihood (const vguard<FastSeq>& seqs) const;
   void writeToLog() const;
-  void write (ostream& out) const;
-  void read (istream& in);
-  bool read (map<string,string>& paramVal);
   ostream& writeJson (ostream& out) const;
   void readJson (istream& in);
   bool readJson (const JsonMap& jm);
@@ -179,7 +167,6 @@ struct QuaffEmitCounts {
   QuaffEmitCounts (unsigned int matchKmerLen, unsigned int indelKmerLen);
   QuaffEmitCounts (const QuaffEmitCounts& c);
   void resize();  // call after changing kmerLen
-  void write (ostream& out) const;
   ostream& writeJson (ostream& out) const;
 };
 
@@ -189,7 +176,6 @@ struct QuaffCounts : QuaffEmitCounts {
   double i2i, i2m;
   QuaffCounts (unsigned int matchKmerLen, unsigned int indelKmerLen);
   void writeToLog() const;
-  void write (ostream& out) const;
   ostream& writeJson (ostream& out) const;
 };
 
@@ -202,9 +188,6 @@ struct QuaffParamCounts : QuaffEmitCounts {
   void zeroCounts();
   void initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount, const QuaffNullParams* nullModel = NULL);
   void writeToLog() const;
-  void write (ostream& out) const;
-  void read (istream& in);
-  bool read (map<string,string>& paramVal);
   ostream& writeJson (ostream& out) const;
   void readJson (istream& in);
   bool readJson (const JsonMap& jm);

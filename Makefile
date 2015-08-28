@@ -72,7 +72,7 @@ osx-dep:
 
 # Tests
 # testaws is not included in the top-level 'make test' target
-test: testfast testquaffio testquaffjsonio testquaffcountsjsonio testquaffnulljsonio testlogsumexp testnegbinom testdiagenv testregex
+test: testfast testquaffjsonio testquaffcountsjsonio testquaffnulljsonio testlogsumexp testnegbinom testdiagenv testregex
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
@@ -85,9 +85,6 @@ testfast: bin/testfasta bin/testfastq
 	perl/testexpect.pl bin/testfastq data/tiny.fasta data/tiny.noqual.fastq
 	perl/testexpect.pl bin/testfastq data/tiny.noqual.fastq data/tiny.noqual.fastq
 	perl/testexpect.pl bin/testfastq data/tiny.truncated.fastq data/tiny.noqual.fastq
-
-testquaffio: bin/testquaffio
-	perl/testexpect.pl bin/testquaffio data/testquaffparams.yaml data/testquaffparams.yaml
 
 testquaffjsonio: bin/testquaffjsonio
 	perl/testexpect.pl bin/testquaffjsonio data/testquaffparams.json data/testquaffparams.json
@@ -122,6 +119,6 @@ README.md: bin/quaff
 	mv temp.md $@
 
 # For updating default params
-src/defaultparams.cpp: data/defaultparams.yaml
-	perl -e 'open S,"<".shift();while(<S>){print;last if/defaultQuaffParamsText =/}close S;open A,"<".shift();while(<A>){chomp;print chr(34),$$_,"\\n",chr(34),"\n"}print";\n"' $@ $< >temp.cpp
+src/defaultparams.cpp: data/defaultparams.json
+	perl -e 'open S,"<".shift();while(<S>){print;last if/defaultQuaffParamsText =/}close S;open A,"<".shift();$$q=chr(34);while(<A>){chomp;s/$$q/\\$$q/g;print chr(34),$$_,"\\n",chr(34),"\n"}print";\n"' $@ $< >temp.cpp
 	mv temp.cpp $@

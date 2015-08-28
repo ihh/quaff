@@ -97,16 +97,6 @@ SymQualDist::SymQualDist()
     qualNumSuccessfulTrials(FastSeq::qualScoreRange / 2)
 { }
 
-void SymQualDist::write (ostream& out, const string& prefix) const {
-  out << prefix << ": " << symProb << endl;
-  out << prefix << "qp: " << qualTrialSuccessProb
-      << "\t# mean " << negativeBinomialMean(qualTrialSuccessProb,qualNumSuccessfulTrials)
-      << endl;
-  out << prefix << "qr: " << qualNumSuccessfulTrials
-      << "\t# stdev " << sqrt(negativeBinomialVariance(qualTrialSuccessProb,qualNumSuccessfulTrials))
-      << endl;
-}
-
 ostream& SymQualDist::writeJson (ostream& out) const {
   return
     out << "{ \"p\": " << qualTrialSuccessProb
@@ -121,17 +111,6 @@ bool SymQualDist::readJson (const JsonValue& val) {
   Desire (jm.contains("p") && jm.contains("r"), "Missing negative binomial parameters");
   qualTrialSuccessProb = jm["p"].toNumber();
   qualNumSuccessfulTrials = jm["r"].toNumber();
-  return true;
-}
-
-bool SymQualDist::read (map<string,string>& paramVal, const string& prefix) {
-  const string qp = prefix + "qp", qr = prefix + "qr";
-  Desire (paramVal.find(prefix) != paramVal.end(), "Missing parameter: %s", prefix.c_str());
-  Desire (paramVal.find(qp) != paramVal.end(), "Missing parameter: %s", qp.c_str());
-  Desire (paramVal.find(qr) != paramVal.end(), "Missing parameter: %s", qr.c_str());
-  symProb = atof (paramVal[prefix].c_str());
-  qualTrialSuccessProb = atof (paramVal[qp].c_str());
-  qualNumSuccessfulTrials = atof (paramVal[qr].c_str());
   return true;
 }
 
@@ -155,17 +134,6 @@ SymQualCounts::SymQualCounts()
   : qualCount (FastSeq::qualScoreRange, 0.)
 { }
 
-void SymQualCounts::write (ostream& out, const string& prefix) const {
-  if (qualCount.size()) {
-    out << prefix << ": {";
-    int n = 0;
-    for (QualScore i = 0; i < qualCount.size(); ++i)
-      if (qualCount[i] > 0)
-	out << (n++ ? ", " : "") << i << ": " << qualCount[i];
-    out << '}' << endl;
-  }
-}
-
 ostream& SymQualCounts::writeJson (ostream& out) const {
   return out << "[ " << to_string_join (qualCount, ", ") << " ]";
 }
@@ -174,18 +142,6 @@ bool SymQualCounts::readJson (const JsonValue& value) {
   Desire (value.getTag() == JSON_ARRAY, "Not an array");
   qualCount = JsonUtil::doubleVec (value);
   Desire (qualCount.size() == FastSeq::qualScoreRange, "FASTQ counts array is wrong size");
-  return true;
-}
-
-bool SymQualCounts::read (map<string,string>& paramVal, const string& param) {
-  Desire (paramVal.find(param) != paramVal.end(), "Couldn't read %s", param.c_str());
-  string c = paramVal[param];
-  qualCount = vguard<double> (FastSeq::qualScoreRange, 0.);
-  smatch sm;
-  while (regex_search (c, sm, countRegex)) {
-    qualCount[atoi (sm.str(1).c_str())] = atof (sm.str(2).c_str());
-    c = sm.suffix().str();
-  }
   return true;
 }
 
@@ -201,25 +157,12 @@ void QuaffKmerContext::initKmerContext (unsigned int newKmerLen) {
   numKmers = numberOfKmers(newKmerLen,dnaAlphabetSize);
 }
 
-void QuaffKmerContext::readKmerLen (map<string,string>& paramVal) {
-  const string tag = string(prefix) + "Order";
-  if (paramVal.find(tag) == paramVal.end())
-    initKmerContext (defaultKmerLen);
-  else
-    initKmerContext (atoi (paramVal[tag].c_str()));
-}
-
 void QuaffKmerContext::readJsonKmerLen (const JsonMap& m) {
   const string tag = string(prefix) + "Order";
   if (m.contains(tag))
     initKmerContext ((int) m[tag].toNumber());
   else
     initKmerContext (defaultKmerLen);
-}
-
-void QuaffKmerContext::writeKmerLen (ostream& out) const {
-  if (kmerLen != defaultKmerLen)
-    out << prefix << "Order: " << kmerLen << endl;
 }
 
 void QuaffKmerContext::writeJsonKmerLen (ostream& out) const {
@@ -274,26 +217,6 @@ void QuaffParams::resize() {
   match = vguard<vguard<SymQualDist> > (dnaAlphabetSize, vguard<SymQualDist> (matchContext.numKmers));
   beginInsert = vguard<double> (indelContext.numKmers, .5);
   beginDelete = vguard<double> (indelContext.numKmers, .5);
-}
-
-#define QuaffParamWrite(X) out << #X ": " << X << endl
-#define QuaffParamWriteK(X,KMER) out << indelContext.booleanParamName(#X,KMER) << ": " << X[KMER] << endl
-void QuaffParams::write (ostream& out) const {
-  matchContext.writeKmerLen (out);
-  indelContext.writeKmerLen (out);
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    out << "refBase" << dnaAlphabet[i] << ": " << refBase[i] << endl;
-  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
-    QuaffParamWriteK(beginInsert,j);
-    QuaffParamWriteK(beginDelete,j);
-  }
-  QuaffParamWrite(extendInsert);
-  QuaffParamWrite(extendDelete);
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].write (out, matchContext.insertParamName(i));
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer j = 0; j < matchContext.numKmers; ++j)
-      match[i][j].write (out, matchContext.matchParamName(i,j));
 }
 
 #define QuaffParamWriteJson(X) out << "  \"" << #X "\": " << X
@@ -392,36 +315,8 @@ void QuaffParams::readJson (istream& in) {
 
 void QuaffParams::writeToLog() const {
   logger.lock();
-  write(clog);
+  writeJson(clog) << endl;
   logger.unlock();
-}
-
-#define QuaffParamRead(X) do { Desire(val.find(#X) != val.end(),"Missing parameter: " #X); X = atof(val[#X].c_str()); } while(0)
-#define QuaffParamReadK(X,KMER) do { const string tmpParamName = indelContext.booleanParamName(#X,KMER); Desire(val.find(tmpParamName) != val.end(),"Missing parameter: %s",tmpParamName.c_str()); X[KMER] = atof(val[tmpParamName].c_str()); } while(0)
-
-void QuaffParams::read (istream& in) {
-  map<string,string> val = readQuaffParamFile (in);
-  Require (read(val), "Couldn't read parameters");
-}
-
-bool QuaffParams::read (map<string,string>& val) {
-  matchContext.readKmerLen(val);
-  indelContext.readKmerLen(val);
-  resize();
-  
-  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
-    QuaffParamReadK(beginInsert,j);
-    QuaffParamReadK(beginDelete,j);
-  }
-  QuaffParamRead(extendInsert);
-  QuaffParamRead(extendDelete);
-
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    Desire (insert[i].read (val, matchContext.insertParamName(i)), "");
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer j = 0; j < matchContext.numKmers; ++j)
-      Desire (match[i][j].read (val, matchContext.matchParamName(i,j)), "");
-  return true;
 }
 
 void QuaffParams::fitRefSeqs (const vguard<FastSeq>& refs) {
@@ -481,16 +376,6 @@ QuaffEmitCounts::QuaffEmitCounts (const QuaffEmitCounts& c)
     match (dnaAlphabetSize, vguard<SymQualCounts> (matchContext.numKmers))
 { }
 
-void QuaffEmitCounts::write (ostream& out) const {
-  matchContext.writeKmerLen (out);
-  indelContext.writeKmerLen (out);
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    insert[i].write (out, matchContext.insertParamName(i));
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer j = 0; j < matchContext.numKmers; ++j)
-      match[i][j].write (out, matchContext.matchParamName(i,j));
-}
-
 ostream& QuaffEmitCounts::writeJson (ostream& out) const {
   matchContext.writeJsonKmerLen (out);
   indelContext.writeJsonKmerLen (out);
@@ -532,22 +417,8 @@ QuaffCounts::QuaffCounts (unsigned int matchKmerLen, unsigned int indelKmerLen)
 
 void QuaffCounts::writeToLog() const {
   logger.lock();
-  write(clog);
+  writeJson(clog) << endl;
   logger.unlock();
-}
-
-void QuaffCounts::write (ostream& out) const {
-  QuaffEmitCounts::write (out);
-  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
-    QuaffParamWriteK(m2m,j);
-    QuaffParamWriteK(m2i,j);
-    QuaffParamWriteK(m2d,j);
-    QuaffParamWriteK(m2e,j);
-  }
-  QuaffParamWrite(d2d);
-  QuaffParamWrite(d2m);
-  QuaffParamWrite(i2i);
-  QuaffParamWrite(i2m);
 }
 
 ostream& QuaffCounts::writeJson (ostream& out) const {
@@ -620,20 +491,6 @@ void QuaffParamCounts::initCounts (double noBeginCount, double yesExtendCount, d
   beginDeleteYes = vguard<double> (indelContext.numKmers, otherCount);
   extendDeleteNo = otherCount;
   extendDeleteYes = yesExtendCount;
-}
-
-void QuaffParamCounts::write (ostream& out) const {
-  QuaffEmitCounts::write (out);
-  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
-    QuaffParamWriteK(beginInsertNo,j);
-    QuaffParamWriteK(beginInsertYes,j);
-    QuaffParamWriteK(beginDeleteNo,j);
-    QuaffParamWriteK(beginDeleteYes,j);
-  }
-  QuaffParamWrite(extendInsertNo);
-  QuaffParamWrite(extendInsertYes);
-  QuaffParamWrite(extendDeleteNo);
-  QuaffParamWrite(extendDeleteYes);
 }
 
 ostream& QuaffParamCounts::writeJson (ostream& out) const {
@@ -710,40 +567,10 @@ bool QuaffParamCounts::readJson (const JsonMap& jm) {
 
 void QuaffParamCounts::writeToLog() const {
   logger.lock();
-  write(clog);
+  writeJson(clog) << endl;
   logger.unlock();
 }
 
-void QuaffParamCounts::read (istream& in) {
-  map<string,string> val = readQuaffParamFile (in);
-  Require (read (val), "Couldn't read counts");
-}
-
-bool QuaffParamCounts::read (map<string,string>& val) {
-  matchContext.readKmerLen(val);
-  indelContext.readKmerLen(val);
-  resize();
-  
-  for (Kmer j = 0; j < indelContext.numKmers; ++j) {
-    QuaffParamReadK(beginInsertYes,j);
-    QuaffParamReadK(beginInsertNo,j);
-    QuaffParamReadK(beginDeleteYes,j);
-    QuaffParamReadK(beginDeleteNo,j);
-  }
-
-  QuaffParamRead(extendInsertYes);
-  QuaffParamRead(extendDeleteYes);
-
-  QuaffParamRead(extendInsertNo);
-  QuaffParamRead(extendDeleteNo);
-
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    Desire (insert[i].read (val, matchContext.insertParamName(i)), "");
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    for (Kmer j = 0; j < matchContext.numKmers; ++j)
-      Desire (match[i][j].read (val, matchContext.matchParamName(i,j)), "");
-  return true;
-}
 
 const char Alignment::gapChar = '-';
 const char Alignment::mismatchChar = ':';
@@ -1884,18 +1711,6 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
   }
 }
 
-void QuaffNullParams::read (istream& in) {
-  map<string,string> val = readQuaffParamFile (in);
-  Require (read (val), "Couldn't read null model");
-}
-
-bool QuaffNullParams::read (map<string,string>& val) {
-  QuaffParamRead(nullEmit);
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    Desire (null[i].read (val, string("null") + dnaAlphabet[i]), "Couldn't read null param");
-  return true;
-}
-
 void QuaffNullParams::readJson (istream& in) {
   ParsedJson pj (in);
   Require (readJson(pj), "Couldn't read null model parameters");
@@ -1954,15 +1769,9 @@ ostream& QuaffNullParams::writeJson (ostream& out) const {
   return out;
 }
 
-void QuaffNullParams::write (ostream& out) const {
-  QuaffParamWrite(nullEmit);
-  for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
-    null[i].write (out, string("null") + dnaAlphabet[i]);
-}
-
 void QuaffNullParams::writeToLog() const {
   logger.lock();
-  write(clog);
+  writeJson(clog) << endl;
   logger.unlock();
 }
 
@@ -2073,7 +1882,7 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
   const QuaffParamCounts counts = qcs.finalCounts();
   if (rawCountsFilename.size()) {
     ofstream out (rawCountsFilename);
-    counts.write (out);
+    counts.writeJson (out) << endl;
   }
   return counts;
 }
@@ -2219,7 +2028,7 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     countsWithPrior.addWeighted (pseudocounts, 1.);
     if (countsWithPriorFilename.size()) {
       ofstream out (countsWithPriorFilename);
-      countsWithPrior.write (out);
+      countsWithPrior.writeJson (out) << endl;
     }
 
     const double oldExpectedLogLike = countsWithPrior.expectedLogLike (qp);
@@ -2231,7 +2040,7 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
 
     if (saveParamsFilename.size()) {
       ofstream out (saveParamsFilename);
-      qp.write (out);
+      qp.writeJson (out) << endl;
     }
   }
   config.stopRemoteServers();

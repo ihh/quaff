@@ -12,7 +12,7 @@ int main (int argc, char **argv) {
 
   aws.keyPair = argv[1];
 
-  const string script = aws.bashHeader()
+  const string script = aws.bashBang
     + "mkfifo /tmp/fifo\n"
     + "cat /tmp/fifo | nc -k -v -l 8000 | cat > /tmp/fifo\n";
 

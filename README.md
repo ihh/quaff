@@ -24,7 +24,7 @@ Usage: quaff {help,train,align,overlap} [options]
 
 Commands:
 
- quaff train refs.fasta reads.fastq  &gt;params.yaml
+ quaff train refs.fasta reads.fastq  &gt;params.json
   (to fit a model to unaligned sequences, using EM/Forward-Backward)
 
    -maxiter &lt;n&gt;    Max number of EM iterations (default is 100)

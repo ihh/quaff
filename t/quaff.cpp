@@ -178,7 +178,7 @@ int main (int argc, char** argv) {
 
       QuaffParams newParams = trainer.fit (refs.seqs, reads.seqs, params, nullModel, prior, config);
       if (!trainer.usingParamOutputFile())
-	newParams.write (cout);
+	newParams.writeJson (cout);
 
     } else if (command == "count") {
       QuaffTrainer trainer;
@@ -208,7 +208,7 @@ int main (int argc, char** argv) {
 
       QuaffParamCounts counts = trainer.getCounts (refs.seqs, reads.seqs, params, nullModel, config);
       if (!trainer.usingCountsOutputFile())
-	counts.write (cout);
+	counts.writeJson (cout);
     
     } else if (command == "overlap") {
       QuaffOverlapAligner aligner;
@@ -361,7 +361,7 @@ void QuaffParamsIn::loadParams (const QuaffDPConfig& config) {
   if (initialized()) {
     ifstream inFile (loadFilename);
     Require (!inFile.fail(), "Couldn't open %s", loadFilename.c_str());
-    read (inFile);
+    readJson (inFile);
   }
 }
 
@@ -408,7 +408,7 @@ void QuaffNullParamsIn::loadNullModel (const QuaffDPConfig& config) {
   if (initialized()) {
     ifstream inFile (loadFilename);
     Require (!inFile.fail(), "Couldn't open %s", loadFilename.c_str());
-    read (inFile);
+    readJson (inFile);
   }
 }
 
@@ -433,7 +433,7 @@ void QuaffNullParamsIn::requireNullModelOrFit (const QuaffDPConfig& config, cons
   }
   if (saveFilename.size()) {
     ofstream out (saveFilename);
-    write (out);
+    writeJson (out);
   }
 }
 
@@ -481,7 +481,7 @@ void QuaffPriorIn::loadPrior (const QuaffDPConfig& config) {
   if (initialized()) {
     ifstream inFile (loadFilename);
     Require (!inFile.fail(), "Couldn't open %s", loadFilename.c_str());
-    read (inFile);
+    readJson (inFile);
   }
 }
 
@@ -509,7 +509,7 @@ void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffDPConfig& config, cons
   }
   if (saveFilename.size()) {
     ofstream out (saveFilename);
-    write (out);
+    writeJson (out);
   }
 }
 
@@ -614,7 +614,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "\n"
     + "Commands:\n"
     + "\n"
-    + " " + prog + " train refs.fasta reads.fastq  >params.yaml\n"
+    + " " + prog + " train refs.fasta reads.fastq  >params.json\n"
     + "  (to fit a model to unaligned sequences, using EM/Forward-Backward)\n"
     + "\n"
     + "   -maxiter <n>    Max number of EM iterations (default is " + to_string(QuaffMaxEMIterations) + ")\n"
