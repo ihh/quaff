@@ -154,6 +154,7 @@ struct QuaffNullParams {
   ostream& writeJson (ostream& out) const;
   void readJson (istream& in);
   bool readJson (const JsonMap& jm);
+  bool readJson (const JsonValue& val);
 };
 
 // Memo-ized scores for transitions & emissions in quaff HMM
@@ -205,7 +206,9 @@ struct QuaffParamCounts : QuaffEmitCounts {
   void read (istream& in);
   bool read (map<string,string>& paramVal);
   ostream& writeJson (ostream& out) const;
+  void readJson (istream& in);
   bool readJson (const JsonMap& jm);
+  bool readJson (const JsonValue& val);
   void addWeighted (const QuaffParamCounts& counts, double weight);
   QuaffParamCounts operator+ (const QuaffParamCounts& counts) const;
   QuaffParams fit() const;  // maximum-likelihood fit

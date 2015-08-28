@@ -49,6 +49,7 @@ struct TempFile {
   ~TempFile();
 };
 
+/* join */
 template<class Container>
 std::string join (const Container& c, const char* sep = " ") {
   std::string j;
@@ -56,6 +57,18 @@ std::string join (const Container& c, const char* sep = " ") {
     if (!j.empty())
       j += sep;
     j += s;
+  }
+  return j;
+}
+
+/* join */
+template<class Container>
+std::string to_string_join (const Container& c, const char* sep = " ") {
+  std::string j;
+  for (const auto& s : c) {
+    if (!j.empty())
+      j += sep;
+    j += to_string(s);
   }
   return j;
 }
@@ -84,7 +97,7 @@ std::vector<size_t> orderedIndices (std::vector<T> const& values) {
 
 /* vector sum */
 template <typename T>
-std::vector<T> vectorSum(const std::vector<T>& a, const std::vector<T>& b)
+std::vector<T> vector_sum(const std::vector<T>& a, const std::vector<T>& b)
 {
   assert(a.size() == b.size());
 
@@ -98,7 +111,7 @@ std::vector<T> vectorSum(const std::vector<T>& a, const std::vector<T>& b)
 
 /* vector-scalar product */
 template <typename T>
-std::vector<T> vectorScale(const T x, const std::vector<T>& a)
+std::vector<T> vector_scale(const T x, const std::vector<T>& a)
 {
   std::vector<T> result = a;
   for (auto& y : result)
@@ -111,7 +124,7 @@ std::vector<T> vectorScale(const T x, const std::vector<T>& a)
    http://stackoverflow.com/questions/2417588/escaping-a-c-string
  */
 template<class OutIter>
-OutIter writeEscaped(std::string const& s, OutIter out) {
+OutIter write_escaped(std::string const& s, OutIter out) {
   *out++ = '"';
   for (std::string::const_iterator i = s.begin(), end = s.end(); i != end; ++i) {
     unsigned char c = *i;

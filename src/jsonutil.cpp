@@ -83,7 +83,7 @@ vector<double> JsonUtil::doubleVec (const JsonValue& arr) {
 
 string JsonUtil::quoteEscaped (const string& str) {
   string esc = "\"";
-  writeEscaped (str, back_inserter(esc));
+  write_escaped (str, back_inserter(esc));
   esc += "\"";
   return esc;
 }

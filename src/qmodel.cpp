@@ -179,7 +179,7 @@ void SymQualCounts::write (ostream& out, const string& prefix) const {
 }
 
 ostream& SymQualCounts::writeJson (ostream& out) const {
-  return out << "[ " << join (qualCount, ", ") << " ]";
+  return out << "[ " << to_string_join (qualCount, ", ") << " ]";
 }
 
 bool SymQualCounts::readJson (const JsonValue& value) {
@@ -349,6 +349,7 @@ ostream& QuaffParams::writeJson (ostream& out) const {
 #define QuaffParamReadJsonKmers(X) do { Desire(jm.contains(#X),"Missing parameter: \"" #X "\""); JsonMap jmx (jm[#X]); for (Kmer j = 0; j < indelContext.numKmers; ++j) QuaffParamReadJsonKmer(X,jmx,j); } while(0)
 
 bool QuaffParams::readJson (const JsonValue& val) {
+  Desire (val.getTag() == JSON_OBJECT, "JSON value is not an object");
   const JsonMap jm (val);
   return readJson (jm);
 }
@@ -522,7 +523,6 @@ ostream& QuaffEmitCounts::writeJson (ostream& out) const {
     }
     out << (jPrefix == matchContext.numKmers - dnaAlphabetSize ? " }" : ",") << endl;
   }
-  out << "}" << endl;
   return out;
 }
 
@@ -564,7 +564,7 @@ void QuaffCounts::write (ostream& out) const {
 
 ostream& QuaffCounts::writeJson (ostream& out) const {
   out << "{" << endl;
-  QuaffEmitCounts::writeJson (out);
+  QuaffEmitCounts::writeJson (out) << "," << endl;
   QuaffParamWriteJsonKmers(m2m) << "," << endl;
   QuaffParamWriteJsonKmers(m2i) << "," << endl;
   QuaffParamWriteJsonKmers(m2d) << "," << endl;
@@ -572,8 +572,7 @@ ostream& QuaffCounts::writeJson (ostream& out) const {
   QuaffParamWriteJson(d2d) << "," << endl;
   QuaffParamWriteJson(d2m) << "," << endl;
   QuaffParamWriteJson(i2i) << "," << endl;
-  QuaffParamWriteJson(i2m) << endl;
-  out << "}" << endl;
+  QuaffParamWriteJson(i2m) << " }" << endl;
   return out;
 }
 
@@ -586,8 +585,8 @@ QuaffParamCounts::QuaffParamCounts (unsigned int matchKmerLen, unsigned int inde
 
 QuaffParamCounts::QuaffParamCounts (const QuaffCounts& counts)
   : QuaffEmitCounts(counts),
-    beginInsertNo (vectorSum (counts.m2m, counts.m2d)),
-    beginInsertYes (vectorSum (counts.m2i, counts.m2e)),
+    beginInsertNo (vector_sum (counts.m2m, counts.m2d)),
+    beginInsertYes (vector_sum (counts.m2i, counts.m2e)),
     extendInsertNo (counts.i2m),
     extendInsertYes (counts.i2i),
     beginDeleteNo (counts.m2m),
@@ -651,7 +650,7 @@ void QuaffParamCounts::write (ostream& out) const {
 
 ostream& QuaffParamCounts::writeJson (ostream& out) const {
   out << "{" << endl;
-  QuaffEmitCounts::writeJson (out);
+  QuaffEmitCounts::writeJson (out) << "," << endl;
   QuaffParamWriteJsonKmers(beginInsertNo) << "," << endl;
   QuaffParamWriteJsonKmers(beginInsertYes) << "," << endl;
   QuaffParamWriteJsonKmers(beginDeleteNo) << "," << endl;
@@ -659,9 +658,19 @@ ostream& QuaffParamCounts::writeJson (ostream& out) const {
   QuaffParamWriteJson(extendInsertNo) << "," << endl;
   QuaffParamWriteJson(extendInsertYes) << "," << endl;
   QuaffParamWriteJson(extendDeleteNo) << "," << endl;
-  QuaffParamWriteJson(extendDeleteYes) << "," << endl;
-  out << "}" << endl;
+  QuaffParamWriteJson(extendDeleteYes) << " }" << endl;
   return out;
+}
+
+void QuaffParamCounts::readJson (istream& in) {
+  ParsedJson pj (in);
+  Require (readJson(pj), "Couldn't read counts");
+}
+
+bool QuaffParamCounts::readJson (const JsonValue& val) {
+  Desire (val.getTag() == JSON_OBJECT, "JSON value is not an object");
+  JsonMap jm (val);
+  return readJson (val);
 }
 
 bool QuaffParamCounts::readJson (const JsonMap& jm) {
@@ -1707,10 +1716,10 @@ void QuaffParamCounts::addWeighted (const QuaffParamCounts& counts, double weigh
       for (Kmer j = 0; j < matchContext.numKmers; ++j)
 	match[i][j].qualCount[q] += weight * counts.match[i][j].qualCount[q];
     }
-  beginInsertNo = vectorSum (beginInsertNo, vectorScale (weight, counts.beginInsertNo));
-  beginInsertYes = vectorSum (beginInsertYes, vectorScale (weight, counts.beginInsertYes));
-  beginDeleteNo = vectorSum (beginDeleteNo, vectorScale (weight, counts.beginDeleteNo));
-  beginDeleteYes = vectorSum (beginDeleteYes, vectorScale (weight, counts.beginDeleteYes));
+  beginInsertNo = vector_sum (beginInsertNo, vector_scale (weight, counts.beginInsertNo));
+  beginInsertYes = vector_sum (beginInsertYes, vector_scale (weight, counts.beginInsertYes));
+  beginDeleteNo = vector_sum (beginDeleteNo, vector_scale (weight, counts.beginDeleteNo));
+  beginDeleteYes = vector_sum (beginDeleteYes, vector_scale (weight, counts.beginDeleteYes));
   extendInsertNo += weight * counts.extendInsertNo;
   extendInsertYes += weight * counts.extendInsertYes;
   extendDeleteNo += weight * counts.extendDeleteNo;
@@ -1904,6 +1913,12 @@ void QuaffNullParams::readJson (istream& in) {
   Require (readJson(pj), "Couldn't read null model parameters");
 }
 
+bool QuaffNullParams::readJson (const JsonValue& val) {
+  Desire (val.getTag() == JSON_OBJECT, "JSON value is not an object");
+  JsonMap jm (val);
+  return readJson (val);
+}
+
 bool QuaffNullParams::readJson (const JsonMap& jm) {
   QuaffParamReadJson(nullEmit);
   Desire (jm.contains("refBase"), "Missing parameter: \"refBase\"");
@@ -1941,12 +1956,13 @@ double QuaffNullParams::logLikelihood (const FastSeq& s) const {
 }
 
 ostream& QuaffNullParams::writeJson (ostream& out) const {
-  QuaffParamWriteJson(nullEmit);
-  out << "  \"refBase\": {" << endl;
+  out << "{" << endl;
+  QuaffParamWriteJson(nullEmit) << "," << endl;
+  out << "  \"refBase\": {";
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i)
     null[i].writeJson (out << " \"" << dnaAlphabet[i] << "\": ")
       << (i == dnaAlphabetSize-1 ? " }" : ",");
-  out << endl;
+  out << " }" << endl;
   return out;
 }
 

@@ -92,6 +92,12 @@ testquaffio: bin/testquaffio
 testquaffjsonio: bin/testquaffjsonio
 	perl/testexpect.pl bin/testquaffjsonio data/testquaffparams.json data/testquaffparams.json
 
+testquaffnulljsonio: bin/testquaffnulljsonio
+	perl/testexpect.pl bin/testquaffnulljsonio data/testquaffnullparams.json data/testquaffnullparams.json
+
+testquaffcountsjsonio: bin/testquaffcountsjsonio
+	perl/testexpect.pl bin/testquaffcountsjsonio data/testquaffcounts.json data/testquaffcounts.json
+
 testlogsumexp: bin/testlogsumexp
 	bin/testlogsumexp -slow >data/logsumexp.txt
 	perl/testexpect.pl bin/testlogsumexp -fast data/logsumexp.txt
