@@ -22,7 +22,6 @@ const double MAX_FRACTIONAL_FWDBACK_ERROR = .0001;
 // Threshold for dropping poorly-matching refseqs
 const double MAX_TRAINING_LOG_DELTA = 20;
 
-const regex eofRegex (SocketTerminatorString, regex_constants::basic);
 const regex paramValRegex (" *" RE_VARNAME_GROUP " *: *" RE_GROUP(RE_NONWHITE_CHAR_CLASS RE_DOT_STAR), regex_constants::basic);
 const regex lineRegex (RE_DOT_GROUP, regex_constants::basic);
 const regex orderRegex (RE_NUMERIC_GROUP, regex_constants::basic);
@@ -42,26 +41,14 @@ double logBetaPdf (double prob, double yesCount, double noCount) {
   return log (gsl_ran_beta_pdf (prob, yesCount + 1, noCount + 1));
 }
 
-string readQuaffStringFromSocket (TCPSocket* sock, int bufSize) {
-  string msg;
-  char* buf = new char[bufSize];
-  int recvMsgSize;
-  smatch sm;
-  while ((recvMsgSize = sock->recv(buf, bufSize)) > 0) {
-    msg.append (buf, (size_t) recvMsgSize);
-    if (regex_search (msg, sm, eofRegex)) {
-      msg = sm.prefix().str();
-      break;
-    }
-  }
-  delete[] buf;
-  return msg;
-}
-
 void readQuaffParamFileLine (map<string,string>& val, const string& line) {
   smatch sm;
   if (regex_match (line, sm, paramValRegex))
     val[sm.str(1)] = sm.str(2);
+}
+
+string readQuaffStringFromSocket (TCPSocket* sock, int bufSize) {
+  return JsonUtil::readStringFromSocket (sock, eofRegex, bufSize);
 }
 
 map<string,string> readQuaffParamFile (istream& in) {
@@ -141,6 +128,12 @@ ostream& SymQualDist::writeJson (ostream& out) const {
 	<< " }";
 }
 
+void SymQualDist::readJson (const JsonValue& val) {
+  const JsonMap jm (val);
+  qualTrialSuccessProb = jm["p"].toNumber();
+  qualNumSuccessfulTrials = jm["r"].toNumber();
+}
+
 bool SymQualDist::read (map<string,string>& paramVal, const string& prefix) {
   const string qp = prefix + "qp", qr = prefix + "qr";
   Desire (paramVal.find(prefix) != paramVal.end(), "Missing parameter: %s", prefix.c_str());
@@ -187,6 +180,10 @@ ostream& SymQualCounts::writeJson (ostream& out) const {
   return out << "[ " << join (qualCount, ", ") << " ]";
 }
 
+void SymQualCounts::readJson (const JsonValue& value) {
+  qualCount = JsonUtil::doubleVec (value);
+}
+
 bool SymQualCounts::read (map<string,string>& paramVal, const string& param) {
   Desire (paramVal.find(param) != paramVal.end(), "Couldn't read %s", param.c_str());
   string c = paramVal[param];
@@ -217,6 +214,14 @@ void QuaffKmerContext::readKmerLen (map<string,string>& paramVal) {
     initKmerContext (defaultKmerLen);
   else
     initKmerContext (atoi (paramVal[tag].c_str()));
+}
+
+void QuaffKmerContext::readJsonKmerLen (const JsonMap& m) {
+  const string tag = string(prefix) + "Order";
+  if (m.contains(tag))
+    initKmerContext ((int) m[tag].toNumber());
+  else
+    initKmerContext (defaultKmerLen);
 }
 
 void QuaffKmerContext::writeKmerLen (ostream& out) const {
@@ -1076,11 +1081,13 @@ void QuaffDPConfig::startRemoteServers() {
     remoteServerThreads.push_back (thread (&startRemoteQuaffServer, this, &remoteJob));
     logger.nameLastThread (remoteServerThreads, "ssh");
   }
-  // give server threads time to connect...
-  const int delay = 2;
-  if (LogThisAt(5))
-    logger << "Allowing server threads " << plural(delay,"second") << " to connect" << endl;
-  usleep (delay * 1000000);
+  if (remoteJobs.size()) {
+    // give server threads time to connect...
+    const int delay = 2;
+    if (LogThisAt(5))
+      logger << "Allowing server threads " << plural(delay,"second") << " to connect" << endl;
+    usleep (delay * 1000000);
+  }
 }
 
 string QuaffDPConfig::makeServerCommand (const RemoteServerJob& job) const {

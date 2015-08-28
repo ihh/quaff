@@ -13,6 +13,7 @@
 #include "logger.h"
 #include "PracticalSocket.h"
 #include "aws.h"
+#include "jsonutil.h"
 
 // EM convergence parameters
 #define QuaffMaxEMIterations 100
@@ -35,18 +36,12 @@
 // Directory where AWS instances will put files downloaded from buckets
 #define BucketStagingDir "/tmp/quaff"
 
-// Default size of receive buffer for sockets
-#define RCVBUFSIZE 1024
-
 // Number of attempts for ssh
 #define MaxQuaffSshAttempts 3
 
 // Retry delay
 #define MinQuaffRetryDelay 5
 #define MaxQuaffRetryDelay 15
-
-// Terminator string for socket messages
-#define SocketTerminatorString "# EOF"
 
 // useful helper methods
 string readQuaffStringFromSocket (TCPSocket* sock, int bufSize = RCVBUFSIZE);
@@ -67,6 +62,7 @@ struct SymQualDist {
   void write (ostream& out, const string& prefix) const;
   bool read (map<string,string>& paramVal, const string& prefix);
   ostream& writeJson (ostream& out) const;
+  void readJson (const JsonValue& val);
 };
 
 // Memo-ized log scores for a SymQualDist
@@ -88,6 +84,7 @@ struct SymQualCounts {
   void write (ostream& out, const string& prefix) const;
   bool read (map<string,string>& paramVal, const string& param);
   ostream& writeJson (ostream& out) const;
+  void readJson (const JsonValue& value);
 };
 
 // Classes to manage kmer-dependence of various parameters
@@ -102,6 +99,7 @@ struct QuaffKmerContext {
   void readKmerLen (map<string,string>& paramVal);
   void writeKmerLen (ostream& out) const;
   void writeJsonKmerLen (ostream& out) const;
+  void readJsonKmerLen (const JsonMap& m);
 };
 
 struct QuaffMatchKmerContext : QuaffKmerContext {
