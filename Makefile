@@ -72,7 +72,7 @@ osx-dep:
 
 # Tests
 # testaws is not included in the top-level 'make test' target
-test: testfast testquaffio testlogsumexp testnegbinom testdiagenv testregex
+test: testfast testquaffio testquaffjsonio testquaffcountsjsonio testquaffnulljsonio testlogsumexp testnegbinom testdiagenv testregex
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
