@@ -34,7 +34,8 @@ vector<double> JsonUtil::numericArrayAsVector (JsonValue& arr) {
 }
 
 string JsonUtil::quoteEscaped (const string& str) {
-  string esc;
+  string esc = "\"";
   writeEscaped (str, back_inserter(esc));
+  esc += "\"";
   return esc;
 }
