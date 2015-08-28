@@ -30,6 +30,9 @@ int main (int argc, char **argv) {
     counts.read (in);
     counts.writeJson (cout);
 
+  } else {
+    Fail ("Unknown conversion: %s", argv[1]);
+
   }
     
   exit (EXIT_SUCCESS);
