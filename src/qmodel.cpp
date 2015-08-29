@@ -678,8 +678,8 @@ string RemoteServer::toString() const {
   return addr + ':' + to_string(port);
 }
 
-RemoteServerJob::RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& cmdPrefix)
-  : user(user), addr(addr), port(port), threads(threads), cmdPrefix(cmdPrefix)
+RemoteServerJob::RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads)
+  : user(user), addr(addr), port(port), threads(threads)
 { }
 
 string RemoteServerJob::toString() const {
@@ -816,7 +816,7 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
 	Require (maxPort >= minPort, "Invalid port range (%u-%u)", minPort, maxPort);
       } else
 	minPort = maxPort = DefaultServerPort;
-      addRemote (user, addr, minPort, maxPort + 1 - minPort, string());
+      addRemote (user, addr, minPort, maxPort + 1 - minPort);
       if (!threadsSpecified)
 	threads = 0;
       argvec.pop_front();
@@ -955,8 +955,8 @@ void QuaffDPConfig::syncToBucket (const string& filename) const {
     aws.syncToBucket (filename, bucket);
 }
 
-void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& cmdPrefix) {
-  remoteJobs.push_back (RemoteServerJob (user, addr, port, threads, cmdPrefix));
+void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads) {
+  remoteJobs.push_back (RemoteServerJob (user, addr, port, threads));
   for (unsigned int p = port; p < port + threads; ++p)
     remotes.push_back (RemoteServer (addr, p));
 }
@@ -968,7 +968,7 @@ void QuaffDPConfig::startRemoteServers() {
     ec2InstanceIds = aws.launchInstancesWithScript (ec2Instances, ec2Type, ec2Ami, ec2StartupScript());
     ec2InstanceAddresses = aws.getInstanceAddresses (ec2InstanceIds);
     for (const auto& addr : ec2InstanceAddresses) {
-      addRemote (ec2User, addr, ec2Port, ec2Cores, aws.bashEnvPrefix());
+      addRemote (ec2User, addr, ec2Port, ec2Cores);
       const string testCmd = makeSshCommand (string ("while ! test -e " BucketStagingDir "; do sleep 1; done"), remoteJobs.back());
       const bool bucketStagingDirExists = execWithRetries(testCmd,MaxQuaffSshAttempts);
       Assert (bucketStagingDirExists, "Cloud initialization failed");
@@ -988,7 +988,7 @@ void QuaffDPConfig::startRemoteServers() {
 }
 
 string QuaffDPConfig::makeServerCommand (const RemoteServerJob& job) const {
-  return job.cmdPrefix + remoteQuaffPath + " server " + makeServerArgs() + " -port " + to_string(job.port) + " -threads " + to_string(job.threads);
+  return (bucket.size() ? aws.bashEnvPrefix() : string()) + remoteQuaffPath + " server " + makeServerArgs() + " -port " + to_string(job.port) + " -threads " + to_string(job.threads);
 }
 
 string QuaffDPConfig::makeSshCommand (const string& cmd, const RemoteServerJob& job) const {

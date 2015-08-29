@@ -225,9 +225,9 @@ struct RemoteServer {
 };
 
 struct RemoteServerJob {
-  string addr, user, cmdPrefix;
+  string addr, user;
   unsigned int port, threads;
-  RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& cmdPrefix);
+  RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads);
   string toString() const;
 };
 
@@ -277,7 +277,7 @@ struct QuaffDPConfig {
   size_t effectiveMaxSize() const;  // takes threading into account
   void syncFromBucket (const string& filename) const;
   void syncToBucket (const string& filename) const;
-  void addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& cmdPrefix);
+  void addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads);
   void startRemoteServers();
   void stopRemoteServers();
   string ec2StartupScript() const;
