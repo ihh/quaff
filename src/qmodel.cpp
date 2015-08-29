@@ -967,14 +967,18 @@ void QuaffDPConfig::syncToBucket (const string& filename) const {
     aws.syncToBucket (filename, bucket);
 }
 
-void QuaffDPConfig::syncToRemote (const string& filename, const RemoteServerJob& remote) const {
+void QuaffDPConfig::makeStagingDir (const RemoteServerJob& remote) const {
   const string mkdirCmd = makeSshCommand (string("mkdir -p ") + BucketStagingDir, remote);
+  Require (execWithRetries(mkdirCmd,MaxQuaffSshAttempts), "remote mkdir failed");
+}
+
+void QuaffDPConfig::syncToRemote (const string& filename, const RemoteServerJob& remote) const {
   const string rsyncCmd = rsyncPath
     + " -e '" + makeSshCommand() + "' "
     + filename
     + " " + (remote.user.size() ? (remote.user + "@") : string())
-    + remote.addr + ":" + BucketStagingDir + "/" + AWS::basenameStr(filename);
-  Require (execWithRetries(mkdirCmd,MaxQuaffSshAttempts), "remote mkdir failed");
+    + remote.addr + ":" + BucketStagingDir + "/" + AWS::basenameStr(filename)
+    + " 2>&1";
   Require (execWithRetries(rsyncCmd,MaxQuaffSshAttempts), "rsync failed");
 }
 
@@ -998,9 +1002,11 @@ void QuaffDPConfig::startRemoteServers() {
     }
   }
   for (const auto& remoteJob : remoteJobs) {
-    if (useRsync && !bucket.size())
+    if (useRsync && !bucket.size()) {
+      makeStagingDir (remoteJob);
       for (const auto& fa : fileArgs)
 	syncToRemote (fa.second, remoteJob);
+    }
     remoteServerThreads.push_back (thread (&startRemoteQuaffServer, this, &remoteJob));
     logger.nameLastThread (remoteServerThreads, "ssh");
   }

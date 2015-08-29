@@ -280,6 +280,7 @@ struct QuaffDPConfig {
   size_t effectiveMaxSize() const;  // takes threading into account
   void syncFromBucket (const string& filename) const;
   void syncToBucket (const string& filename) const;
+  void makeStagingDir (const RemoteServerJob& remote) const;
   void syncToRemote (const string& filename, const RemoteServerJob& remote) const;
   void addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads);
   void startRemoteServers();
