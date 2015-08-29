@@ -1003,7 +1003,7 @@ void QuaffDPConfig::startRemoteServers() {
   }
   for (const auto& remoteJob : remoteJobs) {
     if (useRsync && !bucket.size()) {
-      makeStagingDir (remoteJob);
+      makeStagingDir (remoteJob);  // this directory has already been made if it's an EC2 instance, but no harm in doing it again
       for (const auto& fa : fileArgs)
 	syncToRemote (fa.second, remoteJob);
     }
