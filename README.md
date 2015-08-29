@@ -16,8 +16,8 @@ with the following features:
   binomial distribution), and also uses k-mer context for modeling
   substitution and/or gap-opening probabilities
 
-- it's highly parallel: it's multithreaded, can run remote servers,
-  and can even spin up its own temporary Amazon EC2 cluster
+- it's highly parallel: multithreaded, can run remote servers,
+  or launch its own temporary Amazon EC2 cluster
 
 <pre><code>
 Usage: quaff {help,train,align,overlap} [options]
