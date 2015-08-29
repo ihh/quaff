@@ -33,49 +33,10 @@ const regex multiRemotePortRegex (RE_DOT_STAR ":" RE_NUMERIC_GROUP "-" RE_NUMERI
 
 // useful helper methods
 double logBetaPdf (double prob, double yesCount, double noCount);
-void readQuaffParamFileLine (map<string,string>& paramVal, const string& line);
 
 // main method bodies
 double logBetaPdf (double prob, double yesCount, double noCount) {
   return log (gsl_ran_beta_pdf (prob, yesCount + 1, noCount + 1));
-}
-
-void readQuaffParamFileLine (map<string,string>& val, const string& line) {
-  smatch sm;
-  if (regex_match (line, sm, paramValRegex))
-    val[sm.str(1)] = sm.str(2);
-}
-
-string readQuaffStringFromSocket (TCPSocket* sock, int bufSize) {
-  return JsonUtil::readStringFromSocket (sock, eofRegex, bufSize);
-}
-
-map<string,string> readQuaffParamFile (istream& in) {
-  map<string,string> val;
-  while (!in.eof()) {
-    string line;
-    getline(in,line);
-    smatch sm;
-    if (regex_search (line, sm, lineRegex))  // chomp off newline
-      readQuaffParamFileLine (val, sm.str(1));
-  }
-  return val;
-}
-
-map<string,string> readQuaffParamFile (const string& s) {
-  string msg = s;
-  map<string,string> val;
-  smatch sm;
-  while (regex_search (msg, sm, lineRegex)) {
-    readQuaffParamFileLine (val, sm.str(1));
-    msg = sm.suffix().str();
-  }
-  return val;
-}
-
-map<string,string> readQuaffParamFile (TCPSocket* sock) {
-  string msg = readQuaffStringFromSocket (sock);
-  return readQuaffParamFile (msg);
 }
 
 void randomDelayBeforeRetry (unsigned int minSeconds, unsigned int maxSeconds) {
@@ -2481,7 +2442,7 @@ string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
       TCPSocket sock(remote.addr, remote.port);
       sock.send (msg.c_str(), (int) msg.size());
 
-      response = readQuaffStringFromSocket (&sock);
+      response = JsonUtil::readStringFromSocket (&sock);
       break;
 
     } catch (SocketException& e) {

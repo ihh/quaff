@@ -470,7 +470,7 @@ string QuaffOverlapTask::delegate (const RemoteServer& remote) {
       TCPSocket sock(remote.addr, remote.port);
       sock.send (msg.c_str(), (int) msg.size());
 
-      response = readQuaffStringFromSocket (&sock);
+      response = JsonUtil::readStringFromSocket (&sock);
       break;
 
     } catch (SocketException& e) {
