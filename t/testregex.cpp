@@ -117,8 +117,6 @@ int main (int argc, char** argv) {
 
   const string paramValRegex (" *" RE_VARNAME_GROUP " *: *" RE_GROUP(RE_NONWHITE_CHAR_CLASS RE_DOT_STAR));
   const string lineRegex (RE_DOT_GROUP);
-  const string orderRegex (RE_NUMERIC_GROUP);
-  const string countRegex (RE_NUMERIC_GROUP " *: *" RE_FLOAT_GROUP);
   const string remoteUserAddrRegex (RE_DOT_GROUP "@" RE_DNS_GROUP ".*");
   const string remoteAddrRegex (RE_DNS_GROUP ".*");
   const string singleRemotePortRegex (".*:" RE_NUMERIC_GROUP);

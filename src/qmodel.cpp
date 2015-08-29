@@ -22,10 +22,6 @@ const double MAX_FRACTIONAL_FWDBACK_ERROR = .0001;
 // Threshold for dropping poorly-matching refseqs
 const double MAX_TRAINING_LOG_DELTA = 20;
 
-const regex paramValRegex (" *" RE_VARNAME_GROUP " *: *" RE_GROUP(RE_NONWHITE_CHAR_CLASS RE_DOT_STAR), regex_constants::basic);
-const regex lineRegex (RE_DOT_GROUP, regex_constants::basic);
-const regex orderRegex (RE_NUMERIC_GROUP, regex_constants::basic);
-const regex countRegex (RE_NUMERIC_GROUP " *: *" RE_FLOAT_GROUP, regex_constants::basic);
 const regex remoteUserAddrRegex (RE_DOT_GROUP "@" RE_DNS_GROUP RE_DOT_STAR, regex_constants::basic);
 const regex remoteAddrRegex (RE_DNS_GROUP RE_DOT_STAR, regex_constants::basic);
 const regex singleRemotePortRegex (RE_DOT_STAR ":" RE_NUMERIC_GROUP, regex_constants::basic);
