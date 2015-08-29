@@ -88,6 +88,7 @@ testfast: bin/testfasta bin/testfastq
 
 testquaffjsonio: bin/testquaffjsonio
 	perl/testexpect.pl bin/testquaffjsonio data/testquaffparams.json data/testquaffparams.json
+	perl/testexpect.pl bin/testquaffjsonio data/defaultparams.json data/defaultparams.json
 
 testquaffnulljsonio: bin/testquaffnulljsonio
 	perl/testexpect.pl bin/testquaffnulljsonio data/testquaffnullparams.json data/testquaffnullparams.json

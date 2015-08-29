@@ -60,7 +60,8 @@ SymQualDist::SymQualDist()
 
 ostream& SymQualDist::writeJson (ostream& out) const {
   return
-    out << "{ \"p\": " << qualTrialSuccessProb
+    out << "{ \"p\": " << symProb
+	<< ", \"q\": " << qualTrialSuccessProb
 	<< ", \"r\": " << qualNumSuccessfulTrials
 	<< ", \"m\": " << negativeBinomialMean(qualTrialSuccessProb,qualNumSuccessfulTrials)
 	<< ", \"sd\": " << sqrt(negativeBinomialVariance(qualTrialSuccessProb,qualNumSuccessfulTrials))
@@ -69,8 +70,11 @@ ostream& SymQualDist::writeJson (ostream& out) const {
 
 bool SymQualDist::readJson (const JsonValue& val) {
   const JsonMap jm (val);
-  Desire (jm.contains("p") && jm.contains("r"), "Missing negative binomial parameters");
-  qualTrialSuccessProb = jm["p"].toNumber();
+  Desire (jm.containsType("p",JSON_NUMBER)
+	  && jm.containsType("q",JSON_NUMBER)
+	  && jm.containsType("r",JSON_NUMBER), "Missing negative binomial parameters");
+  symProb = jm["p"].toNumber();
+  qualTrialSuccessProb = jm["q"].toNumber();
   qualNumSuccessfulTrials = jm["r"].toNumber();
   return true;
 }
@@ -120,7 +124,7 @@ void QuaffKmerContext::initKmerContext (unsigned int newKmerLen) {
 
 void QuaffKmerContext::readJsonKmerLen (const JsonMap& m) {
   const string tag = string(prefix) + "Order";
-  if (m.contains(tag))
+  if (m.containsType(tag,JSON_NUMBER))
     initKmerContext ((int) m[tag].toNumber());
   else
     initKmerContext (defaultKmerLen);
@@ -216,9 +220,9 @@ ostream& QuaffParams::writeJson (ostream& out) const {
   return out;
 }
 
-#define QuaffParamReadJson(X) do { Desire(jm.contains(#X),"Missing parameter: \"" #X "\""); X = jm[#X].toNumber(); } while(0)
-#define QuaffParamReadJsonKmer(X,JMX,KMER) do { const string tmpParamName = indelContext.kmerString(KMER); Desire(JMX.contains(tmpParamName),"Missing parameter: \"%s\".\"%s\"",#X,tmpParamName.c_str()); X[KMER] = JMX[tmpParamName].toNumber(); } while(0)
-#define QuaffParamReadJsonKmers(X) do { Desire(jm.contains(#X),"Missing parameter: \"" #X "\""); JsonMap jmx (jm[#X]); for (Kmer j = 0; j < indelContext.numKmers; ++j) QuaffParamReadJsonKmer(X,jmx,j); } while(0)
+#define QuaffParamReadJson(X) do { Desire(jm.containsType(#X,JSON_NUMBER),"Missing parameter: \"" #X "\""); X = jm[#X].toNumber(); } while(0)
+#define QuaffParamReadJsonKmer(X,JMX,KMER) do { const string tmpParamName = indelContext.kmerString(KMER); Desire(JMX.containsType(tmpParamName,JSON_NUMBER),"Missing parameter: \"%s\".\"%s\"",#X,tmpParamName.c_str()); X[KMER] = JMX[tmpParamName].toNumber(); } while(0)
+#define QuaffParamReadJsonKmers(X) do { Desire(jm.containsType(#X,JSON_OBJECT),"Missing parameter: \"" #X "\""); JsonMap jmx (jm[#X]); for (Kmer j = 0; j < indelContext.numKmers; ++j) QuaffParamReadJsonKmer(X,jmx,j); } while(0)
 
 bool QuaffParams::readJson (const JsonValue& val) {
   Desire (val.getTag() == JSON_OBJECT, "JSON value is not an object");
@@ -241,7 +245,7 @@ bool QuaffParams::readJson (const JsonMap& jm) {
   const JsonMap& jmIns (ins);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     const string iKey (1, dnaAlphabet[i]);
-    Desire (jmIns.contains(iKey), "Missing parameter: \"insert\".\"%s\"", iKey.c_str());
+    Desire (jmIns.containsType(iKey,JSON_OBJECT), "Missing parameter: \"insert\".\"%s\"", iKey.c_str());
     Desire (insert[i].readJson (jmIns[iKey]), "Couldn't read \"insert\".\"%s\"", iKey.c_str());
   }
 
@@ -498,7 +502,7 @@ bool QuaffParamCounts::readJson (const JsonMap& jm) {
   const JsonMap& jmIns (ins);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     const string iKey (1, dnaAlphabet[i]);
-    Desire (jmIns.contains(iKey), "Missing parameter: \"insert\".\"%s\"", iKey.c_str());
+    Desire (jmIns.containsType(iKey,JSON_OBJECT), "Missing parameter: \"insert\".\"%s\"", iKey.c_str());
     Desire (insert[i].readJson (jmIns[iKey]), "Couldn't read \"insert\".\"%s\"", iKey.c_str());
   }
 
@@ -1686,7 +1690,7 @@ bool QuaffNullParams::readJson (const JsonValue& val) {
 
 bool QuaffNullParams::readJson (const JsonMap& jm) {
   QuaffParamReadJson(nullEmit);
-  Desire (jm.contains("null"), "Missing parameter: \"refBase\"");
+  Desire (jm.containsType("null",JSON_OBJECT), "Missing parameter: \"null\"");
   const JsonMap jmR (jm["null"]);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     const string iKey (1, dnaAlphabet[i]);
