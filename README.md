@@ -87,7 +87,7 @@ Parallel procesing options:
    -sshpath &lt;p&gt;    Path to ssh
    -rsyncpath &lt;p&gt;  Path to rsync
    -remotepath &lt;p&gt; Path to remote binary (default /usr/local/bin/quaff)
-   -rsync          Client will rsync data to server dir /tmp/quaff
+   -rsync          Client will rsync data to server dir (/tmp/quaff)
    -s3bucket &lt;B&gt;   Client/server will sync data files to/from bucket B
    -ec2instances &lt;N&gt;
                    Launch N temporary EC2 instances as servers
