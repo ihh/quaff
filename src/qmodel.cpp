@@ -937,7 +937,7 @@ string QuaffDPConfig::makeServerArgs() const {
   string s = remoteServerArgs;
   if (bucket.size() || useRsync)
     for (const auto& fa : fileArgs)
-      s += ' ' + fa.first + ' ' + BucketStagingDir + '/' + AWS::basenameStr(fa.second);
+      s += ' ' + fa.first + ' ' + SyncStagingDir + '/' + AWS::basenameStr(fa.second);
   else
     for (const auto& fa : fileArgs)
       s += ' ' + fa.first + ' ' + fa.second;
@@ -968,7 +968,7 @@ void QuaffDPConfig::syncToBucket (const string& filename) const {
 }
 
 void QuaffDPConfig::makeStagingDir (const RemoteServerJob& remote) const {
-  const string mkdirCmd = makeSshCommand (string("mkdir -p ") + BucketStagingDir, remote);
+  const string mkdirCmd = makeSshCommand (string("mkdir -p ") + SyncStagingDir, remote);
   Require (execWithRetries(mkdirCmd,MaxQuaffSshAttempts), "remote mkdir failed");
 }
 
@@ -977,7 +977,7 @@ void QuaffDPConfig::syncToRemote (const string& filename, const RemoteServerJob&
     + " -e '" + makeSshCommand() + "' "
     + filename
     + " " + (remote.user.size() ? (remote.user + "@") : string())
-    + remote.addr + ":" + BucketStagingDir + "/" + AWS::basenameStr(filename)
+    + remote.addr + ":" + SyncStagingDir + "/" + AWS::basenameStr(filename)
     + " 2>&1";
   Require (execWithRetries(rsyncCmd,MaxQuaffSshAttempts), "rsync failed");
 }
@@ -996,17 +996,17 @@ void QuaffDPConfig::startRemoteServers() {
     ec2InstanceAddresses = aws.getInstanceAddresses (ec2InstanceIds);
     for (const auto& addr : ec2InstanceAddresses) {
       addRemote (ec2User, addr, ec2Port, ec2Cores);
-      const string testCmd = makeSshCommand (string ("while ! test -e " BucketStagingDir "; do sleep 1; done"), remoteJobs.back());
+      const string testCmd = makeSshCommand (string ("while ! test -e " ServerReadyDir "; do sleep 1; done"), remoteJobs.back());
       const bool bucketStagingDirExists = execWithRetries(testCmd,MaxQuaffSshAttempts);
       Assert (bucketStagingDirExists, "Cloud initialization failed");
     }
   }
   for (const auto& remoteJob : remoteJobs) {
-    if (useRsync && !bucket.size()) {
-      makeStagingDir (remoteJob);  // this directory has already been made if it's an EC2 instance, but no harm in doing it again
+    if (useRsync || bucket.size())
+      makeStagingDir (remoteJob);  // SyncStagingDir will eventually be created by the cloud startup script if server is an EC2 instance (it's the parent directory of ServerReadyDir), but startup may not have gotten to that stage yet
+    if (useRsync && !bucket.size()) // -s3bucket overrides -rsync
       for (const auto& fa : fileArgs)
 	syncToRemote (fa.second, remoteJob);
-    }
     remoteServerThreads.push_back (thread (&startRemoteQuaffServer, this, &remoteJob));
     logger.nameLastThread (remoteServerThreads, "ssh");
   }
@@ -1044,7 +1044,7 @@ string QuaffDPConfig::ec2StartupScript() const {
     + "yum -y install git\n"
     + "test ! -e " DefaultQuaffInstallDir " && cd " DefaultQuaffInstallPrefix " && git clone " QuaffGitRepository "\n"
     + "cd " DefaultQuaffInstallDir " && git pull && make PREFIX=" DefaultQuaffInstallPrefix " -i aws-install\n"
-    + "mkdir -p -m a=rwx " BucketStagingDir "\n";  // create this last, as it is used as a test for startup completion
+    + "mkdir -p -m a=rwx " ServerReadyDir "\n";  // create this last, as it is used as a test for startup completion
 }
 
 void QuaffDPConfig::stopRemoteServers() {

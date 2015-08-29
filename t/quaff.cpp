@@ -684,7 +684,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -sshpath <p>    Path to ssh\n"
     + "   -rsyncpath <p>  Path to rsync\n"
     + "   -remotepath <p> Path to remote binary (default " DefaultQuaffPath ")\n"
-    + "   -rsync          Client will rsync data to server dir (" BucketStagingDir ")\n"
+    + "   -rsync          Client will rsync data to server dir (" SyncStagingDir ")\n"
     + "   -s3bucket <B>   Client/server will sync data files to/from bucket B\n"
     + "   -ec2instances <N>\n"
     + "                   Launch N temporary EC2 instances as servers\n"

@@ -34,8 +34,11 @@
 // Quaff git repository
 #define QuaffGitRepository "https://github.com/ihh/quaff.git"
 
-// Directory where AWS instances will put files downloaded from buckets
-#define BucketStagingDir "/tmp/quaff"
+// Server directory where 'rsync' & 'aws sync' will stash files
+#define SyncStagingDir "/tmp/quaff"
+
+// Directory whose creation signals that server startup is finished
+#define ServerReadyDir SyncStagingDir "/.ready"
 
 // Number of attempts for ssh
 #define MaxQuaffSshAttempts 3
