@@ -242,7 +242,8 @@ struct QuaffDPConfig {
   list<RemoteServer> remotes;
   list<RemoteServerJob> remoteJobs;
   list<thread> remoteServerThreads;
-  string bucket, sshPath, sshKey, remoteQuaffPath;
+  string bucket, sshPath, rsyncPath, sshKey, remoteQuaffPath;
+  bool useRsync;
   string remoteServerArgs;
   vguard<pair<string,string> > fileArgs;
   unsigned int ec2Instances, ec2Cores, ec2Port;
@@ -260,6 +261,8 @@ struct QuaffDPConfig {
       threadsSpecified(false),
       serverPort(DefaultServerPort),
       sshPath("ssh"),
+      rsyncPath("rsync"),
+      useRsync(false),
       remoteQuaffPath(DefaultQuaffPath),
       ec2Instances(0),
       ec2Ami(AWS_DEFAULT_AMI),
@@ -277,12 +280,14 @@ struct QuaffDPConfig {
   size_t effectiveMaxSize() const;  // takes threading into account
   void syncFromBucket (const string& filename) const;
   void syncToBucket (const string& filename) const;
+  void syncToRemote (const string& filename, const RemoteServerJob& remote) const;
   void addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads);
   void startRemoteServers();
   void stopRemoteServers();
   string ec2StartupScript() const;
   string makeServerArgs() const;
   string makeServerCommand (const RemoteServerJob& job) const;
+  string makeSshCommand() const;
   string makeSshCommand (const string& cmd, const RemoteServerJob& job) const;
   bool execWithRetries (const string& cmd, int maxAttempts) const;
 };

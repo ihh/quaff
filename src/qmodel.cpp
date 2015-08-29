@@ -830,6 +830,13 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       argvec.pop_front();
       return true;
 
+    } else if (arg == "-rsyncpath") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      rsyncPath = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
     } else if (arg == "-sshkey") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       sshKey = argvec[1];
@@ -841,6 +848,11 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       remoteQuaffPath = argvec[1];
       argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-rsync") {
+      useRsync = true;
       argvec.pop_front();
       return true;
 
@@ -923,7 +935,7 @@ void QuaffDPConfig::addFileArg (const char* tag, const string& filename) {
 
 string QuaffDPConfig::makeServerArgs() const {
   string s = remoteServerArgs;
-  if (bucket.size())
+  if (bucket.size() || useRsync)
     for (const auto& fa : fileArgs)
       s += ' ' + fa.first + ' ' + BucketStagingDir + '/' + AWS::basenameStr(fa.second);
   else
@@ -955,6 +967,17 @@ void QuaffDPConfig::syncToBucket (const string& filename) const {
     aws.syncToBucket (filename, bucket);
 }
 
+void QuaffDPConfig::syncToRemote (const string& filename, const RemoteServerJob& remote) const {
+  const string mkdirCmd = makeSshCommand (string("mkdir -p ") + BucketStagingDir, remote);
+  const string rsyncCmd = rsyncPath
+    + " -e '" + makeSshCommand() + "' "
+    + filename
+    + " " + (remote.user.size() ? (remote.user + "@") : string())
+    + remote.addr + ":" + BucketStagingDir + "/" + AWS::basenameStr(filename);
+  Require (execWithRetries(mkdirCmd,MaxQuaffSshAttempts), "remote mkdir failed");
+  Require (execWithRetries(rsyncCmd,MaxQuaffSshAttempts), "rsync failed");
+}
+
 void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads) {
   remoteJobs.push_back (RemoteServerJob (user, addr, port, threads));
   for (unsigned int p = port; p < port + threads; ++p)
@@ -975,6 +998,9 @@ void QuaffDPConfig::startRemoteServers() {
     }
   }
   for (const auto& remoteJob : remoteJobs) {
+    if (useRsync && !bucket.size())
+      for (const auto& fa : fileArgs)
+	syncToRemote (fa.second, remoteJob);
     remoteServerThreads.push_back (thread (&startRemoteQuaffServer, this, &remoteJob));
     logger.nameLastThread (remoteServerThreads, "ssh");
   }
@@ -991,12 +1017,17 @@ string QuaffDPConfig::makeServerCommand (const RemoteServerJob& job) const {
   return (bucket.size() ? aws.bashEnvPrefix() : string()) + remoteQuaffPath + " server " + makeServerArgs() + " -port " + to_string(job.port) + " -threads " + to_string(job.threads);
 }
 
-string QuaffDPConfig::makeSshCommand (const string& cmd, const RemoteServerJob& job) const {
+string QuaffDPConfig::makeSshCommand() const {
   string sshCmd = sshPath + " -oBatchMode=yes -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no";
-  if (job.user.size())
-    sshCmd += " -l " + job.user;
   if (sshKey.size())
     sshCmd += " -i " + sshKey;
+  return sshCmd;
+}
+
+string QuaffDPConfig::makeSshCommand (const string& cmd, const RemoteServerJob& job) const {
+  string sshCmd = makeSshCommand();
+  if (job.user.size())
+    sshCmd += " -l " + job.user;
   sshCmd += ' ' + job.addr + " '" + cmd + "' 2>&1";
   return sshCmd;
 }

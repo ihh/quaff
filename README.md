@@ -83,9 +83,11 @@ Parallel procesing options:
                    Use N threads, or use all cores available
    -remote [user@]host[:port[-maxport]]
                    Start a (multithreaded) remote quaff server via SSH
-   -sshpath &lt;p&gt;    Path to local SSH executable
    -sshkey &lt;file&gt;  SSH private key file
-   -remotepath &lt;p&gt; Path to remote executable (default /usr/local/bin/quaff)
+   -sshpath &lt;p&gt;    Path to ssh
+   -rsyncpath &lt;p&gt;  Path to rsync
+   -remotepath &lt;p&gt; Path to remote binary (default /usr/local/bin/quaff)
+   -rsync          Client will rsync data to server dir /tmp/quaff
    -s3bucket &lt;B&gt;   Client/server will sync data files to/from bucket B
    -ec2instances &lt;N&gt;
                    Launch N temporary EC2 instances as servers
@@ -96,7 +98,7 @@ Parallel procesing options:
                                ec2-user, quaff, quaff, 8000)
 
 By default, quaff assumes all data files are in the same place on the server.
-You will typically need to copy them across, or use NFS, or -s3bucket.
+You can copy them across using -rsync, or -s3bucket, or other means (eg NFS).
 
 For AWS, ensure aws CLI tools are installed and credentials are set
 (i.e. AWS_ACCESS_KEY_ID & AWS_SECRET_ACCESS_KEY environment variables).
