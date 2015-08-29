@@ -1040,7 +1040,7 @@ string QuaffDPConfig::ec2StartupScript() const {
     + "yum -y install git\n"
     + "test ! -e " DefaultQuaffInstallDir " && cd " DefaultQuaffInstallPrefix " && git clone " QuaffGitRepository "\n"
     + "cd " DefaultQuaffInstallDir " && git pull && make PREFIX=" DefaultQuaffInstallPrefix " -i aws-install\n"
-    + "mkdir -p -m a=rwx " ServerReadyDir "\n";  // create this last, as it is used as a test for startup completion
+    + "mkdir -p -m a=rwx " SyncStagingDir " " ServerReadyDir "\n";  // create SyncStagingDir (with open permissions) and ServerReadyDir (last, since it is used as a test for startup completion)
 }
 
 void QuaffDPConfig::stopRemoteServers() {
