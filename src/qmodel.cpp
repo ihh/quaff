@@ -1040,7 +1040,8 @@ string QuaffDPConfig::ec2StartupScript() const {
   return aws.bashBang
     + "yum -y update\n"
     + "yum -y install git\n"
-    + "cd " DefaultQuaffInstallPrefix " && git clone " QuaffGitRepository " && cd quaff && make PREFIX=" DefaultQuaffInstallPrefix " -i aws-install\n"
+    + "test ! -e " DefaultQuaffInstallDir " && cd " DefaultQuaffInstallPrefix " && git clone " QuaffGitRepository "\n"
+    + "cd " DefaultQuaffInstallDir " && git pull && make PREFIX=" DefaultQuaffInstallPrefix " -i aws-install\n"
     + "mkdir -p -m a=rwx " BucketStagingDir "\n";  // create this last, as it is used as a test for startup completion
 }
 

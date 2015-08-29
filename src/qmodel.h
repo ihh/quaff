@@ -28,6 +28,7 @@
 
 // Default place to find quaff binary
 #define DefaultQuaffInstallPrefix "/usr/local"
+#define DefaultQuaffInstallDir DefaultQuaffInstallPrefix "/quaff"
 #define DefaultQuaffPath DefaultQuaffInstallPrefix "/bin/quaff"
 
 // Quaff git repository
