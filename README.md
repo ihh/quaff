@@ -98,6 +98,10 @@ Parallel procesing options:
                     (defaults: ami-1ecae776, m3.medium, 1,
                                ec2-user, quaff, quaff, 8000)
 
+Since quaff opens one socket per remote thread (plus one ssh job per server),
+you may need to raise the system limits on # of files/sockets per process
+(e.g. OSX 10.10 limits you to 128 sockets/process by default).
+
 By default, quaff assumes all data files are in the same place on the server.
 You can copy them across using -rsync, or -s3bucket, or other means (eg NFS).
 
