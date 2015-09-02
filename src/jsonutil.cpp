@@ -53,8 +53,7 @@ ParsedJson::ParsedJson (TCPSocket* sock, bool parseOrDie, const regex& terminato
 }
 
 void ParsedJson::parse (const string& s, bool parseOrDie) {
-  if (LogThisAt(9))
-    logger << "Parsing string:\n" << s << endl;
+  LogThisAt(9, "Parsing string:\n" << s << endl);
   str = s;
   buf = new char[str.size() + 1];
   strcpy (buf, str.c_str());

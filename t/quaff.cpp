@@ -368,8 +368,7 @@ void QuaffParamsIn::loadParams (const QuaffDPConfig& config) {
 void QuaffParamsIn::requireParamsOrUseDefaults (const QuaffDPConfig& config) {
   loadParams (config);
   if (!initialized()) {
-    if (LogThisAt(1))
-      logger << "Using default model parameters" << endl;
+    LogThisAt(1, "Using default model parameters" << endl);
     (QuaffParams&) *this = defaultQuaffParams();
   }
 }
@@ -377,8 +376,7 @@ void QuaffParamsIn::requireParamsOrUseDefaults (const QuaffDPConfig& config) {
 void QuaffParamsIn::requireParamsOrUsePrior (const QuaffDPConfig& config, const QuaffParamCounts& prior) {
   loadParams (config);
   if (!initialized()) {
-    if (LogThisAt(1))
-      logger << "Auto-initializing model parameters from prior" << endl;
+    LogThisAt(1, "Auto-initializing model parameters from prior" << endl);
     (QuaffParams&) *this = prior.fit();
   }
 }
@@ -427,8 +425,7 @@ QuaffNullParamsIn& QuaffNullParamsIn::addFileArgs (QuaffDPConfig& config) {
 void QuaffNullParamsIn::requireNullModelOrFit (const QuaffDPConfig& config, const SeqList& seqList) {
   loadNullModel (config);
   if (!initialized()) {
-    if (LogThisAt(1))
-      logger << "Auto-optimizing null model for read sequences" << endl;
+    LogThisAt(1, "Auto-optimizing null model for read sequences" << endl);
     (QuaffNullParams&) *this = QuaffNullParams (seqList.seqs);
   }
   if (saveFilename.size()) {
@@ -493,8 +490,7 @@ void QuaffPriorIn::requirePriorOrUseNullModel (const QuaffDPConfig& config, cons
       Require (indelContext.kmerLen == params.indelContext.kmerLen, "Order of indel dependence in prior file (%d) does not match order in parameter file (%d)", indelContext.kmerLen, params.indelContext.kmerLen);
     }
   } else {
-    if (LogThisAt(1))
-      logger << "Auto-setting prior from null model" << endl;
+    LogThisAt(1, "Auto-setting prior from null model" << endl);
     if (params.initialized()) {
       if (kmerLenSpecified) {
 	Require (matchContext.kmerLen == params.matchContext.kmerLen, "Order of match dependence specified on command line (%d) does not match order in parameter file (%d)", matchContext.kmerLen, params.matchContext.kmerLen);

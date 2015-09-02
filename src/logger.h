@@ -11,6 +11,7 @@
 #include <ratio>
 #include <chrono>
 #include <iostream>
+#include <sstream>
 #include "util.h"
 
 using namespace std;
@@ -24,16 +25,29 @@ using namespace std;
 // "ignoring lock by..." messages appearing in the log.
 class Logger {
 private:
-  int verbosity, lastTestedVerbosity, lastColor;
+  int verbosity;
   set<string> logTags;
   bool useAnsiColor;
   vector<string> logAnsiColor;
   string threadAnsiColor, ansiColorOff;
   
   recursive_timed_mutex mx;
-  bool mxLocked;
-  thread::id mxOwner;
+  thread::id lastMxOwner;
   map<thread::id,string> threadName;
+
+public:
+  Logger();
+  // configuration
+  void addTag (const char* tag);
+  void addTag (const string& tag);
+  void setVerbose (int v);
+  void colorOff();
+  bool parseLogArgs (deque<string>& argvec);
+  string args() const;
+  
+  inline bool testVerbosity (int v) {
+    return verbosity >= v;
+  }
 
   inline bool testLogTag (const char* tag) {
     return logTags.find(tag) != logTags.end();
@@ -43,66 +57,21 @@ private:
     return verbosity >= v || testLogTag(tag1) || testLogTag(tag2);
   }
 
-  Logger& lockAndPrint (bool showHeader);
-  Logger& unlockAndPrint();
-
-public:
-  Logger();
-  void addTag (const char* tag);
-  void addTag (const string& tag);
-  void setVerbose (int v);
-  void colorOff();
-  bool parseLogArgs (deque<string>& argvec);
-  string args() const;
-
-  inline bool testVerbosityWithLock (int v) {
-    if (verbosity >= v) {
-      lock();
-      lastTestedVerbosity = v;
-      return true;
-    }
-    return false;
-  }
-
-  inline bool testVerbosityOrLogTagsWithLock (int v, const char* tag1, const char* tag2) {
-    if (testVerbosityOrLogTags (v, tag1, tag2)) {
-      lock();
-      lastTestedVerbosity = v;
-      return true;
-    }
-    return false;
-  }
-
-  inline bool testLogTagWithLock (const char* tag) {
-    if (testLogTag(tag)) {
-      lock();
-      lastTestedVerbosity = -1;
-      return true;
-    }
-    return false;
-  }
-
-  Logger& lock();
-  Logger& unlock();
-  Logger& lockSilently();
-  Logger& unlockSilently();
-
   string getThreadName (thread::id id);
   void setThreadName (thread::id id, const string& name);
   void nameLastThread (const list<thread>& threads, const char* prefix);
   void eraseThreadName (const thread& thr);
-  
-  typedef ostream& (*ostream_manipulator)(ostream&);
-  Logger& operator<< (ostream_manipulator om) {
-    clog << om;
-    return unlock();
-  }
+
+  void lock (int color = 0, bool banner = true);
+  void unlock (bool endBanner = true);
+  void lockSilently() { lock(0,false); }
+  void unlockSilently() { unlock(false); }
 
   template<class T>
-  Logger& operator<< (const T& t) {
-    lock();
+  void print (const T& t, int v) {
+    lock(v,true);
     clog << t;
-    return *this;
+    unlock(true);
   }
 };
 
@@ -110,10 +79,15 @@ extern Logger logger;
 
 #define VFUNCFILE(V) V,__func__,__FILE__
 
-#define LogAt(V)     (logger.testVerbosityWithLock(V))
-#define LogWhen(TAG) (logger.testLogTagWithLock(TAG))
-#define LogThisAt(V) (logger.testVerbosityOrLogTagsWithLock(VFUNCFILE(V)))
-#define LogThisIf(X) ((X) && (LogThisAt(0) || true))
+#define LoggingAt(V)     (logger.testVerbosity(V))
+#define LoggingThisAt(V) (logger.testVerbosityOrLogTags(VFUNCFILE(V)))
+#define LoggingTag(T)    (logger.testLogTag(T))
+
+#define LogStream(V,S) do { ostringstream tmpLog; tmpLog << S; logger.print(tmpLog.str(),V); } while(0)
+
+#define LogAt(V,S)     do { if (LoggingAt(V)) LogStream(V,S); } while(0)
+#define LogThisAt(V,S) do { if (LoggingThisAt(V)) LogStream(V,S); } while(0)
+#define LogThisIf(X,S) do { if (X) LogStream(0,S); } while(0)
 
 
 /* progress logging */

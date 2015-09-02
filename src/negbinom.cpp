@@ -144,22 +144,19 @@ int momentFitNegativeBinomial (double mean, double variance, double& pSuccess, d
   nSuccess = 1;
 
   if (variance <= 0) {
-    if (LogThisAt(7))
-      logger << "Method-of-moments fit failed: zero variance" << endl;
+    LogThisAt(7, "Method-of-moments fit failed: zero variance" << endl);
     GSL_ERROR ("Zero variance in method-of-moments fit", NEG_BINOM_ZERO_VARIANCE);
   }
 
   if (variance < mean) {
-    if (LogThisAt(7))
-      logger << "Method-of-moments fit failed: variance less than mean" << endl;
+    LogThisAt(7, "Method-of-moments fit failed: variance less than mean" << endl);
     GSL_ERROR ("Variance greater than mean in method-of-moments fit", NEG_BINOM_LOW_VARIANCE);
   }
 
   pSuccess = mean / variance;
   nSuccess = mean * pSuccess / (1 - pSuccess);
 
-  if (LogThisAt(7))
-    logger << "Method-of-moments fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
+  LogThisAt(7, "Method-of-moments fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl);
 
   return GSL_SUCCESS;
 }
@@ -196,9 +193,9 @@ int bracketFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, d
     nSuccess = loglikeAtLowerBound > loglikeAtUpperBound ? nSuccessLowerBound : nSuccessUpperBound;
     pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
 
-    if (LogThisAt(7))
-      logger << "Bracket fit failed; derivative has same sign at both endpoints. Choosing " << (loglikeAtLowerBound > loglikeAtUpperBound ? "lower" : "upper") << " endpoint" << endl
-	   << "Bracket fit (fallback): pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
+    LogThisAt(7,
+	      "Bracket fit failed; derivative has same sign at both endpoints. Choosing " << (loglikeAtLowerBound > loglikeAtUpperBound ? "lower" : "upper") << " endpoint" << endl
+	      << "Bracket fit (fallback): pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl);
 
     status = GSL_SUCCESS;
 
@@ -206,7 +203,8 @@ int bracketFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, d
     status = gsl_root_fsolver_set (bracketSolver, &F, nSuccessLowerBound, nSuccessUpperBound);
 
     if (status == GSL_SUCCESS) {
-      if (LogThisAt(7)) {
+      if (LoggingThisAt(7)) {
+	// CODE STINK: this should go via logger.print() to be threadsafe
 	fprintf (stderr, "Bracketing max of negative binomial using %s method\n", 
 		 gsl_root_fsolver_name (bracketSolver));
 
@@ -228,7 +226,8 @@ int bracketFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, d
 	    status = gsl_root_test_interval (nSuccessLowerBound, nSuccessUpperBound,
 					     MaxNegBinomBracketAbsoluteError, MaxNegBinomBracketRelativeError);
 
-	    if (LogThisAt(7)) {
+	    if (LoggingThisAt(7)) {
+	      // CODE STINK: this should go via logger.print() to be threadsafe
 	      if (status == GSL_SUCCESS)
 		fprintf (stderr, "Converged:\n");
 
@@ -246,8 +245,7 @@ int bracketFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, d
       nSuccess = nSuccessGuess;
       pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
 
-      if (LogThisAt(7))
-	logger << "Bracket fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
+      LogThisAt(7, "Bracket fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl);
     }
   }
 
@@ -273,7 +271,8 @@ int gradientFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, 
   status = gsl_root_fdfsolver_set (derivSolver, &FDF, nSuccessGuess);
 
   if (status == GSL_SUCCESS) {
-    if (LogThisAt(7)) {
+    if (LoggingThisAt(7)) {
+      // CODE STINK: this should go via logger.print() to be threadsafe
       fprintf (stderr, "Polishing max of negative binomial using %s method\n", 
 	       gsl_root_fdfsolver_name (derivSolver));
 
@@ -294,7 +293,8 @@ int gradientFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, 
 	  if (status == GSL_CONTINUE && nSuccessGuess > kFreq.size())
 	    status = GSL_ERUNAWAY;
 
-	  if (LogThisAt(7)) {
+	  if (LoggingThisAt(7)) {
+	    // CODE STINK: this should go via logger.print() to be threadsafe
 	    if (status == GSL_SUCCESS)
 	      fprintf (stderr, "Converged:\n");
 	    else if (status == GSL_ERUNAWAY)
@@ -314,8 +314,7 @@ int gradientFitNegativeBinomial (const vguard<double>& kFreq, double& pSuccess, 
     nSuccess = nSuccessGuess;
     pSuccess = optimalNegativeBinomialSuccessProb (nSuccess, kFreq);
 
-    if (LogThisAt(7))
-      logger << "Gradient fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl;
+    LogThisAt(7,"Gradient fit: pSuccess=" << pSuccess << ", nSuccess=" << nSuccess << endl);
   }
 
   gsl_root_fdfsolver_free (derivSolver);

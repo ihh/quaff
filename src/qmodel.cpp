@@ -42,8 +42,7 @@ void randomDelayBeforeRetry (unsigned int minSeconds, unsigned int maxSeconds) {
 
   const int delay = dist(gen);
     
-  if (LogThisAt(3))
-    logger << "Retrying in " << plural(delay,"second") << "..." << endl;
+  LogThisAt(3, "Retrying in " << plural(delay,"second") << "..." << endl);
 
   usleep (delay * 1000000);
 }
@@ -274,8 +273,8 @@ void QuaffParams::readJson (istream& in) {
   Require (readJson(pj), "Couldn't read parameters");
 }
 
-void QuaffParams::writeToLog() const {
-  logger.lock();
+void QuaffParams::writeToLog (int v) const {
+  logger.lock(v);
   writeJson(clog) << endl;
   logger.unlock();
 }
@@ -376,8 +375,8 @@ QuaffCounts::QuaffCounts (unsigned int matchKmerLen, unsigned int indelKmerLen)
     i2m(0)
 { }
 
-void QuaffCounts::writeToLog() const {
-  logger.lock();
+void QuaffCounts::writeToLog (int v) const {
+  logger.lock(v);
   writeJson(clog) << endl;
   logger.unlock();
 }
@@ -526,8 +525,8 @@ bool QuaffParamCounts::readJson (const JsonMap& jm) {
   return true;
 }
 
-void QuaffParamCounts::writeToLog() const {
-  logger.lock();
+void QuaffParamCounts::writeToLog (int v) const {
+  logger.lock(v);
   writeJson(clog) << endl;
   logger.unlock();
 }
@@ -785,8 +784,8 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       if (threads == 0) {
 	Warn ("Can't detect number of cores; running in single-threaded mode");
 	threads = 1;
-      } else if (LogThisAt(2))
-	logger << "Running in " << plural(threads,"thread") << endl;
+      } else
+	LogThisAt(2, "Running in " << plural(threads,"thread") << endl);
       threadsSpecified = true;
       argvec.pop_front();
       return true;
@@ -921,8 +920,7 @@ void QuaffDPConfig::setServerArgs (const char* serverType, const string& args) {
 	     : (string(" -kmatchmb ") + to_string(maxSize >> 20))))
        : string(" -kmatchoff"))
     + (bucket.size() ? (string(" -s3bucket ") + bucket) : string());
-  if (LogThisAt(7))
-    logger << "Remote server arguments: " << remoteServerArgs << endl;
+  LogThisAt(7, "Remote server arguments: " << remoteServerArgs << endl);
 }
 
 void QuaffDPConfig::addFileArg (const char* tag, const string& filename) {
@@ -1009,8 +1007,7 @@ void QuaffDPConfig::startRemoteServers() {
   if (remoteJobs.size()) {
     // give server threads time to connect...
     const int delay = 2;
-    if (LogThisAt(5))
-      logger << "Allowing server threads " << plural(delay,"second") << " to connect" << endl;
+    LogThisAt(5, "Allowing server threads " << plural(delay,"second") << " to connect" << endl);
     usleep (delay * 1000000);
   }
 }
@@ -1062,8 +1059,7 @@ bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts) const {
   int attempts = 0;
   while (true) {
   
-    if (LogThisAt(4))
-      logger << "Executing " << cmd << endl;
+    LogThisAt(4, "Executing " << cmd << endl);
 
     FILE* pipe = popen (cmd.c_str(), "r");
     char line[PIPE_BUF_SIZE];
@@ -1074,8 +1070,7 @@ bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts) const {
       lastLines.push_back (string (line));
       if (lastLines.size() > linesToKeep)
 	lastLines.erase (lastLines.begin());
-      if (LogThisAt(4))
-	logger << line << flush;
+      LogThisAt(4, line);
     }
 
     const int status = pclose (pipe);
@@ -1197,8 +1192,8 @@ void QuaffDPMatrix::write (ostream& out) const {
   out << "result " << result << endl;
 }
 
-void QuaffDPMatrix::writeToLog() const {
-  logger.lock();
+void QuaffDPMatrix::writeToLog (int v) const {
+  logger.lock(v);
   write(clog);
   logger.unlock();
 }
@@ -1247,10 +1242,9 @@ QuaffForwardMatrix::QuaffForwardMatrix (const DiagonalEnvelope& env, const Quaff
 
   result = end;
 
-  if (LogThisAt(4))
-    logger << "Forward score: " << result << endl;
+  LogThisAt(4, "Forward score: " << result << endl);
   
-  if (LogWhen("dpmatrix"))
+  if (LoggingTag("dpmatrix"))
     writeToLog();
 }
 
@@ -1352,18 +1346,17 @@ QuaffBackwardMatrix::QuaffBackwardMatrix (const QuaffForwardMatrix& fwd)
 
   result = start;
 
-  if (LogThisAt(4))
-    logger << "Backward score: " << result << endl;
+  LogThisAt(4, "Backward score: " << result << endl);
   
-  if (LogWhen("dpmatrix"))
+  if (LoggingTag("dpmatrix"))
     writeToLog();
 
-  if (LogThisIf (gsl_root_test_delta (result, fwd.result, 0, MAX_FRACTIONAL_FWDBACK_ERROR) != GSL_SUCCESS))
-    logger << endl << endl << "Warning: forward score (" << fwd.result << ") does not match backward score (" << result << ")" << endl << endl << endl;
+  if (gsl_root_test_delta (result, fwd.result, 0, MAX_FRACTIONAL_FWDBACK_ERROR) != GSL_SUCCESS)
+    LogStream (0, endl << endl << "Warning: forward score (" << fwd.result << ") does not match backward score (" << result << ")" << endl << endl << endl);
 
-  if (LogThisAt(6)) {
-    logger << "Forward-backward counts, " << px->name << " vs " << py->name << ':' << endl;
-    qc.writeToLog();
+  if (LoggingThisAt(6)) {
+    LogStream (6, "Forward-backward counts, " << px->name << " vs " << py->name << ':' << endl);
+    qc.writeToLog(6);
   }
 }
 
@@ -1418,10 +1411,9 @@ QuaffViterbiMatrix::QuaffViterbiMatrix (const DiagonalEnvelope& env, const Quaff
 
   result = end;
 
-  if (LogThisAt(4))
-    logger << "Viterbi score: " << result << endl;
+  LogThisAt(4, "Viterbi score: " << result << endl);
   
-  if (LogWhen("dpmatrix"))
+  if (LoggingTag("dpmatrix"))
     writeToLog();
 }
 
@@ -1443,8 +1435,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
   list<char> xRow, yRow, yQual;
   State state = Match;
   while (state != Start) {
-    if (LogThisAt(9))
-      logger << "Traceback: i=" << i << " j=" << j << " state=" << stateToString(state) << " score=" << cellScore(i,j,state) << endl;
+    LogThisAt(9, "Traceback: i=" << i << " j=" << j << " state=" << stateToString(state) << " score=" << cellScore(i,j,state) << endl);
     double srcSc = -numeric_limits<double>::infinity();
     double emitSc = 0;
     switch (state) {
@@ -1515,8 +1506,7 @@ Alignment QuaffViterbiMatrix::alignment() const {
 Alignment QuaffViterbiMatrix::scoreAdjustedAlignment (const QuaffNullParams& nullModel) const {
   Alignment a = alignment();
   const double nullLogLike = nullModel.logLikelihood (*py);
-  if (LogThisAt(4))
-    logger << "Null model score: " << nullLogLike << endl;
+  LogThisAt(4, "Null model score: " << nullLogLike << endl);
   a.score -= nullLogLike;
   return a;
 }
@@ -1639,7 +1629,7 @@ QuaffForwardBackwardMatrix::QuaffForwardBackwardMatrix (const DiagonalEnvelope& 
   : fwd (env, qp, config),
     back (fwd)
 {
-  if (LogWhen("postmatrix"))
+  if (LoggingTag("postmatrix"))
     writeToLog();
 }
 
@@ -1665,8 +1655,8 @@ void QuaffForwardBackwardMatrix::write (ostream& out) const {
   }
 }
 
-void QuaffForwardBackwardMatrix::writeToLog() const {
-  logger.lock();
+void QuaffForwardBackwardMatrix::writeToLog (int v) const {
+  logger.lock(v);
   write(clog);
   logger.unlock();
 }
@@ -1704,9 +1694,9 @@ QuaffNullParams::QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocoun
     fitNegativeBinomial (nullCount[n].qualCount, null[n].qualTrialSuccessProb, null[n].qualNumSuccessfulTrials);
   }
 
-  if (LogThisAt(5)) {
-    logger << "Null model:" << endl;
-    writeToLog();
+  if (LoggingThisAt(5)) {
+    LogStream (5, "Null model:" << endl);
+    writeToLog(5);
   }
 }
 
@@ -1768,8 +1758,8 @@ ostream& QuaffNullParams::writeJson (ostream& out) const {
   return out;
 }
 
-void QuaffNullParams::writeToLog() const {
-  logger.lock();
+void QuaffNullParams::writeToLog (int v) const {
+  logger.lock(v);
   writeJson(clog) << endl;
   logger.unlock();
 }
@@ -1913,32 +1903,30 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
   for (const auto& s : *py)
     yDict[s.name] = &s;
 
-  if (LogThisAt(8)) {
-    logger << "Known read names:";
+  if (LoggingThisAt(8)) {
+    ostringstream l;
+    l << "Known read names:";
     for (const auto& s : *py)
-      logger << " \"" << s.name << "\"";
-    logger << endl;
+      l << " \"" << s.name << "\"";
+    l << endl;
+    LogStream(8,l.str());
   }
   
   TCPServerSocket servSock (port);
-  if (LogThisAt(1))
-    logger << "(listening on port " << port << ')' << endl;
+  LogThisAt(1, "(listening on port " << port << ')' << endl);
 
   while (true) {
     TCPSocket *sock = NULL;
     sock = servSock.accept();
-    if (LogThisAt(1))
-      logger << "Handling request from " << sock->getForeignAddress() << endl;
+    LogThisAt(1, "Handling request from " << sock->getForeignAddress() << endl);
 
     ParsedJson pj (sock, false);
     if (pj.parsedOk()) {
 
-      if (LogThisAt(9))
-	logger << "(parsed as valid JSON)" << endl;
+      LogThisAt(9, "(parsed as valid JSON)" << endl);
       
       if (pj.contains("quit")) {
-	if (LogThisAt(1))
-	  logger << "(quit)" << endl;
+	LogThisAt(1, "(quit)" << endl);
 	delete sock;
 	break;
       }
@@ -1961,8 +1949,7 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
 	    && params.readJson (pj["params"])
 	    && nullModel.readJson (pj["null"])) {
 
-	  if (LogThisAt(2))
-	    logger << "Aligning " << plural(sortOrder.size(),"reference") << " to " << yName << endl;
+	  LogThisAt(2, "Aligning " << plural(sortOrder.size(),"reference") << " to " << yName << endl);
     
 	  const unsigned int matchKmerLen = params.matchContext.kmerLen;
 	  const unsigned int indelKmerLen = params.indelContext.kmerLen;
@@ -1981,14 +1968,13 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
 	  const string s = out.str();
 	  sock->send (s.c_str(), (int) s.size());
 
-	  if (LogThisAt(2))
-	    logger << "Request completed" << endl;
+	  LogThisAt(2, "Request completed" << endl);
 
-	} else if (LogThisAt(1))
-	  logger << "Bad request, ignoring" << endl << "sortOrder = (" << to_string_join(sortOrder) << ')' << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << pj.str << endl;
+	} else
+	  LogThisAt(1, "Bad request, ignoring" << endl << "sortOrder = (" << to_string_join(sortOrder) << ')' << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << pj.str << endl);
 
-      } else if (LogThisAt(1))
-	logger << "Bad request, ignoring" << endl << "Request follows:" << endl << pj.str << endl;
+      } else
+	LogThisAt(1, "Bad request, ignoring" << endl << "Request follows:" << endl << pj.str << endl);
 
     }
     
@@ -2010,15 +1996,14 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     const string banner = string(" (E-step #") + to_string(iter+1) + ")";
     double logLike = 0;
     counts = getCounts (x, y, qp, nullModel, config, sortOrder, logLike, banner.c_str());
-    if (LogThisAt(3)) {
-      logger << "Parameter counts computed during E-step:" << endl;
-      counts.writeToLog();
+    if (LoggingThisAt(3)) {
+      LogStream (3, "Parameter counts computed during E-step:" << endl);
+      counts.writeToLog(3);
     }
 
     const double logPrior = pseudocounts.logPrior (qp);
     const double logLikeWithPrior = logLike + logPrior;
-    if (LogThisAt(1))
-      logger << "EM iteration " << (iter+1) << ": log-likelihood (" << logLike << ") + log-prior (" << logPrior << ") = " << logLikeWithPrior << endl;
+    LogThisAt(1, "EM iteration " << (iter+1) << ": log-likelihood (" << logLike << ") + log-prior (" << logPrior << ") = " << logLikeWithPrior << endl);
     if (iter > 0 && logLikeWithPrior < prevLogLikeWithPrior + abs(prevLogLikeWithPrior)*minFractionalLoglikeIncrement)
       break;
     prevLogLikeWithPrior = logLikeWithPrior;
@@ -2034,8 +2019,7 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
     qp = countsWithPrior.fit();
     qp.fitRefSeqs(x);
     const double newExpectedLogLike = countsWithPrior.expectedLogLike (qp);
-    if (LogThisAt(2))
-      logger << "Expected log-likelihood went from " << oldExpectedLogLike << " to " << newExpectedLogLike << " during M-step" << endl;
+    LogThisAt(2, "Expected log-likelihood went from " << oldExpectedLogLike << " to " << newExpectedLogLike << " during M-step" << endl);
 
     if (saveParamsFilename.size()) {
       ofstream out (saveParamsFilename);
@@ -2057,8 +2041,7 @@ void QuaffCountingTask::run() {
   const unsigned int indelKmerLen = params.indelContext.kmerLen;
   const double yNullLogLike = useNullModel ? nullModel.logLikelihood(yfs) : -numeric_limits<double>::infinity();
   yLogLike = yNullLogLike;  // this initial value allows null model to "win"
-  if (LogThisAt(4))
-    logger << "Null model score for " << yfs.name << " is " << yNullLogLike << endl;
+  LogThisAt(4, "Null model score for " << yfs.name << " is " << yNullLogLike << endl);
   vguard<double> xyLogLike (x.size(), -numeric_limits<double>::infinity());
   vguard<QuaffParamCounts> xyCounts (x.size(), QuaffParamCounts(matchKmerLen,indelKmerLen));
   for (auto nx : sortOrder) {
@@ -2074,12 +2057,10 @@ void QuaffCountingTask::run() {
   }
   for (size_t nx = 0; nx < x.size(); ++nx) {
     const double xyPostProb = exp (xyLogLike[nx] - yLogLike);
-    if (LogThisAt(3))
-      logger << "P(read " << yfs.name << " derived from ref " << x[nx].name << ") = " << xyPostProb << endl;
+    LogThisAt(3, "P(read " << yfs.name << " derived from ref " << x[nx].name << ") = " << xyPostProb << endl);
     yCounts.addWeighted (xyCounts[nx], xyPostProb);
   }
-  if (LogThisAt(3))
-    logger << "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl;
+  LogThisAt(3, "P(read " << yfs.name << " unrelated to refs) = " << exp(yNullLogLike - yLogLike) << endl);
   const vguard<size_t> ascendingOrder = orderedIndices (xyLogLike);
   sortOrder = vguard<size_t> (ascendingOrder.rbegin(), ascendingOrder.rend());
   auto sortOrderCutoff = sortOrder.begin();
@@ -2091,8 +2072,7 @@ void QuaffCountingTask::run() {
 
 void QuaffCountingTask::delegate (const RemoteServer& remote) {
   while (true) {
-    if (LogThisAt(3))
-      logger << "Delegating " << yfs.name << " to " << remote.toString() << endl;
+    LogThisAt(3, "Delegating " << yfs.name << " to " << remote.toString() << endl);
     ostringstream out;
     out << "{ \"yName\": " << JsonUtil::quoteEscaped(yfs.name) << "," << endl;
     out << "  \"xOrder\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
@@ -2109,11 +2089,9 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
       ParsedJson pj (&sock, false);
       if (pj.parsedOk()) {
       
-      if (LogThisAt(9))
-	logger << "(parsed as valid JSON)" << endl;
+	LogThisAt(9, "(parsed as valid JSON)" << endl);
       
-	if (LogThisAt(3))
-	  logger << "Parsing results from " << remote.toString() << endl;
+	LogThisAt(3, "Parsing results from " << remote.toString() << endl);
 
 	if (pj.containsType("xOrder",JSON_ARRAY)
 	    && pj.containsType("loglike",JSON_NUMBER)
@@ -2128,8 +2106,7 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
       }
       
     } catch (SocketException& e) {
-      if (LogThisAt(3))
-	logger << e.what() << endl;
+      LogThisAt(3, e.what() << endl);
     }
 
     randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
@@ -2376,32 +2353,30 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
   for (const auto& s : *py)
     yDict[s.name] = &s;
 
-  if (LogThisAt(8)) {
-    logger << "Known read names:";
+  if (LoggingThisAt(8)) {
+    ostringstream l;
+    l << "Known read names:";
     for (const auto& s : *py)
-      logger << " \"" << s.name << "\"";
-    logger << endl;
+      l << " \"" << s.name << "\"";
+    l << endl;
+    LogStream(8,l.str());
   }
 
   TCPServerSocket servSock (port);
-  if (LogThisAt(1))
-    logger << "(listening on port " << port << ')' << endl;
+  LogThisAt(1, "(listening on port " << port << ')' << endl);
 
   while (true) {
     TCPSocket *sock = NULL;
     sock = servSock.accept();
-    if (LogThisAt(1))
-      logger << "Handling request from " << sock->getForeignAddress() << endl;
+    LogThisAt(1, "Handling request from " << sock->getForeignAddress() << endl);
 
     ParsedJson pj (sock, false);
     if (pj.parsedOk()) {
     
-      if (LogThisAt(9))
-	logger << "(parsed as valid JSON)" << endl;
+      LogThisAt(9, "(parsed as valid JSON)" << endl);
       
       if (pj.contains("quit")) {
-	if (LogThisAt(1))
-	  logger << "(quit)" << endl;
+	LogThisAt(1, "(quit)" << endl);
 	delete sock;
 	break;
       }
@@ -2412,8 +2387,7 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
 
 	if (yDict.find(yName) != yDict.end()) {
 
-	  if (LogThisAt(2))
-	    logger << "Aligning " << yName << endl;
+	  LogThisAt(2, "Aligning " << yName << endl);
 
 	  QuaffAlignmentTask task (*px, *yDict[yName], *pparams, *pnullModel, *pconfig, paligner->printAllAlignments);
 	  task.run();
@@ -2426,14 +2400,13 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
 	  const string s = out.str();
 	  sock->send (s.c_str(), (int) s.size());
 
-	  if (LogThisAt(2))
-	    logger << "Request completed" << endl;
+	  LogThisAt(2, "Request completed" << endl);
 
-	} else if (LogThisAt(1))
-	  logger << "Bad request, ignoring" << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << pj.str << endl;
+	} else
+	  LogThisAt(1, "Bad request, ignoring" << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << pj.str << endl);
 
-      } else if (LogThisAt(1))
-	logger << "Bad request, ignoring" << endl << pj.str << endl;
+      } else
+	LogThisAt(1, "Bad request, ignoring" << endl << pj.str << endl);
     }
     
     delete sock;
@@ -2451,8 +2424,7 @@ void QuaffAlignmentTask::run() {
   const KmerIndex yKmerIndex (yfs, dnaAlphabet, config.kmerLen);
   for (size_t nx = 0; nx < x.size(); ++nx) {
     const FastSeq& xfs = x[nx];
-    if (LogThisAt(3))
-      logger << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
+    LogThisAt(3, "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl);
     const DiagonalEnvelope env = config.makeEnvelope (xfs, yKmerIndex, QuaffDPMatrixContainer::cellSize());
     const QuaffViterbiMatrix viterbi (env, params, config);
     if (viterbi.resultIsFinite()) {
@@ -2465,8 +2437,7 @@ void QuaffAlignmentTask::run() {
 }
 
 string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
-  if (LogThisAt(3))
-    logger << "Delegating " << yfs.name << " to " << remote.toString() << endl;
+  LogThisAt(3, "Delegating " << yfs.name << " to " << remote.toString() << endl);
   ostringstream out;
   out << "{ \"yName\": " << JsonUtil::quoteEscaped(yfs.name) << " }" << endl;
   out << SocketTerminatorString << endl;
@@ -2483,8 +2454,7 @@ string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
       break;
 
     } catch (SocketException& e) {
-      if (LogThisAt(3))
-	logger << e.what() << endl;
+      LogThisAt(3, e.what() << endl);
     }
 
     randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);

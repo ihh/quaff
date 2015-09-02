@@ -156,8 +156,7 @@ vguard<FastSeq> readFastSeqs (const char* filename) {
   kseq_destroy (ks);
   gzclose (fp);
 
-  if (LogThisAt(3))
-    logger << "Read " << plural(seqs.size(),"sequence") << " from " << filename << endl;
+  LogThisAt(3, "Read " << plural(seqs.size(),"sequence") << " from " << filename << endl);
   
   if (seqs.empty())
     Warn ("Couldn't read any sequences from %s", filename);
@@ -208,18 +207,17 @@ void addRevcomps (vguard<FastSeq>& db) {
 KmerIndex::KmerIndex (const FastSeq& seq, const string& alphabet, SeqIdx kmerLen)
   : seq(seq), alphabet(alphabet), kmerLen(kmerLen)
 {
-  if (LogThisAt(5))
-    logger << "Building " << kmerLen << "-mer index for " << seq.name << endl;
+  LogThisAt(5, "Building " << kmerLen << "-mer index for " << seq.name << endl);
   const vguard<AlphTok> tok = seq.tokens (alphabet);
   const AlphTok alphabetSize = (AlphTok) alphabet.size();
   const SeqIdx seqLen = seq.length();
   for (SeqIdx j = 0; j <= seqLen - kmerLen; ++j)
     kmerLocations[makeKmer (kmerLen, tok.begin() + j, alphabetSize)].push_back (j);
 
-  if (LogThisAt(8)) {
-    logger << "Frequencies of " << kmerLen << "-mers in " << seq.name << ':' << endl;
+  if (LoggingThisAt(8)) {
+    LogStream (8, "Frequencies of " << kmerLen << "-mers in " << seq.name << ':' << endl);
     for (const auto& kl : kmerLocations) {
-      logger << kmerToString (kl.first, kmerLen, alphabet) << ' ' << kl.second.size() << endl;
+      LogStream (8, kmerToString (kl.first, kmerLen, alphabet) << ' ' << kl.second.size() << endl);
     }
   }
 }

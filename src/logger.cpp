@@ -17,7 +17,7 @@ string ansiEscape (int code) {
 }
 
 Logger::Logger()
-  : verbosity(0), lastTestedVerbosity(-1), lastColor(-1), mxLocked(false), useAnsiColor(true)
+  : verbosity(0), useAnsiColor(true)
 {
   for (int col : { 7, 2, 3, 5, 6, 1, 2, 3, 5, 6 })  // no blue, it's invisible
     logAnsiColor.push_back (ansiEscape(30 + col) + ansiEscape(40));
@@ -89,50 +89,32 @@ string Logger::args() const {
   return a;
 }
 
-Logger& Logger::lockAndPrint (bool showHeader) {
+void Logger::lock (int color, bool banner) {
   thread::id myId = this_thread::get_id();
-  if (!(mxLocked && mxOwner == myId)) {
-    if (mx.try_lock_for (std::chrono::milliseconds(1000))) {
-      if (showHeader && mxOwner != myId && threadName.size() > 1)
-	clog << (useAnsiColor ? threadAnsiColor.c_str() : "")
-	     << '(' << getThreadName(myId) << ')'
-	     << (useAnsiColor ? ansiColorOff.c_str() : "") << ' ';
-      mxOwner = myId;
-      mxLocked = true;
-    } else if (showHeader)
+  if (mx.try_lock_for (std::chrono::milliseconds(1000))) {
+    if (lastMxOwner != myId && banner && threadName.size() > 1)
       clog << (useAnsiColor ? threadAnsiColor.c_str() : "")
-	   << '(' << getThreadName(myId) << ", ignoring lock by " << getThreadName(mxOwner) << ')'
+	   << '(' << getThreadName(myId) << ')'
 	   << (useAnsiColor ? ansiColorOff.c_str() : "") << ' ';
-  }
-  if (showHeader && useAnsiColor && lastTestedVerbosity != lastColor) {
-    lastColor = lastTestedVerbosity;
-    clog << (lastTestedVerbosity < 0
+    lastMxOwner = myId;
+  } else if (banner)
+    clog << (useAnsiColor ? threadAnsiColor.c_str() : "")
+	 << '(' << getThreadName(myId) << ", ignoring lock by " << getThreadName(lastMxOwner) << ')'
+	 << (useAnsiColor ? ansiColorOff.c_str() : "") << ' ';
+  if (banner && useAnsiColor)
+    clog << (color < 0
 	     ? logAnsiColor.front()
-	     : (lastTestedVerbosity >= (int) logAnsiColor.size()
+	     : (color >= (int) logAnsiColor.size()
 		? logAnsiColor.back()
-		: logAnsiColor[lastTestedVerbosity]));
-  }
-  return *this;
+		: logAnsiColor[color]));
 }
 
-Logger& Logger::unlockAndPrint() {
+void Logger::unlock (bool banner) {
   thread::id myId = this_thread::get_id();
-  if (mxLocked && mxOwner == myId) {
-    mxLocked = false;
-    mx.unlock();
-  }
-  if (useAnsiColor) {
+  if (banner && useAnsiColor)
     clog << ansiColorOff;
-    lastColor = -1;
-  }
-  return *this;
+  mx.unlock();
 }
-
-Logger& Logger::lock() { return lockAndPrint(true); }
-Logger& Logger::unlock() { return unlockAndPrint(); }
-
-Logger& Logger::lockSilently() { return lockAndPrint(false); }
-Logger& Logger::unlockSilently() { return unlockAndPrint(); }
 
 string Logger::getThreadName (thread::id id) {
   const auto& iter = threadName.find(id);
@@ -177,9 +159,8 @@ void ProgressLogger::initProgress (const char* desc, ...) {
   vasprintf (&msg, desc, argptr);
   va_end (argptr);
 
-  if (logger.testVerbosityOrLogTagsWithLock (verbosity, function, file))
-    logger << msg << ": started at " << asctime(timeinfo)
-	   << flush;  // asctime has a newline, so no endl, but we need a manipulator to unlock
+  if (logger.testVerbosityOrLogTags (verbosity, function, file))
+    LogStream (verbosity, msg << ": started at " << asctime(timeinfo));
 }
 
 ProgressLogger::~ProgressLogger() {
@@ -198,23 +179,26 @@ void ProgressLogger::logProgress (double completedFraction, const char* desc, ..
     const double estimatedHoursLeft = estimatedMinutesLeft / 60;
     const double estimatedDaysLeft = estimatedHoursLeft / 24;
 
-    if (completedFraction > 0 && logger.testVerbosityOrLogTagsWithLock (verbosity, function, file)) {
+    if (completedFraction > 0 && logger.testVerbosityOrLogTags (verbosity, function, file)) {
       char *progMsg;
       va_start (argptr, desc);
       vasprintf (&progMsg, desc, argptr);
       va_end (argptr);
 
-      logger << msg << ": " << progMsg << ". Estimated time left: ";
+      ostringstream l;
+      l << msg << ": " << progMsg << ". Estimated time left: ";
       if (estimatedDaysLeft > 2)
-	logger << estimatedDaysLeft << " days";
+	l << estimatedDaysLeft << " days";
       else if (estimatedHoursLeft > 2)
-	logger << estimatedHoursLeft << " hrs";
+	l << estimatedHoursLeft << " hrs";
       else if (estimatedMinutesLeft > 2)
-	logger << estimatedMinutesLeft << " mins";
+	l << estimatedMinutesLeft << " mins";
       else
-	logger << estimatedSecondsLeft << " secs";
-      logger << " (" << (100*completedFraction) << "%)" << endl;
+	l << estimatedSecondsLeft << " secs";
+      l << " (" << (100*completedFraction) << "%)" << endl;
 
+      logger.print (l.str(), verbosity);
+      
       free(progMsg);
     }
     

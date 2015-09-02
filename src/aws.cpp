@@ -32,14 +32,13 @@ string AWS::dirnameStr (const string& filename) {
 }
 
 string AWS::runCommandAndTestStatus (const string& cmd) {
-  if (LogThisAt(4))
-    logger << "Executing: " << cmd << endl;
+  LogThisAt(4, "Executing: " << cmd << endl);
 
   int cmdStatus = -1;
   const string cmdOut = pipeToString (cmd.c_str(), &cmdStatus);
 
-  if (cmdOut.size() && LogThisAt(4))
-    logger << "Output:" << endl << cmdOut << endl;
+  if (cmdOut.size())
+    LogThisAt(4,"Output:" << endl << cmdOut << endl);
 
   if (cmdStatus != 0)
     Warn ("Return code %d attempting %s\n%s", cmdStatus, cmd.c_str(), cmdOut.c_str());
@@ -92,15 +91,13 @@ vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const st
   for (const auto& id : ids)
     runningInstanceIds.insert (id);
 
-  if (LogThisAt(3))
-    logger << "Waiting for EC2 instance-status-ok: " << join(ids) << endl;
+  LogThisAt(3, "Waiting for EC2 instance-status-ok: " << join(ids) << endl);
 
   const string waitCmd = string("aws ec2 wait instance-status-ok --instance-id ") + join(ids);
 
   (void) runCommandAndTestStatus (waitCmd);
 
-  if (LogThisAt(3))
-    logger << "EC2 instances running: " << join(ids) << endl;
+  LogThisAt(3, "EC2 instances running: " << join(ids) << endl);
 
   return ids;
 }
@@ -138,8 +135,7 @@ vguard<string> AWS::getInstanceAddresses (const vguard<string>& ids) const {
 
 void AWS::terminateInstances (const vguard<string>& ids) {
   if (ids.size()) {
-    if (LogThisAt(1))
-      logger << "Terminating instances: " << join(ids) << endl;
+    LogThisAt(1, "Terminating instances: " << join(ids) << endl);
     const string termCmd = terminateCommand (ids);
     (void) runCommandAndTestStatus (termCmd);
     for (const auto& id : ids)

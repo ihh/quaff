@@ -122,7 +122,7 @@ struct QuaffParams {
   vguard<vguard<SymQualDist> > match;  // substitutions from match state (conditional on input)
   QuaffParams (unsigned int matchKmerLen = DefaultMatchKmerContext, unsigned int indelKmerLen = DefaultIndelKmerContext);
   void resize();  // call after changing kmerLen
-  void writeToLog() const;
+  void writeToLog (int v = 0) const;
   ostream& writeJson (ostream& out) const;
   bool readJson (const JsonValue& val);
   bool readJson (const JsonMap& jm);
@@ -137,7 +137,7 @@ struct QuaffNullParams {
   QuaffNullParams (const vguard<FastSeq>& seqs, double pseudocount = 1);
   double logLikelihood (const FastSeq& seq) const;
   double logLikelihood (const vguard<FastSeq>& seqs) const;
-  void writeToLog() const;
+  void writeToLog (int v = 0) const;
   ostream& writeJson (ostream& out) const;
   void readJson (istream& in);
   bool readJson (const JsonMap& jm);
@@ -174,7 +174,7 @@ struct QuaffCounts : QuaffEmitCounts {
   double d2d, d2m;
   double i2i, i2m;
   QuaffCounts (unsigned int matchKmerLen, unsigned int indelKmerLen);
-  void writeToLog() const;
+  void writeToLog (int v = 0) const;
   ostream& writeJson (ostream& out) const;
 };
 
@@ -186,7 +186,7 @@ struct QuaffParamCounts : QuaffEmitCounts {
   void resize();  // call after changing kmerLen
   void zeroCounts();
   void initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount, const QuaffNullParams* nullModel = NULL);
-  void writeToLog() const;
+  void writeToLog (int v = 0) const;
   ostream& writeJson (ostream& out) const;
   void readJson (istream& in);
   bool readJson (const JsonMap& jm);
@@ -357,7 +357,7 @@ struct QuaffDPMatrix : QuaffDPMatrixContainer {
     const SymQualScores& sqs = qs.insert[yTok[j-1]];
     return yQual.size() ? sqs.logSymQualProb[yQual[j-1]] : sqs.logSymProb;
   }
-  void writeToLog() const;
+  void writeToLog (int v = 0) const;
   void write (ostream& out) const;
 };
 
@@ -393,7 +393,7 @@ struct QuaffForwardBackwardMatrix {
   double postMatch (SeqIdx i, SeqIdx j) const;
   double postDelete (SeqIdx i, SeqIdx j) const;
   double postInsert (SeqIdx i, SeqIdx j) const;
-  void writeToLog() const;
+  void writeToLog (int v = 0) const;
   void write (ostream& out) const;
 };
   

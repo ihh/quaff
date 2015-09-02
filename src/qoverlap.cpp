@@ -156,8 +156,7 @@ QuaffOverlapViterbiMatrix::QuaffOverlapViterbiMatrix (const DiagonalEnvelope& en
 
   result = end + xInsertScore + yInsertScore;
 
-  if (LogThisAt(4))
-    logger << "Viterbi score: " << result << endl;
+  LogThisAt(4, "Viterbi score: " << result << endl);
 }
 
 Alignment QuaffOverlapViterbiMatrix::alignment() const {
@@ -186,8 +185,7 @@ Alignment QuaffOverlapViterbiMatrix::alignment() const {
   deque<char> xRow, yRow, xQual, yQual, xRowDel, xQualDel, yRowIns, yQualIns;
   State state = Match;
   while (state != Start) {
-    if (LogThisAt(9))
-      logger << "Traceback: i=" << i << " j=" << j << " state=" << stateToString(state) << " score=" << cellScore(i,j,state) << endl;
+    LogThisAt(9, "Traceback: i=" << i << " j=" << j << " state=" << stateToString(state) << " score=" << cellScore(i,j,state) << endl);
     double srcSc = -numeric_limits<double>::infinity();
     double emitSc = 0;
     switch (state) {
@@ -295,11 +293,9 @@ Alignment QuaffOverlapViterbiMatrix::scoreAdjustedAlignment (const QuaffNullPara
   Alignment a = alignment();
   const double xNullLogLike = nullModel.logLikelihood (*px);
   const double yNullLogLike = nullModel.logLikelihood (qos.yComplemented ? py->revcomp() : *py);
-  if (LogThisAt(4))
-    logger << "Null model score: " << (xNullLogLike + yNullLogLike) << endl;
-  if (LogThisAt(5))
-    logger << "Null model score for " << px->name << ": " << xNullLogLike << endl
-	 << "Null model score for " << py->name << ": " << yNullLogLike << endl;
+  LogThisAt(4, "Null model score: " << (xNullLogLike + yNullLogLike) << endl);
+  LogThisAt(5, "Null model score for " << px->name << ": " << xNullLogLike << endl
+	    << "Null model score for " << py->name << ": " << yNullLogLike << endl);
   a.score -= xNullLogLike;
   a.score -= yNullLogLike;
   return a;
@@ -351,33 +347,31 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
   for (const auto& s : *pseqs)
     seqDict[s.name] = &s;
 
-  if (LogThisAt(8)) {
-    logger << "Known read names:";
+  if (LoggingThisAt(8)) {
+    ostringstream l;
+    l << "Known read names:";
     for (const auto& s : *pseqs)
-      logger << " \"" << s.name << "\"";
-    logger << endl;
+      l << " \"" << s.name << "\"";
+    l << endl;
+    LogStream (8, l.str());
   }
 
   TCPServerSocket servSock (port);
-  if (LogThisAt(1))
-    logger << "(listening on port " << port << ')' << endl;
+  LogThisAt(1, "(listening on port " << port << ')' << endl);
 
   while (true) {
     TCPSocket *sock = NULL;
     sock = servSock.accept();
-    if (LogThisAt(1))
-      logger << "Handling request from " << sock->getForeignAddress() << endl;
+    LogThisAt(1, "Handling request from " << sock->getForeignAddress() << endl);
 
     ParsedJson pj (sock, false);
 
     if (pj.parsedOk()) {
 
-      if (LogThisAt(9))
-	logger << "(parsed as valid JSON)" << endl;
+      LogThisAt(9, "(parsed as valid JSON)" << endl);
       
       if (pj.contains("quit")) {
-	if (LogThisAt(1))
-	  logger << "(quit)" << endl;
+	LogThisAt(1, "(quit)" << endl);
 	delete sock;
 	break;
       }
@@ -393,8 +387,7 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
 	if (seqDict.find(xName) != seqDict.end()
 	    && seqDict.find(yName) != seqDict.end()) {
 
-	  if (LogThisAt(2))
-	    logger << "Aligning " << xName << " to " << yName << endl;
+	  LogThisAt(2, "Aligning " << xName << " to " << yName << endl);
 
 	  QuaffOverlapTask task (*seqDict[xName], *seqDict[yName], yComp, *pparams, *pnullModel, *pconfig);
 	  task.run();
@@ -407,14 +400,13 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
 	  const string s = out.str();
 	  sock->send (s.c_str(), (int) s.size());
 
-	  if (LogThisAt(2))
-	    logger << "Request completed" << endl;
+	  LogThisAt(2, "Request completed" << endl);
 
-	} else if (LogThisAt(1))
-	  logger << "Bad request, ignoring" << endl << "xName = \"" << xName << "\"" << endl << "yName = \"" << yName << "\"" << endl << "yComp = " << yComp << endl << "Request follows:" << endl << pj.str << endl;
+	} else
+	  LogThisAt(1, "Bad request, ignoring" << endl << "xName = \"" << xName << "\"" << endl << "yName = \"" << yName << "\"" << endl << "yComp = " << yComp << endl << "Request follows:" << endl << pj.str << endl);
 
-      } else if (LogThisAt(1))
-	logger << "Bad request, ignoring" << endl << "Request follows:" << endl << pj.str << endl;
+      } else
+	LogThisAt(1, "Bad request, ignoring" << endl << "Request follows:" << endl << pj.str << endl);
 
     }
     
@@ -430,8 +422,7 @@ QuaffOverlapTask::QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, cons
 { }
 
 void QuaffOverlapTask::run() {
-  if (LogThisAt(3))
-    logger << "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl;
+  LogThisAt(3, "Aligning " << xfs.name << " (length " << xfs.length() << ") to " << yfs.name << " (length " << yfs.length() << ")" << endl);
   const KmerIndex yKmerIndex (yfs, dnaAlphabet, config.kmerLen);
   const DiagonalEnvelope env = config.makeEnvelope (xfs, yKmerIndex, QuaffDPMatrixContainer::cellSize());
   const QuaffOverlapViterbiMatrix viterbi (env, params, yComplemented);
@@ -454,8 +445,7 @@ QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_
 }
 
 string QuaffOverlapTask::delegate (const RemoteServer& remote) {
-  if (LogThisAt(3))
-    logger << "Delegating " << xfs.name << " vs " << yfs.name << " to " << remote.toString() << endl;
+  LogThisAt(3, "Delegating " << xfs.name << " vs " << yfs.name << " to " << remote.toString() << endl);
   ostringstream out;
   out << "{ \"xName\": " << JsonUtil::quoteEscaped(xfs.name) << "," << endl;
   out << "  \"yName\": " << JsonUtil::quoteEscaped(yfs.name) << "," << endl;
@@ -474,8 +464,7 @@ string QuaffOverlapTask::delegate (const RemoteServer& remote) {
       break;
 
     } catch (SocketException& e) {
-      if (LogThisAt(3))
-	logger << e.what() << endl;
+      LogThisAt(3, e.what() << endl);
     }
 
     randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
