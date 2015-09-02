@@ -1852,7 +1852,7 @@ vguard<vguard<size_t> > QuaffTrainer::defaultSortOrder (const vguard<FastSeq>& x
 }
 
 QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner) {
-  QuaffCountingScheduler qcs (x, y, params, nullModel, allowNullModel, config, sortOrder, banner, VFUNCFILE(2));
+  QuaffCountingScheduler qcs (x, y, params, nullModel, allowNullModel, config, sortOrder, banner, 2, __func__, __FILE__, __LINE__);
   list<thread> yThreads;
   Require (config.threads > 0 || config.ec2Instances > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
   for (unsigned int n = 0; n < config.threads; ++n) {
@@ -2113,8 +2113,8 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
   }
 }
 
-QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file)
-  : QuaffScheduler (x, y, params, nullModel, config, verbosity, function, file),
+QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file, int line)
+  : QuaffScheduler (x, y, params, nullModel, config, verbosity, function, file, line),
     useNullModel(useNullModel),
     sortOrder(sortOrder),
     banner(banner),
@@ -2316,7 +2316,7 @@ string QuaffAligner::serverArgs() const {
 }
 
 void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config) {
-  QuaffAlignmentScheduler qas (x, y, params, nullModel, config, printAllAlignments, out, *this, VFUNCFILE(2));
+  QuaffAlignmentScheduler qas (x, y, params, nullModel, config, printAllAlignments, out, *this, 2, __func__, __FILE__, __LINE__);
   list<thread> yThreads;
   Require (config.threads > 0 || config.ec2Instances > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
   config.startRemoteServers();
@@ -2463,8 +2463,8 @@ string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
   return response;
 }
 
-QuaffAlignmentPrintingScheduler::QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file)
-  : QuaffScheduler (x, y, params, nullModel, config, verbosity, function, file),
+QuaffAlignmentPrintingScheduler::QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line)
+  : QuaffScheduler (x, y, params, nullModel, config, verbosity, function, file, line),
     out(out),
     printer(printer)
 { }
@@ -2486,8 +2486,8 @@ void QuaffAlignmentPrintingScheduler::printAlignments (const string& alignStr) {
   outMx.unlock();
 }
 
-QuaffAlignmentScheduler::QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file)
-  : QuaffAlignmentPrintingScheduler (x, y, params, nullModel, config, out, printer, verbosity, function, file),
+QuaffAlignmentScheduler::QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line)
+  : QuaffAlignmentPrintingScheduler (x, y, params, nullModel, config, out, printer, verbosity, function, file, line),
     keepAllAlignments(keepAllAlignments)
 {
   printer.writeAlignmentHeader (out, x, true);

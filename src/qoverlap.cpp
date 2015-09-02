@@ -310,7 +310,7 @@ bool QuaffOverlapAligner::parseAlignmentArgs (deque<string>& argvec) {
 }
 
 void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config) {
-  QuaffOverlapScheduler qos (seqs, nOriginals, params, nullModel, config, out, *this, VFUNCFILE(2));
+  QuaffOverlapScheduler qos (seqs, nOriginals, params, nullModel, config, out, *this, 2, __func__, __FILE__, __LINE__);
   list<thread> yThreads;
   Require (config.threads > 0 || config.ec2Instances > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
   config.startRemoteServers();
@@ -430,8 +430,8 @@ void QuaffOverlapTask::run() {
     alignList.insert (viterbi.scoreAdjustedAlignment(nullModel));
 }
 
-QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file)
-  : QuaffAlignmentPrintingScheduler (seqs, seqs, params, nullModel, config, out, printer, verbosity, function, file),
+QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line)
+  : QuaffAlignmentPrintingScheduler (seqs, seqs, params, nullModel, config, out, printer, verbosity, function, file, line),
     nx(0),
     nOriginals(nOriginals)
 {

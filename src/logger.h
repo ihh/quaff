@@ -16,13 +16,6 @@
 
 using namespace std;
 
-// This class implements a quick-and-dirty threadsafe logger.
-// EITHER explicitly call lock() and unlock(),
-// OR use operator<< to stream objects to the log,
-// terminated by a stream manipulator (e.g. endl or flush).
-// The stream manipulator is IMPORTANT: without it,
-// you will get delays, and (if you are lucky) you will notice
-// "ignoring lock by..." messages appearing in the log.
 class Logger {
 private:
   int verbosity;
@@ -33,6 +26,8 @@ private:
   
   recursive_timed_mutex mx;
   thread::id lastMxOwner;
+  const char* mxOwnerFile;
+  int mxOwnerLine;
   map<thread::id,string> threadName;
 
 public:
@@ -62,14 +57,14 @@ public:
   void nameLastThread (const list<thread>& threads, const char* prefix);
   void eraseThreadName (const thread& thr);
 
-  void lock (int color = 0, bool banner = true);
+  void lock (int color = 0, const char* file = "", const int line = 0, bool banner = true);
   void unlock (bool endBanner = true);
-  void lockSilently() { lock(0,false); }
+  void lockSilently() { lock(0,"",0,false); }
   void unlockSilently() { unlock(false); }
 
   template<class T>
-  void print (const T& t, int v) {
-    lock(v,true);
+  void print (const T& t, const char* file, int line, int v) {
+    lock(v,file,line,true);
     clog << t;
     unlock(true);
   }
@@ -77,13 +72,11 @@ public:
 
 extern Logger logger;
 
-#define VFUNCFILE(V) V,__func__,__FILE__
-
 #define LoggingAt(V)     (logger.testVerbosity(V))
-#define LoggingThisAt(V) (logger.testVerbosityOrLogTags(VFUNCFILE(V)))
+#define LoggingThisAt(V) (logger.testVerbosityOrLogTags(V,__func__,__FILE__))
 #define LoggingTag(T)    (logger.testLogTag(T))
 
-#define LogStream(V,S) do { ostringstream tmpLog; tmpLog << S; logger.print(tmpLog.str(),V); } while(0)
+#define LogStream(V,S) do { ostringstream tmpLog; tmpLog << S; logger.print(tmpLog.str(),__FILE__,__LINE__,V); } while(0)
 
 #define LogAt(V,S)     do { if (LoggingAt(V)) LogStream(V,S); } while(0)
 #define LogThisAt(V,S) do { if (LoggingThisAt(V)) LogStream(V,S); } while(0)
@@ -97,13 +90,14 @@ struct ProgressLogger {
   char* msg;
   int verbosity;
   const char *function, *file;
-  ProgressLogger (int verbosity, const char* function, const char* file);
+  int line;
+  ProgressLogger (int verbosity, const char* function, const char* file, int line);
   ~ProgressLogger();
   void initProgress (const char* desc, ...);
   void logProgress (double completedFraction, const char* desc, ...);
 };
 
-#define ProgressLog(PLOG,V) ProgressLogger PLOG (VFUNCFILE(V))
+#define ProgressLog(PLOG,V) ProgressLogger PLOG (V, __func__, __FILE__, __LINE__)
 
 #endif /* LOGGER_INCLUDED */
 

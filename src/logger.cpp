@@ -89,7 +89,7 @@ string Logger::args() const {
   return a;
 }
 
-void Logger::lock (int color, bool banner) {
+void Logger::lock (int color, const char* file, int line, bool banner) {
   thread::id myId = this_thread::get_id();
   if (mx.try_lock_for (std::chrono::milliseconds(1000))) {
     if (lastMxOwner != myId && banner && threadName.size() > 1)
@@ -97,9 +97,11 @@ void Logger::lock (int color, bool banner) {
 	   << '(' << getThreadName(myId) << ')'
 	   << (useAnsiColor ? ansiColorOff.c_str() : "") << ' ';
     lastMxOwner = myId;
+    mxOwnerFile = file;
+    mxOwnerLine = line;
   } else if (banner)
     clog << (useAnsiColor ? threadAnsiColor.c_str() : "")
-	 << '(' << getThreadName(myId) << ", ignoring lock by " << getThreadName(lastMxOwner) << ')'
+	 << '(' << getThreadName(myId) << ", ignoring lock by " << getThreadName(lastMxOwner) << " at " << mxOwnerFile << " line " << mxOwnerLine << ')'
 	 << (useAnsiColor ? ansiColorOff.c_str() : "") << ' ';
   if (banner && useAnsiColor)
     clog << (color < 0
@@ -139,8 +141,8 @@ void Logger::eraseThreadName (const thread& thr) {
   threadName.erase (thr.get_id());
 }
 
-ProgressLogger::ProgressLogger (int verbosity, const char* function, const char* file)
-  : msg(NULL), verbosity(verbosity), function(function), file(file)
+ProgressLogger::ProgressLogger (int verbosity, const char* function, const char* file, int line)
+  : msg(NULL), verbosity(verbosity), function(function), file(file), line(line)
 { }
 
 void ProgressLogger::initProgress (const char* desc, ...) {
@@ -159,8 +161,11 @@ void ProgressLogger::initProgress (const char* desc, ...) {
   vasprintf (&msg, desc, argptr);
   va_end (argptr);
 
-  if (logger.testVerbosityOrLogTags (verbosity, function, file))
-    LogStream (verbosity, msg << ": started at " << asctime(timeinfo));
+  if (logger.testVerbosityOrLogTags (verbosity, function, file)) {
+    ostringstream l;
+    l << msg << ": started at " << asctime(timeinfo);
+    logger.print (l.str(), file, line, verbosity);
+  }
 }
 
 ProgressLogger::~ProgressLogger() {
@@ -197,7 +202,7 @@ void ProgressLogger::logProgress (double completedFraction, const char* desc, ..
 	l << estimatedSecondsLeft << " secs";
       l << " (" << (100*completedFraction) << "%)" << endl;
 
-      logger.print (l.str(), verbosity);
+      logger.print (l.str(), file, line, verbosity);
       
       free(progMsg);
     }

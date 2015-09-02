@@ -457,8 +457,8 @@ struct QuaffScheduler {
   size_t ny;
   mutex mx;
   ProgressLogger plog;
-  QuaffScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, int verbosity, const char* function, const char* file)
-    : x(x), y(y), params(params), nullModel(nullModel), config(config), ny(0), plog(verbosity,function,file)
+  QuaffScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, int verbosity, const char* function, const char* file, int line)
+    : x(x), y(y), params(params), nullModel(nullModel), config(config), ny(0), plog(verbosity,function,file,line)
   { }
   void lock() { mx.lock(); }
   void unlock() { mx.unlock(); }
@@ -472,7 +472,7 @@ struct QuaffCountingScheduler : QuaffScheduler {
   const unsigned int matchKmerLen, indelKmerLen;
   const QuaffParamCounts zeroCounts;
   vguard<QuaffParamCounts> yCounts;
-  QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file);
+  QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file, int line);
   bool finished() const;
   QuaffCountingTask nextCountingTask();
   QuaffParamCounts finalCounts() const;
@@ -525,14 +525,14 @@ struct QuaffAlignmentPrintingScheduler : QuaffScheduler {
   ostream& out;
   QuaffAlignmentPrinter& printer;
   mutex outMx;
-  QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file);
+  QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line);
   void printAlignments (const QuaffAlignmentPrinter::AlignmentList& alignList);
   void printAlignments (const string& alignStr);
 };
 
 struct QuaffAlignmentScheduler : QuaffAlignmentPrintingScheduler {
   const bool keepAllAlignments;
-  QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file);
+  QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line);
   bool finished() const;
   QuaffAlignmentTask nextAlignmentTask();
 };
