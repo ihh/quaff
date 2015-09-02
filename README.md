@@ -31,8 +31,9 @@ Commands:
    -mininc &lt;n&gt;     EM convergence threshold as relative log-likelihood increase
                     (default is .01)
    -force          Force each read to match a refseq, i.e. disallow null model
-   -order &lt;k&gt;      Allow substitutions to depend on k-mer contexts
+   -suborder &lt;k&gt;   Allow substitutions to depend on k-mer contexts
    -gaporder &lt;k&gt;   Allow gap open probabilities to depend on k-mer contexts
+   -order &lt;k&gt;      Shorthand for '-suborder &lt;k&gt; -gaporder &lt;k&gt;'
    -prior &lt;file&gt;, -saveprior &lt;file&gt;
                    Respectively: load/save prior pseudocounts from/to file
    -saveparams &lt;file&gt;, -savecounts &lt;file&gt;, -savecountswithprior &lt;file&gt;

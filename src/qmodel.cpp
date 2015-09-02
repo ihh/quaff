@@ -105,11 +105,11 @@ bool SymQualCounts::readJson (const JsonValue& value) {
   return true;
 }
 
-QuaffKmerContext::QuaffKmerContext (const char* prefix, unsigned int kmerLen)
-  : prefix(prefix),
-    defaultKmerLen (kmerLen)
+QuaffKmerContext::QuaffKmerContext (const char* prefix, unsigned int kmerLen, unsigned int defaultKmerLen)
+  : prefix (prefix),
+    defaultKmerLen (defaultKmerLen)
 {
-  initKmerContext (defaultKmerLen);
+  initKmerContext (kmerLen);
 }
 
 void QuaffKmerContext::initKmerContext (unsigned int newKmerLen) {
@@ -127,7 +127,7 @@ void QuaffKmerContext::readJsonKmerLen (const JsonMap& m) {
 
 void QuaffKmerContext::writeJsonKmerLen (ostream& out) const {
   if (kmerLen != defaultKmerLen)
-    out << prefix << "  \"Order\": " << kmerLen << ',' << endl;
+    out << "  \"" << prefix << "Order\": " << kmerLen << ',' << endl;
 }
 
 string QuaffKmerContext::kmerString (Kmer kmer) const {
@@ -201,7 +201,7 @@ ostream& QuaffParams::writeJson (ostream& out) const {
       << endl;
   out << "  \"match\": {" << endl;
   for (Kmer jPrefix = 0; jPrefix < matchContext.numKmers; jPrefix += dnaAlphabetSize) {
-    out << "    \"" << matchContext.kmerPrefix(jPrefix) << "\": {" << endl;
+    out << "   \"" << matchContext.kmerPrefix(jPrefix) << "\": {" << endl;
     for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
       out << "    \"" << dnaAlphabet[i] << "\": {" << endl;
       for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix)
@@ -346,7 +346,7 @@ ostream& QuaffEmitCounts::writeJson (ostream& out) const {
       << endl;
   out << "  \"match\": {" << endl;
   for (Kmer jPrefix = 0; jPrefix < matchContext.numKmers; jPrefix += dnaAlphabetSize) {
-    out << "    \"" << matchContext.kmerPrefix(jPrefix) << "\": {" << endl;
+    out << "   \"" << matchContext.kmerPrefix(jPrefix) << "\": {" << endl;
     for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
       out << "    \"" << dnaAlphabet[i] << "\": {" << endl;
       for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix)
@@ -1932,14 +1932,14 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
       }
 
       if (pj.containsType("yName",JSON_STRING)
-	  && pj.containsType("xOrder",JSON_ARRAY)
+	  && pj.containsType("xSort",JSON_ARRAY)
 	  && pj.containsType("params",JSON_OBJECT)
 	  && pj.containsType("null",JSON_OBJECT)) {
 
 	const string yName = pj["yName"].toString();
-	const JsonValue& xOrder = pj["xOrder"];
+	const JsonValue& xSort = pj["xSort"];
 
-	vguard<size_t> sortOrder = JsonUtil::indexVec (xOrder);
+	vguard<size_t> sortOrder = JsonUtil::indexVec (xSort);
 
 	QuaffParams params;
 	QuaffNullParams nullModel;
@@ -1960,9 +1960,9 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
 	  task.run();
 
 	  ostringstream out;
-	  out << "{ \"xOrder\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
-	  out << "  \"loglike\": " << yLogLike << "," << endl;
-	  yCounts.writeJson (out << "  \"counts\": ") << " }" << endl;
+	  out << "{\"xSort\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
+	  out << " \"loglike\": " << yLogLike << "," << endl;
+	  yCounts.writeJson (out << " \"counts\": ") << " }" << endl;
 	  out << SocketTerminatorString << endl;
 
 	  const string s = out.str();
@@ -2074,10 +2074,10 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
   while (true) {
     LogThisAt(3, "Delegating " << yfs.name << " to " << remote.toString() << endl);
     ostringstream out;
-    out << "{ \"yName\": " << JsonUtil::quoteEscaped(yfs.name) << "," << endl;
-    out << "  \"xOrder\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
-    nullModel.writeJson (out << "  \"null\": ") << "," << endl;
-    params.writeJson (out << "  \"params\": ") << " }" << endl;
+    out << "{\"yName\": " << JsonUtil::quoteEscaped(yfs.name) << "," << endl;
+    out << " \"xSort\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
+    nullModel.writeJson (out << " \"null\": ") << "," << endl;
+    params.writeJson (out << " \"params\": ") << " }" << endl;
     out << SocketTerminatorString << endl;
 
     const string msg = out.str();
@@ -2093,13 +2093,13 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
       
 	LogThisAt(3, "Parsing results from " << remote.toString() << endl);
 
-	if (pj.containsType("xOrder",JSON_ARRAY)
+	if (pj.containsType("xSort",JSON_ARRAY)
 	    && pj.containsType("loglike",JSON_NUMBER)
 	    && pj.containsType("counts",JSON_OBJECT)) {
-	  const JsonValue& xOrder = pj["xOrder"];
+	  const JsonValue& xSort = pj["xSort"];
 	  yLogLike = pj["loglike"].toNumber();
 	  if (yCounts.readJson (pj["counts"])) {
-	    sortOrder = JsonUtil::indexVec (xOrder);
+	    sortOrder = JsonUtil::indexVec (xSort);
 	    break;
 	  }
 	}

@@ -446,6 +446,17 @@ bool QuaffPriorIn::parsePriorArgs() {
 
     } else if (arg == "-order") {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
+      const int order = atoi (argvec[1].c_str());
+      indelContext.initKmerContext (order);
+      matchContext.initKmerContext (order);
+      resize();
+      kmerLenSpecified = true;
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-suborder") {
+      Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
       matchContext.initKmerContext (atoi (argvec[1].c_str()));
       resize();
       kmerLenSpecified = true;
@@ -617,8 +628,9 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -mininc <n>     EM convergence threshold as relative log-likelihood increase\n"
     + "                    (default is " + TOSTRING(QuaffMinEMLogLikeInc) + ")\n"
     + "   -force          Force each read to match a refseq, i.e. disallow null model\n"
-    + "   -order <k>      Allow substitutions to depend on k-mer contexts\n"
+    + "   -suborder <k>   Allow substitutions to depend on k-mer contexts\n"
     + "   -gaporder <k>   Allow gap open probabilities to depend on k-mer contexts\n"
+    + "   -order <k>      Shorthand for '-suborder <k> -gaporder <k>'\n"
     + "   -prior <file>, -saveprior <file>\n"
     + "                   Respectively: load/save prior pseudocounts from/to file\n"
     + "   -saveparams <file>, -savecounts <file>, -savecountswithprior <file>\n"

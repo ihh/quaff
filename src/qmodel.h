@@ -88,7 +88,7 @@ struct QuaffKmerContext {
   const char* prefix;
   unsigned int kmerLen, defaultKmerLen;
   Kmer numKmers;
-  QuaffKmerContext (const char* prefix, unsigned int kmerLen);
+  QuaffKmerContext (const char* prefix, unsigned int kmerLen, unsigned int defaultKmerLen);
   string kmerString (Kmer kmer) const;
   string insertParamName (AlphTok i) const;
   void writeJsonKmerLen (ostream& out) const;
@@ -96,8 +96,8 @@ struct QuaffKmerContext {
 };
 
 struct QuaffMatchKmerContext : QuaffKmerContext {
-  QuaffMatchKmerContext (unsigned int kmerLen)
-    : QuaffKmerContext ("match", kmerLen)
+  QuaffMatchKmerContext (unsigned int kmerLen = DefaultMatchKmerContext)
+    : QuaffKmerContext ("match", kmerLen, DefaultMatchKmerContext)
   { }
   string matchParamName (AlphTok i, Kmer j) const;
   string kmerPrefix (Kmer j) const;
@@ -105,8 +105,8 @@ struct QuaffMatchKmerContext : QuaffKmerContext {
 };
 
 struct QuaffIndelKmerContext : QuaffKmerContext {
-  QuaffIndelKmerContext (unsigned int kmerLen)
-    : QuaffKmerContext ("gap", kmerLen)
+  QuaffIndelKmerContext (unsigned int kmerLen = DefaultIndelKmerContext)
+    : QuaffKmerContext ("gap", kmerLen, DefaultIndelKmerContext)
   { }
   string booleanParamName (const char* tag, Kmer j) const;
 };
