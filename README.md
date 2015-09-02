@@ -113,6 +113,7 @@ A standard AMI should be fine: quaff downloads prereqs and builds itself.
 Also ensure that security group &lt;group&gt; allows incoming connections
 on ports 22 (ssh) and the range from &lt;port&gt; .. &lt;port&gt; + &lt;numberOfCores&gt; - 1.
 Any problems can often be diagnosed by turning up the logging to -v5 or so.
+
 Quaff makes every effort to clean up rogue EC2 instances, but please check!
 
 </code></pre>

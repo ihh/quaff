@@ -716,7 +716,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "A standard AMI should be fine: quaff downloads prereqs and builds itself.\n"
     + "Also ensure that security group <group> allows incoming connections\n"
     + "on ports 22 (ssh) and the range from <port> .. <port> + <numberOfCores> - 1.\n"
-    + "Any problems can often be diagnosed by turning up the logging to -v5 or so."
+    + "Any problems can often be diagnosed by turning up the logging to -v5 or so.\n"
     + "\n"
     + "Quaff makes every effort to clean up rogue EC2 instances, but please check!\n"
     + "\n";
