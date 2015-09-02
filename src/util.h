@@ -69,7 +69,7 @@ std::string to_string_join (const Container& c, const char* sep = " ") {
   std::ostringstream j;
   int n = 0;
   for (const auto& s : c) {
-    if (n++ == 0)
+    if (n++ > 0)
       j << sep;
     j << s;
   }
