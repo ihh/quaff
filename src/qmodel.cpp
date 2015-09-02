@@ -332,8 +332,8 @@ QuaffEmitCounts::QuaffEmitCounts (unsigned int matchKmerLen, unsigned int indelK
 QuaffEmitCounts::QuaffEmitCounts (const QuaffEmitCounts& c)
   : matchContext(c.matchContext.kmerLen),
     indelContext(c.indelContext.kmerLen),
-    insert (dnaAlphabetSize),
-    match (dnaAlphabetSize, vguard<SymQualCounts> (matchContext.numKmers))
+    insert (c.insert),
+    match (c.match)
 { }
 
 ostream& QuaffEmitCounts::writeJson (ostream& out) const {

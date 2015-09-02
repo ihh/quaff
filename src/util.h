@@ -4,6 +4,7 @@
 #include <numeric>
 #include <vector>
 #include <string>
+#include <sstream>
 #include <algorithm>
 #include <functional>
 #include <cassert>
@@ -65,13 +66,14 @@ std::string join (const Container& c, const char* sep = " ") {
 /* join */
 template<class Container>
 std::string to_string_join (const Container& c, const char* sep = " ") {
-  std::string j;
+  std::ostringstream j;
+  int n = 0;
   for (const auto& s : c) {
-    if (!j.empty())
-      j += sep;
-    j += to_string(s);
+    if (n++ == 0)
+      j << sep;
+    j << s;
   }
-  return j;
+  return j.str();
 }
 
 /* sgn function
