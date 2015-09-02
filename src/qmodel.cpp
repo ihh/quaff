@@ -236,7 +236,7 @@ bool QuaffParams::readJson (const JsonMap& jm) {
   QuaffParamReadJson (extendInsert);
   QuaffParamReadJson (extendDelete);
 
-  Desire (jm.contains ("insert"), "Missing parameter: \"insert\"");
+  Desire (jm.containsType ("insert", JSON_OBJECT), "Missing parameter: \"insert\"");
   const JsonValue& ins = jm["insert"];
   const JsonMap& jmIns (ins);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
@@ -245,22 +245,22 @@ bool QuaffParams::readJson (const JsonMap& jm) {
     Desire (insert[i].readJson (jmIns[iKey]), "Couldn't read \"insert\".\"%s\"", iKey.c_str());
   }
 
-  Desire (jm.contains ("match"), "Missing parameter: \"match\"");
+  Desire (jm.containsType ("match", JSON_OBJECT), "Missing parameter: \"match\"");
   const JsonValue& mat = jm["match"];
   const JsonMap jmMat (mat);
   for (Kmer jPrefix = 0; jPrefix < matchContext.numKmers; jPrefix += dnaAlphabetSize) {
     const string jPrefixKey (matchContext.kmerPrefix(jPrefix));
-    Desire (jmMat.contains (jPrefixKey), "Missing parameter: \"match\".\"%s\"", jPrefixKey.c_str());
+    Desire (jmMat.containsType (jPrefixKey, JSON_OBJECT), "Missing parameter: \"match\".\"%s\"", jPrefixKey.c_str());
     const JsonValue& matJ = jmMat[jPrefixKey];
     const JsonMap jmMatJ (matJ);
     for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
       const string iKey (1, dnaAlphabet[i]);
-      Desire (jmMatJ.contains (iKey), "Missing parameter: \"match\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str());
+      Desire (jmMatJ.containsType (iKey, JSON_OBJECT), "Missing parameter: \"match\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str());
       const JsonValue& matJI = jmMatJ[iKey];
       const JsonMap jmMatJI (matJI);
       for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix) {
 	const string jSuffixKey (1, dnaAlphabet[jSuffix]);
-	Desire (jmMatJI.contains (jSuffixKey), "Missing parameter: \"match\".\"%s\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str(), jSuffixKey.c_str());
+	Desire (jmMatJI.containsType (jSuffixKey, JSON_OBJECT), "Missing parameter: \"match\".\"%s\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str(), jSuffixKey.c_str());
 	Desire (match[i][jPrefix+jSuffix].readJson (jmMatJI[jSuffixKey]), "Couldn't read \"match\".\"%s\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str(), jSuffixKey.c_str());
       }
     }
@@ -493,31 +493,31 @@ bool QuaffParamCounts::readJson (const JsonMap& jm) {
   QuaffParamReadJson (extendInsertYes);
   QuaffParamReadJson (extendDeleteYes);
 
-  Desire (jm.contains ("insert"), "Missing parameter: \"insert\"");
+  Desire (jm.containsType ("insert", JSON_OBJECT), "Missing parameter: \"insert\"");
   const JsonValue& ins = jm["insert"];
   const JsonMap& jmIns (ins);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     const string iKey (1, dnaAlphabet[i]);
-    Desire (jmIns.containsType(iKey,JSON_OBJECT), "Missing parameter: \"insert\".\"%s\"", iKey.c_str());
+    Desire (jmIns.containsType(iKey,JSON_ARRAY), "Missing parameter: \"insert\".\"%s\"", iKey.c_str());
     Desire (insert[i].readJson (jmIns[iKey]), "Couldn't read \"insert\".\"%s\"", iKey.c_str());
   }
 
-  Desire (jm.contains ("match"), "Missing parameter: \"match\"");
+  Desire (jm.containsType ("match", JSON_OBJECT), "Missing parameter: \"match\"");
   const JsonValue& mat = jm["match"];
   const JsonMap jmMat (mat);
   for (Kmer jPrefix = 0; jPrefix < matchContext.numKmers; jPrefix += dnaAlphabetSize) {
     const string jPrefixKey (matchContext.kmerPrefix(jPrefix));
-    Desire (jmMat.contains (jPrefixKey), "Missing parameter: \"match\".\"%s\"", jPrefixKey.c_str());
+    Desire (jmMat.containsType (jPrefixKey, JSON_OBJECT), "Missing parameter: \"match\".\"%s\"", jPrefixKey.c_str());
     const JsonValue& matJ = jmMat[jPrefixKey];
     const JsonMap jmMatJ (matJ);
     for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
       const string iKey (1, dnaAlphabet[i]);
-      Desire (jmMatJ.contains (iKey), "Missing parameter: \"match\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str());
+      Desire (jmMatJ.containsType (iKey, JSON_OBJECT), "Missing parameter: \"match\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str());
       const JsonValue& matJI = jmMatJ[iKey];
       const JsonMap jmMatJI (matJI);
       for (AlphTok jSuffix = 0; jSuffix < dnaAlphabetSize; ++jSuffix) {
 	const string jSuffixKey (1, dnaAlphabet[jSuffix]);
-	Desire (jmMatJI.contains (jSuffixKey), "Missing parameter: \"match\".\"%s\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str(), jSuffixKey.c_str());
+	Desire (jmMatJI.containsType (jSuffixKey, JSON_ARRAY), "Missing parameter: \"match\".\"%s\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str(), jSuffixKey.c_str());
 	Desire (match[i][jPrefix+jSuffix].readJson (jmMatJI[jSuffixKey]), "Couldn't read \"match\".\"%s\".\"%s\".\"%s\"", jPrefixKey.c_str(), iKey.c_str(), jSuffixKey.c_str());
       }
     }
@@ -1727,7 +1727,7 @@ bool QuaffNullParams::readJson (const JsonMap& jm) {
   const JsonMap jmR (jm["null"]);
   for (AlphTok i = 0; i < dnaAlphabetSize; ++i) {
     const string iKey (1, dnaAlphabet[i]);
-    Desire (jmR.contains (iKey), "Missing parameter: \"refBase\".%s", iKey.c_str());
+    Desire (jmR.containsType (iKey, JSON_OBJECT), "Missing parameter: \"refBase\".%s", iKey.c_str());
     Desire (null[i].readJson (jmR[iKey]), "Couldn't read null model");
   }
   return true;
@@ -1973,7 +1973,7 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
 	  task.run();
 
 	  ostringstream out;
-	  out << "{ \"xOrder\": [ " << to_string_join(sortOrder,", ") << "]," << endl;
+	  out << "{ \"xOrder\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
 	  out << "  \"loglike\": " << yLogLike << "," << endl;
 	  yCounts.writeJson (out << "  \"counts\": ") << " }" << endl;
 	  out << SocketTerminatorString << endl;

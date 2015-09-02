@@ -108,7 +108,7 @@ public:
 
 extern Logger logger;
 
-#define VFUNCFILE(V) V,__FUNCTION__,__FILE__
+#define VFUNCFILE(V) V,__func__,__FILE__
 
 #define LogAt(V)     (logger.testVerbosityWithLock(V))
 #define LogWhen(TAG) (logger.testLogTagWithLock(TAG))

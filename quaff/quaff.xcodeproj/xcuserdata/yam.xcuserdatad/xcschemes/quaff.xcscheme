@@ -118,6 +118,10 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "align nanopair-data/U00096.2.fas data/c8f30.fastq.gz copy.fastq -v9 -threads 2 -remote 127.0.0.1:8000"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "train /Users/yam/nanopore/ecoli-k12-mg1655/U00096.2.fas /Users/yam/nanopore/marc/MA_286_R7.3_MARC_K12_03_27_15.2D.fastq.gz -v5 -log parse -kmatchmb 50 -remote localhost:8002"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
