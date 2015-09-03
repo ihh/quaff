@@ -40,12 +40,13 @@
 // Directory whose creation signals that server startup is finished
 #define ServerReadyDir SyncStagingDir "/.ready"
 
-// Number of attempts for ssh
+// Maximum number of times an ssh will be tried
+// Applies to all commands executed by ssh (including e.g. mkdir's during setup)
 #define MaxQuaffSshAttempts 10
 
 // Server keep-alive parameters for ssh
-// To give the server time to restart, we want the following to hold:
-//  QuaffServerAliveCountMax*QuaffServerAliveInterval < MaxQuaffClientFailures*MinQuaffRetryDelay + (expected quaff startup time)
+// To give the server ample time to restart after a failure, we want the following to hold:
+//  QuaffServerAliveCountMax*QuaffServerAliveInterval + MaxQuaffRetryDelay + (expected quaff server startup time) < MaxQuaffClientFailures*MinQuaffRetryDelay
 #define QuaffServerAliveInterval 15
 #define QuaffServerAliveCountMax 3
 
