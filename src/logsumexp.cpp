@@ -28,7 +28,7 @@ LogSumExpLookupTable::LogSumExpLookupTable() {
 }
 
 LogSumExpLookupTable::~LogSumExpLookupTable() {
-  delete lookup;
+  delete[] lookup;
 }
 
 double log_sum_exp (double a, double b) {
