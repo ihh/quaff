@@ -438,13 +438,12 @@ QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_
   ++ny;  // no self-comparisons
   if (ny == y.size())  // handle annoying trivial edge case of being given a single sequence
     ++nx;
-  else {
+  else
     printer.writeAlignmentHeader (out, x, false);
-    plog.initProgress ("Overlap alignment");
-  }
 }
 
-string QuaffOverlapTask::delegate (const RemoteServer& remote) {
+bool QuaffOverlapTask::delegate (const RemoteServer& remote, string& response) {
+  bool success = false;
   LogThisAt(3, "Delegating " << xfs.name << " vs " << yfs.name << " to " << remote.toString() << endl);
   ostringstream out;
   out << "{ \"xName\": " << JsonUtil::quoteEscaped(xfs.name) << "," << endl;
@@ -453,14 +452,14 @@ string QuaffOverlapTask::delegate (const RemoteServer& remote) {
   out << SocketTerminatorString << endl;
   
   const string msg = out.str();
-  string response;
 
-  while (true) {
+  for (int failures = 0; failures < MaxQuaffClientFailures; ++failures) {
     try {
       TCPSocket sock(remote.addr, remote.port);
       sock.send (msg.c_str(), (int) msg.size());
 
       response = JsonUtil::readStringFromSocket (&sock);
+      success = true;
       break;
 
     } catch (SocketException& e) {
@@ -469,7 +468,8 @@ string QuaffOverlapTask::delegate (const RemoteServer& remote) {
 
     randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
   }
-  return response;
+
+  return success;
 }
 
 bool QuaffOverlapScheduler::finished() const {
@@ -477,12 +477,28 @@ bool QuaffOverlapScheduler::finished() const {
 }
 
 QuaffOverlapTask QuaffOverlapScheduler::nextOverlapTask() {
-  const size_t oldNx = nx, oldNy = ny;
-  if (++ny == y.size()) {
-    ++nx;
-    ny = nx + 1;
+  const FastSeq *pxfs, *pyfs;
+  bool yComp;
+  if (failed.size()) {
+    pxfs = get<0>(failed.front());
+    pyfs = get<1>(failed.front());
+    yComp = get<2>(failed.front());
+    failed.pop_front();
+  } else {
+    const size_t oldNx = nx, oldNy = ny;
+    if (++ny == y.size()) {
+      ++nx;
+      ny = nx + 1;
+    }
+    pxfs = &x[oldNx];
+    pyfs = &y[oldNy];
+    yComp = (ny >= nOriginals);
   }
-  return QuaffOverlapTask (x[oldNx], y[oldNy], ny >= nOriginals, params, nullModel, config);
+  return QuaffOverlapTask (*pxfs, *pyfs, yComp, params, nullModel, config);
+}
+
+void QuaffOverlapScheduler::rescheduleOverlapTask (const QuaffOverlapTask& task) {
+  failed.push_back (tuple<const FastSeq*,const FastSeq*,bool> (&task.xfs, &task.yfs, task.yComplemented));
 }
 
 void runQuaffOverlapTasks (QuaffOverlapScheduler* qos) {
@@ -508,7 +524,14 @@ void delegateQuaffOverlapTasks (QuaffOverlapScheduler* qos, const RemoteServer* 
     }
     QuaffOverlapTask task = qos->nextOverlapTask();
     qos->unlock();
-    const string alignStr = task.delegate (*remote);
+    string alignStr;
+    if (!task.delegate (*remote, alignStr)) {
+      qos->lock();
+      qos->rescheduleOverlapTask (task);
+      qos->unlock();
+      LogThisAt(1,"Server unresponsive; quitting client thread");
+      break;
+    }
     qos->printAlignments (alignStr);
   }
 }

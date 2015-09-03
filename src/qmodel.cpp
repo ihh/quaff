@@ -1899,9 +1899,9 @@ void QuaffTrainer::serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>&
 }
 
 void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, const QuaffDPConfig* pconfig, unsigned int port) {
-  map<string,const FastSeq*> yDict;
-  for (const auto& s : *py)
-    yDict[s.name] = &s;
+  map<string,size_t> yDict;
+  for (size_t ny = 0; ny < py->size(); ++ny)
+    yDict[(*py)[ny].name] = ny;
 
   if (LoggingThisAt(8)) {
     ostringstream l;
@@ -1956,7 +1956,8 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
 	  QuaffParamCounts yCounts (matchKmerLen, indelKmerLen);
 
 	  double yLogLike;
-	  QuaffCountingTask task (*px, *yDict[yName], params, nullModel, useNullModel, *pconfig, sortOrder, yLogLike, yCounts);
+	  const size_t ny = yDict[yName];
+	  QuaffCountingTask task (*px, (*py)[ny], ny, params, nullModel, useNullModel, *pconfig, sortOrder, yLogLike, yCounts);
 	  task.run();
 
 	  ostringstream out;
@@ -2030,9 +2031,9 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
   return qp;
 }
 
-QuaffCountingTask::QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& yCounts)
+QuaffCountingTask::QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, size_t ny, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& yCounts)
   : QuaffTask (yfs, params, nullModel, config),
-    x(x), useNullModel(useNullModel), sortOrder(sortOrder), yLogLike(yLogLike), yCounts(yCounts)
+    x(x), ny(ny), useNullModel(useNullModel), sortOrder(sortOrder), yLogLike(yLogLike), yCounts(yCounts)
 { }
 
 void QuaffCountingTask::run() {
@@ -2070,8 +2071,9 @@ void QuaffCountingTask::run() {
   sortOrder.erase (sortOrderCutoff, sortOrder.end());  // bye bye unproductive refseqs
 }
 
-void QuaffCountingTask::delegate (const RemoteServer& remote) {
-  while (true) {
+bool QuaffCountingTask::delegate (const RemoteServer& remote) {
+  bool success = false;
+  for (int failures = 0; failures < MaxQuaffClientFailures; ++failures) {
     LogThisAt(3, "Delegating " << yfs.name << " to " << remote.toString() << endl);
     ostringstream out;
     out << "{\"yName\": " << JsonUtil::quoteEscaped(yfs.name) << "," << endl;
@@ -2100,6 +2102,7 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
 	  yLogLike = pj["loglike"].toNumber();
 	  if (yCounts.readJson (pj["counts"])) {
 	    sortOrder = JsonUtil::indexVec (xSort);
+	    success = true;
 	    break;
 	  }
 	}
@@ -2111,6 +2114,8 @@ void QuaffCountingTask::delegate (const RemoteServer& remote) {
 
     randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
   }
+
+  return success;
 }
 
 QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file, int line)
@@ -2132,9 +2137,18 @@ bool QuaffCountingScheduler::finished() const {
 }
 
 QuaffCountingTask QuaffCountingScheduler::nextCountingTask() {
-  const size_t n = ny++;
-  plog.logProgress (n / (double) y.size(), "finished %lu/%lu reads", n, y.size());
-  return QuaffCountingTask (x, y[n], params, nullModel, useNullModel, config, sortOrder[n], yLogLike[n], yCounts[n]);
+  size_t n;
+  if (failed.size()) {
+    n = failed.front();
+    failed.pop_front();
+  } else
+    n = ny++;
+  plog.logProgress ((ny - failed.size()) / (double) y.size(), "counted %lu/%lu reads", ny - failed.size(), y.size());
+  return QuaffCountingTask (x, y[n], n, params, nullModel, useNullModel, config, sortOrder[n], yLogLike[n], yCounts[n]);
+}
+
+void QuaffCountingScheduler::rescheduleCountingTask (const QuaffCountingTask& task) {
+  failed.push_back (task.ny);
 }
 
 QuaffParamCounts QuaffCountingScheduler::finalCounts() const {
@@ -2167,7 +2181,13 @@ void delegateQuaffCountingTasks (QuaffCountingScheduler* qcs, const RemoteServer
     }
     QuaffCountingTask task = qcs->nextCountingTask();
     qcs->unlock();
-    task.delegate (*remote);
+    if (!task.delegate (*remote)) {
+      qcs->lock();
+      qcs->rescheduleCountingTask (task);
+      qcs->unlock();
+      LogThisAt(1,"Server unresponsive; quitting client thread");
+      break;
+    }
   }
 }
 
@@ -2436,21 +2456,22 @@ void QuaffAlignmentTask::run() {
   }
 }
 
-string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
+bool QuaffAlignmentTask::delegate (const RemoteServer& remote, string& response) {
+  bool success = false;
   LogThisAt(3, "Delegating " << yfs.name << " to " << remote.toString() << endl);
   ostringstream out;
   out << "{ \"yName\": " << JsonUtil::quoteEscaped(yfs.name) << " }" << endl;
   out << SocketTerminatorString << endl;
   
   const string msg = out.str();
-  string response;
 
-  while (true) {
+  for (int failures = 0; failures < MaxQuaffClientFailures; ++failures) {
     try {
       TCPSocket sock(remote.addr, remote.port);
       sock.send (msg.c_str(), (int) msg.size());
 
       response = JsonUtil::readStringFromSocket (&sock);
+      success = true;
       break;
 
     } catch (SocketException& e) {
@@ -2460,7 +2481,7 @@ string QuaffAlignmentTask::delegate (const RemoteServer& remote) {
     randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
   }
 
-  return response;
+  return success;
 }
 
 QuaffAlignmentPrintingScheduler::QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line)
@@ -2499,9 +2520,18 @@ bool QuaffAlignmentScheduler::finished() const {
 }
 
 QuaffAlignmentTask QuaffAlignmentScheduler::nextAlignmentTask() {
-  const size_t n = ny++;
-  plog.logProgress (n / (double) y.size(), "aligned %lu/%lu reads", n, y.size());
-  return QuaffAlignmentTask (x, y[n], params, nullModel, config, keepAllAlignments);
+  const FastSeq* pyfs;
+  if (failed.size()) {
+    pyfs = failed.front();
+    failed.pop_front();
+  } else
+    pyfs = &y[ny++];
+  plog.logProgress ((ny - failed.size()) / (double) y.size(), "aligned %lu/%lu reads", ny - failed.size(), y.size());
+  return QuaffAlignmentTask (x, *pyfs, params, nullModel, config, keepAllAlignments);
+}
+
+void QuaffAlignmentScheduler::rescheduleAlignmentTask (const QuaffAlignmentTask& task) {
+  failed.push_back (&task.yfs);
 }
 
 void runQuaffAlignmentTasks (QuaffAlignmentScheduler* qas) {
@@ -2527,7 +2557,14 @@ void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qas, const RemoteServ
     }
     QuaffAlignmentTask task = qas->nextAlignmentTask();
     qas->unlock();
-    const string alignStr = task.delegate (*remote);
+    string alignStr;
+    if (!task.delegate (*remote, alignStr)) {
+      qas->lock();
+      qas->rescheduleAlignmentTask (task);
+      qas->unlock();
+      LogThisAt(1,"Server unresponsive; quitting client thread");
+      break;
+    }
     qas->printAlignments (alignStr);
   }
 }

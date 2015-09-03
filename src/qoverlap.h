@@ -1,6 +1,7 @@
 #ifndef QOVERLAP_INCLUDED
 #define QOVERLAP_INCLUDED
 
+#include <tuple>
 #include "qmodel.h"
 
 struct SymQualPairScores {
@@ -76,17 +77,18 @@ struct QuaffOverlapTask : QuaffTask {
   const FastSeq& xfs;
   const bool yComplemented;
   QuaffAlignmentPrinter::AlignmentList alignList;
-
   QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
   void run();
-  string delegate (const RemoteServer& remote);
+  bool delegate (const RemoteServer& remote, string& align);
 };
 
 struct QuaffOverlapScheduler : QuaffAlignmentPrintingScheduler {
   size_t nx, nOriginals;
+  deque<tuple<const FastSeq*,const FastSeq*,bool> > failed;
   QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line);
   bool finished() const;
   QuaffOverlapTask nextOverlapTask();
+  void rescheduleOverlapTask (const QuaffOverlapTask& task);
 };
 
 // thread entry point
