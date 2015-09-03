@@ -22,6 +22,7 @@ const double MAX_FRACTIONAL_FWDBACK_ERROR = .0001;
 // Threshold for dropping poorly-matching refseqs
 const double MAX_TRAINING_LOG_DELTA = 20;
 
+const regex readyRegex (QuaffSshReadyString, regex_constants::basic);
 const regex remoteUserAddrRegex (RE_DOT_GROUP "@" RE_DNS_GROUP RE_DOT_STAR, regex_constants::basic);
 const regex remoteAddrRegex (RE_DNS_GROUP RE_DOT_STAR, regex_constants::basic);
 const regex singleRemotePortRegex (RE_DOT_STAR ":" RE_NUMERIC_GROUP, regex_constants::basic);
@@ -1055,7 +1056,7 @@ void QuaffDPConfig::stopRemoteServers() {
 
 // buffer size for popen
 #define PIPE_BUF_SIZE 1024
-bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts) const {
+bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts, bool lookForReadyString) const {
   int attempts = 0;
   while (true) {
   
@@ -1065,12 +1066,23 @@ bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts) const {
     char line[PIPE_BUF_SIZE];
     deque<string> lastLines;
     const int linesToKeep = 3;
-  
+
+    string readyBuf;
+    bool foundReadyString = false;
+    
     while (fgets(line, PIPE_BUF_SIZE, pipe)) {
       lastLines.push_back (string (line));
       if (lastLines.size() > linesToKeep)
 	lastLines.erase (lastLines.begin());
       LogThisAt(4, line);
+
+      if (lookForReadyString && !foundReadyString) {
+	readyBuf += line;
+	if (regex_search (readyBuf, readyRegex)) {
+	  foundReadyString = true;
+	  LogThisAt(3, "Found '" << QuaffSshReadyString << "': connection successful\n");
+	}
+      }
     }
 
     const int status = pclose (pipe);
@@ -1079,7 +1091,9 @@ bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts) const {
 
     Warn ("Command failed: %s\nExit code: %d\nLast output:\n%s", cmd.c_str(), status, join(lastLines).c_str());
 
-    if (++attempts >= maxAttempts) {
+    if (foundReadyString)
+      attempts = 0;
+    else if (++attempts >= maxAttempts) {
       Warn ("Too many failed attempts to connect");
       return false;
     }
@@ -1092,7 +1106,7 @@ bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts) const {
 
 void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob* remoteJob) {
   const string sshCmd = config->makeSshCommand (config->makeServerCommand(*remoteJob), *remoteJob);
-  const bool remoteServerStarted = config->execWithRetries (sshCmd, MaxQuaffSshAttempts);
+  const bool remoteServerStarted = config->execWithRetries (sshCmd, MaxQuaffSshAttempts, true);
   Assert (remoteServerStarted, "Failed to start remote server");
 }
 
@@ -1915,6 +1929,8 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
   TCPServerSocket servSock (port);
   LogThisAt(1, "(listening on port " << port << ')' << endl);
 
+  cout << QuaffSshReadyString << endl;
+
   while (true) {
     TCPSocket *sock = NULL;
     sock = servSock.accept();
@@ -2384,6 +2400,8 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
 
   TCPServerSocket servSock (port);
   LogThisAt(1, "(listening on port " << port << ')' << endl);
+
+  cout << QuaffSshReadyString << endl;
 
   while (true) {
     TCPSocket *sock = NULL;

@@ -359,6 +359,8 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
   TCPServerSocket servSock (port);
   LogThisAt(1, "(listening on port " << port << ')' << endl);
 
+  cout << QuaffSshReadyString << endl;
+
   while (true) {
     TCPSocket *sock = NULL;
     sock = servSock.accept();

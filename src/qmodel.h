@@ -40,9 +40,13 @@
 // Directory whose creation signals that server startup is finished
 #define ServerReadyDir SyncStagingDir "/.ready"
 
-// Maximum number of times an ssh will be tried
+// Maximum number of times an ssh job will be tried
 // Applies to all commands executed by ssh (including e.g. mkdir's during setup)
 #define MaxQuaffSshAttempts 10
+
+// If an ssh job emits this string, it is deemed to be a partial success,
+// and the attempt count will be reset
+#define QuaffSshReadyString "# READY"
 
 // Server keep-alive parameters for ssh
 // To give the server ample time to restart after a failure, we want the following to hold:
@@ -303,7 +307,7 @@ struct QuaffDPConfig {
   string makeServerCommand (const RemoteServerJob& job) const;
   string makeSshCommand() const;
   string makeSshCommand (const string& cmd, const RemoteServerJob& job) const;
-  bool execWithRetries (const string& cmd, int maxAttempts) const;
+  bool execWithRetries (const string& cmd, int maxAttempts, bool lookForReadyString = false) const;
 };
 
 // thread entry point
