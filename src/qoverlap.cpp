@@ -529,7 +529,7 @@ void delegateQuaffOverlapTasks (QuaffOverlapScheduler* qos, const RemoteServer* 
       qos->lock();
       qos->rescheduleOverlapTask (task);
       qos->unlock();
-      LogThisAt(1,"Server unresponsive; quitting client thread");
+      LogThisAt(1,"Server at " << remote->toString() << " unresponsive; quitting client thread\n");
       break;
     }
     qos->printAlignments (alignStr);

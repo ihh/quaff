@@ -1017,7 +1017,7 @@ string QuaffDPConfig::makeServerCommand (const RemoteServerJob& job) const {
 }
 
 string QuaffDPConfig::makeSshCommand() const {
-  string sshCmd = sshPath + " -oBatchMode=yes -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no";
+  string sshCmd = sshPath + " -oBatchMode=yes -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no -oServerAliveInterval=" + to_string(QuaffServerAliveInterval);
   if (sshKey.size())
     sshCmd += " -i " + sshKey;
   return sshCmd;
@@ -2185,7 +2185,7 @@ void delegateQuaffCountingTasks (QuaffCountingScheduler* qcs, const RemoteServer
       qcs->lock();
       qcs->rescheduleCountingTask (task);
       qcs->unlock();
-      LogThisAt(1,"Server unresponsive; quitting client thread");
+      LogThisAt(1,"Server at " << remote->toString() << " unresponsive; quitting client thread\n");
       break;
     }
   }
@@ -2562,7 +2562,7 @@ void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qas, const RemoteServ
       qas->lock();
       qas->rescheduleAlignmentTask (task);
       qas->unlock();
-      LogThisAt(1,"Server unresponsive; quitting client thread");
+      LogThisAt(1,"Server at " << remote->toString() << " unresponsive; quitting client thread\n");
       break;
     }
     qas->printAlignments (alignStr);

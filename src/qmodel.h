@@ -41,10 +41,13 @@
 #define ServerReadyDir SyncStagingDir "/.ready"
 
 // Number of attempts for ssh
-#define MaxQuaffSshAttempts 3
+#define MaxQuaffSshAttempts 10
 
-// Number of consecutive failures before a client quits in disgust
-#define MaxQuaffClientFailures 10
+// ServerAliveInterval for ssh
+#define QuaffServerAliveInterval 15
+
+// Number of consecutive failures to connect before a client quits to avoid blocking
+#define MaxQuaffClientFailures 30
 
 // Retry delay
 #define MinQuaffRetryDelay 5
