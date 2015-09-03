@@ -1017,7 +1017,7 @@ string QuaffDPConfig::makeServerCommand (const RemoteServerJob& job) const {
 }
 
 string QuaffDPConfig::makeSshCommand() const {
-  string sshCmd = sshPath + " -oBatchMode=yes -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no -oServerAliveInterval=" + to_string(QuaffServerAliveInterval);
+  string sshCmd = sshPath + " -oBatchMode=yes -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no -oServerAliveInterval=" + to_string(QuaffServerAliveInterval) + "-oServerAliveCountMax=" + to_string(QuaffServerAliveCountMax);
   if (sshKey.size())
     sshCmd += " -i " + sshKey;
   return sshCmd;

@@ -43,15 +43,18 @@
 // Number of attempts for ssh
 #define MaxQuaffSshAttempts 10
 
-// ServerAliveInterval for ssh
+// Server keep-alive parameters for ssh
+// To give the server time to restart, we want the following to hold:
+//  QuaffServerAliveCountMax*QuaffServerAliveInterval < MaxQuaffClientFailures*MinQuaffRetryDelay + (expected quaff startup time)
 #define QuaffServerAliveInterval 15
+#define QuaffServerAliveCountMax 3
 
 // Number of consecutive failures to connect before a client quits to avoid blocking
 #define MaxQuaffClientFailures 30
 
 // Retry delay
-#define MinQuaffRetryDelay 5
-#define MaxQuaffRetryDelay 15
+#define MinQuaffRetryDelay 10
+#define MaxQuaffRetryDelay 20
 
 // useful helper methods
 void randomDelayBeforeRetry (unsigned int minSeconds, unsigned int maxSeconds);
