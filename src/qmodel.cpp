@@ -1097,8 +1097,10 @@ bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts, bool lo
       Warn ("Too many failed attempts to connect");
       return false;
     }
-    
-    randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
+
+    // delay with exponential backoff
+    const double delayMultiplier = pow (QuaffSshRetryDelayMultiplier, (double) attempts);
+    randomDelayBeforeRetry ((int) (MinQuaffRetryDelay * delayMultiplier), (int) (MaxQuaffRetryDelay * delayMultiplier));
   }
 
   return true;

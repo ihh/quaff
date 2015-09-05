@@ -48,7 +48,7 @@
 // Maximum number of times a quaff ssh job will be tried
 // To allow for the server's sockets to exit the TIME_WAIT state following a failure,
 // we want the following to hold:
-//  MaxQuaffSshAttempts * MinQuaffRetryDelay > (TIME_WAIT timeout)
+//  (QuaffDelayMultiplier ** (MaxQuaffSshAttempts - 1)) * MinQuaffRetryDelay > (TIME_WAIT timeout)
 // Default TIME_WAIT time is 120 seconds...
 #define MaxQuaffSshAttempts 20
 
@@ -68,6 +68,9 @@
 // Retry delay
 #define MinQuaffRetryDelay 10
 #define MaxQuaffRetryDelay 20
+
+// Exponential backoff for retry delay (ssh only)
+#define QuaffSshRetryDelayMultiplier 1.15
 
 // useful helper methods
 void randomDelayBeforeRetry (unsigned int minSeconds, unsigned int maxSeconds);
