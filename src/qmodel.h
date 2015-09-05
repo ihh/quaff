@@ -40,9 +40,17 @@
 // Directory whose creation signals that server startup is finished
 #define ServerReadyDir SyncStagingDir "/.ready"
 
-// Maximum number of times an ssh job will be tried
+// Maximum number of times a general ssh job will be tried
 // Applies to all commands executed by ssh (including e.g. mkdir's during setup)
-#define MaxQuaffSshAttempts 10
+// Does not apply to the actual quaff job
+#define MaxGenericSshAttempts 10
+
+// Maximum number of times a quaff ssh job will be tried
+// To allow for the server's sockets to exit the TIME_WAIT state following a failure,
+// we want the following to hold:
+//  MaxQuaffSshAttempts * MinQuaffRetryDelay > (TIME_WAIT timeout)
+// Default TIME_WAIT time is 120 seconds...
+#define MaxQuaffSshAttempts 20
 
 // If an ssh job emits this string, it is deemed to be a partial success,
 // and the attempt count will be reset

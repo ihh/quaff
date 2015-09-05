@@ -964,7 +964,7 @@ void QuaffDPConfig::syncToBucket (const string& filename) const {
 
 void QuaffDPConfig::makeStagingDir (const RemoteServerJob& remote) const {
   const string mkdirCmd = makeSshCommand (string("mkdir -p ") + SyncStagingDir, remote);
-  Require (execWithRetries(mkdirCmd,MaxQuaffSshAttempts), "remote mkdir failed");
+  Require (execWithRetries(mkdirCmd,MaxGenericSshAttempts), "remote mkdir failed");
 }
 
 void QuaffDPConfig::syncToRemote (const string& filename, const RemoteServerJob& remote) const {
@@ -974,7 +974,7 @@ void QuaffDPConfig::syncToRemote (const string& filename, const RemoteServerJob&
     + " " + (remote.user.size() ? (remote.user + "@") : string())
     + remote.addr + ":" + SyncStagingDir + "/" + AWS::basenameStr(filename)
     + " 2>&1";
-  Require (execWithRetries(rsyncCmd,MaxQuaffSshAttempts), "rsync failed");
+  Require (execWithRetries(rsyncCmd,MaxGenericSshAttempts), "rsync failed");
 }
 
 void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads) {
@@ -992,7 +992,7 @@ void QuaffDPConfig::startRemoteServers() {
     for (const auto& addr : ec2InstanceAddresses) {
       addRemote (ec2User, addr, ec2Port, ec2Cores);
       const string testCmd = makeSshCommand (string ("while ! test -e " ServerReadyDir "; do sleep 1; done"), remoteJobs.back());
-      const bool bucketStagingDirExists = execWithRetries(testCmd,MaxQuaffSshAttempts);
+      const bool bucketStagingDirExists = execWithRetries(testCmd,MaxGenericSshAttempts);
       Assert (bucketStagingDirExists, "Cloud initialization failed");
     }
   }
