@@ -448,7 +448,7 @@ bool QuaffPriorIn::parsePriorArgs() {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
       const int order = atoi (argvec[1].c_str());
       indelContext.initKmerContext (order);
-      matchContext.initKmerContext (order);
+      matchContext.initKmerContext (1 + order);
       resize();
       kmerLenSpecified = true;
       argvec.pop_front();
@@ -457,7 +457,7 @@ bool QuaffPriorIn::parsePriorArgs() {
 
     } else if (arg == "-suborder") {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
-      matchContext.initKmerContext (atoi (argvec[1].c_str()));
+      matchContext.initKmerContext (1 + atoi (argvec[1].c_str()));
       resize();
       kmerLenSpecified = true;
       argvec.pop_front();
