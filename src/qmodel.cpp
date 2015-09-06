@@ -2150,8 +2150,12 @@ QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const 
   plog.initProgress ("Calculating expected counts%s", banner);
 }
 
+bool QuaffCountingScheduler::noMoreTasks() const {
+  return ny == y.size() && failed.empty();
+}
+
 bool QuaffCountingScheduler::finished() const {
-  return ny == y.size();
+  return noMoreTasks() && pending == 0;
 }
 
 QuaffCountingTask QuaffCountingScheduler::nextCountingTask() {
@@ -2166,6 +2170,7 @@ QuaffCountingTask QuaffCountingScheduler::nextCountingTask() {
 }
 
 void QuaffCountingScheduler::rescheduleCountingTask (const QuaffCountingTask& task) {
+  LogThisAt(2,"Rescheduling " << task.yfs.name << endl);
   failed.push_back (task.ny);
 }
 
@@ -2193,14 +2198,25 @@ void runQuaffCountingTasks (QuaffCountingScheduler* qcs) {
 void delegateQuaffCountingTasks (QuaffCountingScheduler* qcs, const RemoteServer* remote) {
   while (true) {
     qcs->lock();
-    if (qcs->finished()) {
+    if (qcs->noMoreTasks()) {
+      const bool finished = qcs->finished();
       qcs->unlock();
-      break;
+      if (finished)
+	break;
+      else {
+	randomDelayBeforeRetry();
+	continue;
+      }
     }
     QuaffCountingTask task = qcs->nextCountingTask();
+    ++qcs->pending;
     qcs->unlock();
-    if (!task.delegate (*remote)) {
-      qcs->lock();
+    const bool taskDone = task.delegate (*remote);
+    qcs->lock();
+    --qcs->pending;
+    if (taskDone)
+      qcs->unlock();
+    else {
       qcs->rescheduleCountingTask (task);
       qcs->unlock();
       LogThisAt(1,"Server at " << remote->toString() << " unresponsive; quitting client thread\n");
@@ -2535,8 +2551,12 @@ QuaffAlignmentScheduler::QuaffAlignmentScheduler (const vguard<FastSeq>& x, cons
   plog.initProgress ("Alignment");
 }
 
+bool QuaffAlignmentScheduler::noMoreTasks() const {
+  return ny == y.size() && failed.empty();
+}
+
 bool QuaffAlignmentScheduler::finished() const {
-  return ny == y.size();
+  return noMoreTasks() && pending == 0;
 }
 
 QuaffAlignmentTask QuaffAlignmentScheduler::nextAlignmentTask() {
@@ -2551,6 +2571,7 @@ QuaffAlignmentTask QuaffAlignmentScheduler::nextAlignmentTask() {
 }
 
 void QuaffAlignmentScheduler::rescheduleAlignmentTask (const QuaffAlignmentTask& task) {
+  LogThisAt(2,"Rescheduling " << task.yfs.name << endl);
   failed.push_back (&task.yfs);
 }
 
@@ -2571,15 +2592,26 @@ void runQuaffAlignmentTasks (QuaffAlignmentScheduler* qas) {
 void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qas, const RemoteServer* remote) {
   while (true) {
     qas->lock();
-    if (qas->finished()) {
+    if (qas->noMoreTasks()) {
+      const bool finished = qas->finished();
       qas->unlock();
-      break;
+      if (finished)
+	break;
+      else {
+	randomDelayBeforeRetry();
+	continue;
+      }
     }
     QuaffAlignmentTask task = qas->nextAlignmentTask();
+    ++qas->pending;
     qas->unlock();
     string alignStr;
-    if (!task.delegate (*remote, alignStr)) {
-      qas->lock();
+    const bool taskDone = task.delegate (*remote, alignStr);
+    qas->lock();
+    --qas->pending;
+    if (taskDone)
+      qas->unlock();
+    else {
       qas->rescheduleAlignmentTask (task);
       qas->unlock();
       LogThisAt(1,"Server at " << remote->toString() << " unresponsive; quitting client thread\n");

@@ -474,8 +474,12 @@ bool QuaffOverlapTask::delegate (const RemoteServer& remote, string& response) {
   return success;
 }
 
+bool QuaffOverlapScheduler::noMoreTasks() const {
+  return nx == nOriginals && failed.empty();
+}
+
 bool QuaffOverlapScheduler::finished() const {
-  return nx == nOriginals;
+  return noMoreTasks() && pending == 0;
 }
 
 QuaffOverlapTask QuaffOverlapScheduler::nextOverlapTask() {
@@ -500,6 +504,7 @@ QuaffOverlapTask QuaffOverlapScheduler::nextOverlapTask() {
 }
 
 void QuaffOverlapScheduler::rescheduleOverlapTask (const QuaffOverlapTask& task) {
+  LogThisAt(2,"Rescheduling " << task.xfs.name << " vs " << task.yfs.name << endl);
   failed.push_back (tuple<const FastSeq*,const FastSeq*,bool> (&task.xfs, &task.yfs, task.yComplemented));
 }
 
@@ -520,15 +525,26 @@ void runQuaffOverlapTasks (QuaffOverlapScheduler* qos) {
 void delegateQuaffOverlapTasks (QuaffOverlapScheduler* qos, const RemoteServer* remote) {
   while (true) {
     qos->lock();
-    if (qos->finished()) {
+    if (qos->noMoreTasks()) {
+      const bool finished = qos->finished();
       qos->unlock();
-      break;
+      if (finished)
+	break;
+      else {
+	randomDelayBeforeRetry();
+	continue;
+      }
     }
     QuaffOverlapTask task = qos->nextOverlapTask();
+    ++qos->pending;
     qos->unlock();
     string alignStr;
-    if (!task.delegate (*remote, alignStr)) {
-      qos->lock();
+    const bool taskDone = task.delegate (*remote, alignStr);
+    qos->lock();
+    --qos->pending;
+    if (taskDone)
+      qos->unlock();
+    else {
       qos->rescheduleOverlapTask (task);
       qos->unlock();
       LogThisAt(1,"Server at " << remote->toString() << " unresponsive; quitting client thread\n");

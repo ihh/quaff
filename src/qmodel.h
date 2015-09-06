@@ -73,7 +73,7 @@
 #define QuaffSshRetryDelayMultiplier 1.15
 
 // useful helper methods
-void randomDelayBeforeRetry (unsigned int minSeconds, unsigned int maxSeconds);
+void randomDelayBeforeRetry (unsigned int minSeconds = MinQuaffRetryDelay, unsigned int maxSeconds = MaxQuaffRetryDelay);
 
 // struct describing the probability of a given FASTA symbol,
 // and a negative binomial distribution over the associated quality score
@@ -480,11 +480,11 @@ struct QuaffScheduler {
   const QuaffParams& params;
   const QuaffDPConfig& config;
   const QuaffNullParams& nullModel;
-  size_t ny;
+  size_t ny, pending;
   mutex mx;
   ProgressLogger plog;
   QuaffScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, int verbosity, const char* function, const char* file, int line)
-    : x(x), y(y), params(params), nullModel(nullModel), config(config), ny(0), plog(verbosity,function,file,line)
+    : x(x), y(y), params(params), nullModel(nullModel), config(config), ny(0), pending(0), plog(verbosity,function,file,line)
   { }
   void lock() { mx.lock(); }
   void unlock() { mx.unlock(); }
@@ -500,6 +500,7 @@ struct QuaffCountingScheduler : QuaffScheduler {
   vguard<QuaffParamCounts> yCounts;
   deque<size_t> failed;
   QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file, int line);
+  bool noMoreTasks() const;
   bool finished() const;
   QuaffCountingTask nextCountingTask();
   void rescheduleCountingTask (const QuaffCountingTask& task);
@@ -562,6 +563,7 @@ struct QuaffAlignmentScheduler : QuaffAlignmentPrintingScheduler {
   const bool keepAllAlignments;
   deque<const FastSeq*> failed;
   QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line);
+  bool noMoreTasks() const;
   bool finished() const;
   QuaffAlignmentTask nextAlignmentTask();
   void rescheduleAlignmentTask (const QuaffAlignmentTask& task);

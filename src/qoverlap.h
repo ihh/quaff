@@ -86,6 +86,7 @@ struct QuaffOverlapScheduler : QuaffAlignmentPrintingScheduler {
   size_t nx, nOriginals;
   deque<tuple<const FastSeq*,const FastSeq*,bool> > failed;
   QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line);
+  bool noMoreTasks() const;
   bool finished() const;
   QuaffOverlapTask nextOverlapTask();
   void rescheduleOverlapTask (const QuaffOverlapTask& task);
