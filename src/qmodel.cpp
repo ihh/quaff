@@ -36,15 +36,16 @@ double logBetaPdf (double prob, double yesCount, double noCount) {
   return log (gsl_ran_beta_pdf (prob, yesCount + 1, noCount + 1));
 }
 
-void randomDelayBeforeRetry (unsigned int minSeconds, unsigned int maxSeconds) {
+void randomDelayBeforeRetry (int attempts, double minSeconds, double multiplier) {
   random_device rd;
   mt19937 gen(rd());
-  uniform_int_distribution<int> dist (minSeconds, maxSeconds);
+  const double minSecondsThisAttempt = minSeconds * pow (multiplier, (double) attempts);
+  const double maxSecondsThisAttempt = minSecondsThisAttempt * multiplier;
+  uniform_real_distribution<double> dist (minSecondsThisAttempt, maxSecondsThisAttempt);
 
-  const int delay = dist(gen);
+  const double delay = dist(gen);
     
-  LogThisAt(3, "Retrying in " << plural(delay,"second") << "..." << endl);
-
+  LogThisAt(3, "Retrying in " << delay << " seconds..." << endl);
   usleep (delay * 1000000);
 }
 
@@ -667,15 +668,33 @@ FastSeq Alignment::getUngapped (size_t row) const {
 }
 
 RemoteServer::RemoteServer (string addr, unsigned int port)
-  : addr(addr), port(port)
+  : addr(addr), port(port), sock(NULL)
 { }
 
 string RemoteServer::toString() const {
   return addr + ':' + to_string(port);
 }
 
-RemoteServerJob::RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads)
-  : user(user), addr(addr), port(port), threads(threads)
+TCPSocket* RemoteServer::getSocket() {
+  for (int failures = 0; sock == NULL && failures < MaxQuaffClientFailures; ++failures) {
+    try {
+      sock = new TCPSocket (addr, port);
+    } catch (SocketException& e) {
+      LogThisAt(3, e.what() << endl);
+      sock = NULL;
+    }
+      randomDelayBeforeRetry (failures);
+  }
+  return sock;
+}
+
+void RemoteServer::closeSocket() {
+  delete sock;
+  sock = NULL;
+}
+
+RemoteServerJob::RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& ec2id)
+  : user(user), addr(addr), port(port), threads(threads), ec2instanceId(ec2id)
 { }
 
 string RemoteServerJob::toString() const {
@@ -977,8 +996,8 @@ void QuaffDPConfig::syncToRemote (const string& filename, const RemoteServerJob&
   Require (execWithRetries(rsyncCmd,MaxGenericSshAttempts), "rsync failed");
 }
 
-void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads) {
-  remoteJobs.push_back (RemoteServerJob (user, addr, port, threads));
+void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& ec2id) {
+  remoteJobs.push_back (RemoteServerJob (user, addr, port, threads, ec2id));
   for (unsigned int p = port; p < port + threads; ++p)
     remotes.push_back (RemoteServer (addr, p));
 }
@@ -989,7 +1008,10 @@ void QuaffDPConfig::startRemoteServers() {
   if (ec2Instances > 0) {
     ec2InstanceIds = aws.launchInstancesWithScript (ec2Instances, ec2Type, ec2Ami, ec2StartupScript());
     ec2InstanceAddresses = aws.getInstanceAddresses (ec2InstanceIds);
-    for (const auto& addr : ec2InstanceAddresses) {
+    Assert (ec2InstanceIds.size() == ec2InstanceAddresses.size(), "All EC2 instances must have public addresses");
+    for (size_t n = 0; n < ec2InstanceIds.size(); ++n) {
+      const auto& addr (ec2InstanceAddresses[n]);
+      const auto& id (ec2InstanceIds[n]);
       addRemote (ec2User, addr, ec2Port, ec2Cores);
       const string testCmd = makeSshCommand (string ("while ! test -e " ServerReadyDir "; do sleep 1; done"), remoteJobs.back());
       const bool bucketStagingDirExists = execWithRetries(testCmd,MaxGenericSshAttempts);
@@ -1042,10 +1064,11 @@ string QuaffDPConfig::ec2StartupScript() const {
 }
 
 void QuaffDPConfig::stopRemoteServers() {
-  for (const auto& remote : remotes) {
-    TCPSocket sock (remote.addr, remote.port);
+  for (auto& remote : remotes) {
+    TCPSocket* sock = remote.getSocket();
     const string msg = string ("{ \"quit\": 1 }\n") + SocketTerminatorString;
-    sock.send (msg.c_str(), (int) msg.size());
+    sock->send (msg.c_str(), (int) msg.size());
+    remote.closeSocket();
   }
   for (auto& t : remoteServerThreads) {
     t.join();
@@ -1056,7 +1079,7 @@ void QuaffDPConfig::stopRemoteServers() {
 
 // buffer size for popen
 #define PIPE_BUF_SIZE 1024
-bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts, bool lookForReadyString) const {
+bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts, bool lookForReadyString, const char* ec2id) const {
   int attempts = 0;
   while (true) {
   
@@ -1091,16 +1114,21 @@ bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts, bool lo
 
     Warn ("Command failed: %s\nExit code: %d\nLast output:\n%s", cmd.c_str(), status, join(lastLines).c_str());
 
-    if (foundReadyString)
+    if (foundReadyString) {
+      if (ec2id)
+	aws.rebootInstance (ec2id);  // crude, but avoids TIME_WAIT delays
+      else {
+	LogThisAt(3,"Waiting for " << QuaffTimeWaitDelay << " seconds so server can unbind ports" << endl);
+	usleep (QuaffTimeWaitDelay * 1000000);
+      }
       attempts = 0;
-    else if (++attempts >= maxAttempts) {
+    } else if (++attempts >= maxAttempts) {
       Warn ("Too many failed attempts to connect");
       return false;
     }
 
     // delay with exponential backoff
-    const double delayMultiplier = pow (QuaffSshRetryDelayMultiplier, (double) attempts);
-    randomDelayBeforeRetry ((int) (MinQuaffRetryDelay * delayMultiplier), (int) (MaxQuaffRetryDelay * delayMultiplier));
+    randomDelayBeforeRetry (attempts);
   }
 
   return true;
@@ -1108,7 +1136,7 @@ bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts, bool lo
 
 void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob* remoteJob) {
   const string sshCmd = config->makeSshCommand (config->makeServerCommand(*remoteJob), *remoteJob);
-  const bool remoteServerStarted = config->execWithRetries (sshCmd, MaxQuaffSshAttempts, true);
+  const bool remoteServerStarted = config->execWithRetries (sshCmd, MaxQuaffSshAttempts, true, remoteJob->ec2instanceId.size() ? remoteJob->ec2instanceId.c_str() : NULL);
   Assert (remoteServerStarted, "Failed to start remote server");
 }
 
@@ -1875,7 +1903,7 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
     yThreads.push_back (thread (&runQuaffCountingTasks, &qcs));
     logger.nameLastThread (yThreads, "DP");
   }
-  for (const auto& remote : config.remotes) {
+  for (auto& remote : config.remotes) {
     yThreads.push_back (thread (&delegateQuaffCountingTasks, &qcs, &remote));
     logger.nameLastThread (yThreads, "DP");
   }
@@ -1901,7 +1929,7 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
   return counts;
 }
 
-void QuaffTrainer::serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffDPConfig& config) {
+void QuaffTrainer::serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, QuaffDPConfig& config) {
   list<thread> serverThreads;
   Require (config.threads > 0, "Please allocate at least one thread");
   for (unsigned int n = 0; n < config.threads; ++n) {
@@ -1914,7 +1942,7 @@ void QuaffTrainer::serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>&
   }
 }
 
-void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, const QuaffDPConfig* pconfig, unsigned int port) {
+void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, QuaffDPConfig* pconfig, unsigned int port) {
   map<string,size_t> yDict;
   for (size_t ny = 0; ny < py->size(); ++ny)
     yDict[(*py)[ny].name] = ny;
@@ -1936,65 +1964,71 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
   while (true) {
     TCPSocket *sock = NULL;
     sock = servSock.accept();
-    LogThisAt(1, "Handling request from " << sock->getForeignAddress() << endl);
 
-    ParsedJson pj (sock, false);
-    if (pj.parsedOk()) {
+    while (true) {
+      LogThisAt(1, "Handling request from " << sock->getForeignAddress() << endl);
 
-      LogThisAt(9, "(parsed as valid JSON)" << endl);
+      ParsedJson pj (sock, false);
+      if (pj.parsedOk()) {
+
+	LogThisAt(9, "(parsed as valid JSON)" << endl);
       
-      if (pj.contains("quit")) {
-	LogThisAt(1, "(quit)" << endl);
-	delete sock;
-	break;
-      }
+	if (pj.contains("quit")) {
+	  LogThisAt(1, "(quit)" << endl);
+	  delete sock;
+	  return;
+	}
 
-      if (pj.containsType("yName",JSON_STRING)
-	  && pj.containsType("xSort",JSON_ARRAY)
-	  && pj.containsType("params",JSON_OBJECT)
-	  && pj.containsType("null",JSON_OBJECT)) {
+	if (pj.containsType("yName",JSON_STRING)
+	    && pj.containsType("xSort",JSON_ARRAY)
+	    && pj.containsType("params",JSON_OBJECT)
+	    && pj.containsType("null",JSON_OBJECT)) {
 
-	const string yName = pj["yName"].toString();
-	const JsonValue& xSort = pj["xSort"];
+	  const string yName = pj["yName"].toString();
+	  const JsonValue& xSort = pj["xSort"];
 
-	vguard<size_t> sortOrder = JsonUtil::indexVec (xSort);
+	  vguard<size_t> sortOrder = JsonUtil::indexVec (xSort);
 
-	QuaffParams params;
-	QuaffNullParams nullModel;
+	  QuaffParams params;
+	  QuaffNullParams nullModel;
 
-	if (yDict.find(yName) != yDict.end()
-	    && sortOrder.size()
-	    && params.readJson (pj["params"])
-	    && nullModel.readJson (pj["null"])) {
+	  if (yDict.find(yName) != yDict.end()
+	      && sortOrder.size()
+	      && params.readJson (pj["params"])
+	      && nullModel.readJson (pj["null"])) {
 
-	  LogThisAt(2, "Aligning " << plural(sortOrder.size(),"reference") << " to " << yName << endl);
+	    LogThisAt(2, "Aligning " << plural(sortOrder.size(),"reference") << " to " << yName << endl);
     
-	  const unsigned int matchKmerLen = params.matchContext.kmerLen;
-	  const unsigned int indelKmerLen = params.indelContext.kmerLen;
-	  QuaffParamCounts yCounts (matchKmerLen, indelKmerLen);
+	    const unsigned int matchKmerLen = params.matchContext.kmerLen;
+	    const unsigned int indelKmerLen = params.indelContext.kmerLen;
+	    QuaffParamCounts yCounts (matchKmerLen, indelKmerLen);
 
-	  double yLogLike;
-	  const size_t ny = yDict[yName];
-	  QuaffCountingTask task (*px, (*py)[ny], ny, params, nullModel, useNullModel, *pconfig, sortOrder, yLogLike, yCounts);
-	  task.run();
+	    double yLogLike;
+	    const size_t ny = yDict[yName];
+	    QuaffCountingTask task (*px, (*py)[ny], ny, params, nullModel, useNullModel, *pconfig, sortOrder, yLogLike, yCounts);
+	    task.run();
 
-	  ostringstream out;
-	  out << "{\"xSort\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
-	  out << " \"loglike\": " << yLogLike << "," << endl;
-	  yCounts.writeJson (out << " \"counts\": ") << " }" << endl;
-	  out << SocketTerminatorString << endl;
+	    ostringstream out;
+	    out << "{\"xSort\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
+	    out << " \"loglike\": " << yLogLike << "," << endl;
+	    yCounts.writeJson (out << " \"counts\": ") << " }" << endl;
+	    out << SocketTerminatorString << endl;
 
-	  const string s = out.str();
-	  sock->send (s.c_str(), (int) s.size());
+	    const string s = out.str();
+	    sock->send (s.c_str(), (int) s.size());
 
-	  LogThisAt(2, "Request completed" << endl);
+	    LogThisAt(2, "Request completed" << endl);
 
-	} else
-	  LogThisAt(1, "Bad request, ignoring" << endl << "sortOrder = (" << to_string_join(sortOrder) << ')' << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << pj.str << endl);
+	  } else {
+	    LogThisAt(1, "Bad request, ignoring" << endl << "sortOrder = (" << to_string_join(sortOrder) << ')' << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << pj.str << endl);
+	    break;
+	  }
 
-      } else
-	LogThisAt(1, "Bad request, ignoring" << endl << "Request follows:" << endl << pj.str << endl);
-
+	} else {
+	  LogThisAt(1, "Bad request, ignoring" << endl << "Request follows:" << endl << pj.str << endl);
+	  break;
+	}
+      }
     }
     
     delete sock;
@@ -2049,7 +2083,7 @@ QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& 
   return qp;
 }
 
-QuaffCountingTask::QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, size_t ny, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& yCounts)
+QuaffCountingTask::QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, size_t ny, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& yCounts)
   : QuaffTask (yfs, params, nullModel, config),
     x(x), ny(ny), useNullModel(useNullModel), sortOrder(sortOrder), yLogLike(yLogLike), yCounts(yCounts)
 { }
@@ -2089,7 +2123,7 @@ void QuaffCountingTask::run() {
   sortOrder.erase (sortOrderCutoff, sortOrder.end());  // bye bye unproductive refseqs
 }
 
-bool QuaffCountingTask::delegate (const RemoteServer& remote) {
+bool QuaffCountingTask::delegate (RemoteServer& remote) {
   bool success = false;
   for (int failures = 0; failures < MaxQuaffClientFailures; ++failures) {
     LogThisAt(3, "Delegating " << yfs.name << " to " << remote.toString() << endl);
@@ -2103,10 +2137,12 @@ bool QuaffCountingTask::delegate (const RemoteServer& remote) {
     const string msg = out.str();
 
     try {
-      TCPSocket sock(remote.addr, remote.port);
-      sock.send (msg.c_str(), (int) msg.size());
+      TCPSocket* sock = remote.getSocket();
+      LogThisAt(9,"Sending to " << remote.toString() << ":" << endl << msg);
+      sock->send (msg.c_str(), (int) msg.size());
+      LogThisAt(9,"Awaiting reply from " << remote.toString());
 
-      ParsedJson pj (&sock, false);
+      ParsedJson pj (sock, false);
       if (pj.parsedOk()) {
       
 	LogThisAt(9, "(parsed as valid JSON)" << endl);
@@ -2130,13 +2166,14 @@ bool QuaffCountingTask::delegate (const RemoteServer& remote) {
       LogThisAt(3, e.what() << endl);
     }
 
-    randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
+    remote.closeSocket();
+    randomDelayBeforeRetry (failures);
   }
 
   return success;
 }
 
-QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file, int line)
+QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file, int line)
   : QuaffScheduler (x, y, params, nullModel, config, verbosity, function, file, line),
     useNullModel(useNullModel),
     sortOrder(sortOrder),
@@ -2195,7 +2232,7 @@ void runQuaffCountingTasks (QuaffCountingScheduler* qcs) {
   }
 }
 
-void delegateQuaffCountingTasks (QuaffCountingScheduler* qcs, const RemoteServer* remote) {
+void delegateQuaffCountingTasks (QuaffCountingScheduler* qcs, RemoteServer* remote) {
   while (true) {
     qcs->lock();
     if (qcs->noMoreTasks()) {
@@ -2378,7 +2415,7 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
     yThreads.push_back (thread (&runQuaffAlignmentTasks, &qas));
     logger.nameLastThread (yThreads, "align");
   }
-  for (const auto& remote : config.remotes) {
+  for (auto& remote : config.remotes) {
     yThreads.push_back (thread (&delegateQuaffAlignmentTasks, &qas, &remote));
     logger.nameLastThread (yThreads, "align");
   }
@@ -2389,7 +2426,7 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
   config.stopRemoteServers();
 }
 
-void QuaffAligner::serveAlignments (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
+void QuaffAligner::serveAlignments (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config) {
   list<thread> serverThreads;
   Require (config.threads > 0, "Please allocate at least one thread");
   for (unsigned int n = 0; n < config.threads; ++n) {
@@ -2402,7 +2439,7 @@ void QuaffAligner::serveAlignments (const vguard<FastSeq>& x, const vguard<FastS
   }
 }
 
-void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vguard<FastSeq>* px, const vguard<FastSeq>* py, const QuaffParams* pparams, const QuaffNullParams* pnullModel, const QuaffDPConfig* pconfig, unsigned int port) {
+void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vguard<FastSeq>* px, const vguard<FastSeq>* py, const QuaffParams* pparams, const QuaffNullParams* pnullModel, QuaffDPConfig* pconfig, unsigned int port) {
   map<string,const FastSeq*> yDict;
   for (const auto& s : *py)
     yDict[s.name] = &s;
@@ -2424,52 +2461,59 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
   while (true) {
     TCPSocket *sock = NULL;
     sock = servSock.accept();
-    LogThisAt(1, "Handling request from " << sock->getForeignAddress() << endl);
 
-    ParsedJson pj (sock, false);
-    if (pj.parsedOk()) {
+    while (true) {
+      LogThisAt(1, "Handling request from " << sock->getForeignAddress() << endl);
+
+      ParsedJson pj (sock, false);
+      if (pj.parsedOk()) {
     
-      LogThisAt(9, "(parsed as valid JSON)" << endl);
+	LogThisAt(9, "(parsed as valid JSON)" << endl);
       
-      if (pj.contains("quit")) {
-	LogThisAt(1, "(quit)" << endl);
-	delete sock;
-	break;
+	if (pj.contains("quit")) {
+	  LogThisAt(1, "(quit)" << endl);
+	  delete sock;
+	  return;
+	}
+
+	if (pj.containsType("yName",JSON_STRING)) {
+
+	  const string yName = pj["yName"].toString();
+
+	  if (yDict.find(yName) != yDict.end()) {
+
+	    LogThisAt(2, "Aligning " << yName << endl);
+
+	    QuaffAlignmentTask task (*px, *yDict[yName], *pparams, *pnullModel, *pconfig, paligner->printAllAlignments);
+	    task.run();
+
+	    ostringstream out;
+	    for (const auto& a : task.alignList)
+	      paligner->writeAlignment (out, a);
+	    out << SocketTerminatorString << endl;
+
+	    const string s = out.str();
+	    sock->send (s.c_str(), (int) s.size());
+
+	    LogThisAt(2, "Request completed" << endl);
+
+	  } else {
+	    LogThisAt(1, "Bad request, ignoring" << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << pj.str << endl);
+	    break;
+	  }
+
+	} else {
+	  LogThisAt(1, "Bad request, ignoring" << endl << pj.str << endl);
+	  break;
+	}
       }
-
-      if (pj.containsType("yName",JSON_STRING)) {
-
-	const string yName = pj["yName"].toString();
-
-	if (yDict.find(yName) != yDict.end()) {
-
-	  LogThisAt(2, "Aligning " << yName << endl);
-
-	  QuaffAlignmentTask task (*px, *yDict[yName], *pparams, *pnullModel, *pconfig, paligner->printAllAlignments);
-	  task.run();
-
-	  ostringstream out;
-	  for (const auto& a : task.alignList)
-	    paligner->writeAlignment (out, a);
-	  out << SocketTerminatorString << endl;
-
-	  const string s = out.str();
-	  sock->send (s.c_str(), (int) s.size());
-
-	  LogThisAt(2, "Request completed" << endl);
-
-	} else
-	  LogThisAt(1, "Bad request, ignoring" << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << pj.str << endl);
-
-      } else
-	LogThisAt(1, "Bad request, ignoring" << endl << pj.str << endl);
     }
     
     delete sock;
   }
 }
 
-QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments)
+QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, bool keepAllAlignments)
   : QuaffTask(yfs,params,nullModel,config),
     x(x),
     alignList(Alignment::scoreGreaterThan),
@@ -2492,7 +2536,7 @@ void QuaffAlignmentTask::run() {
   }
 }
 
-bool QuaffAlignmentTask::delegate (const RemoteServer& remote, string& response) {
+bool QuaffAlignmentTask::delegate (RemoteServer& remote, string& response) {
   bool success = false;
   LogThisAt(3, "Delegating " << yfs.name << " to " << remote.toString() << endl);
   ostringstream out;
@@ -2503,10 +2547,10 @@ bool QuaffAlignmentTask::delegate (const RemoteServer& remote, string& response)
 
   for (int failures = 0; failures < MaxQuaffClientFailures; ++failures) {
     try {
-      TCPSocket sock(remote.addr, remote.port);
-      sock.send (msg.c_str(), (int) msg.size());
+      TCPSocket* sock = remote.getSocket();
+      sock->send (msg.c_str(), (int) msg.size());
 
-      response = JsonUtil::readStringFromSocket (&sock);
+      response = JsonUtil::readStringFromSocket (sock);
       success = true;
       break;
 
@@ -2514,13 +2558,14 @@ bool QuaffAlignmentTask::delegate (const RemoteServer& remote, string& response)
       LogThisAt(3, e.what() << endl);
     }
 
-    randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
+    remote.closeSocket();
+    randomDelayBeforeRetry (failures);
   }
 
   return success;
 }
 
-QuaffAlignmentPrintingScheduler::QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line)
+QuaffAlignmentPrintingScheduler::QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line)
   : QuaffScheduler (x, y, params, nullModel, config, verbosity, function, file, line),
     out(out),
     printer(printer)
@@ -2543,7 +2588,7 @@ void QuaffAlignmentPrintingScheduler::printAlignments (const string& alignStr) {
   outMx.unlock();
 }
 
-QuaffAlignmentScheduler::QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line)
+QuaffAlignmentScheduler::QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line)
   : QuaffAlignmentPrintingScheduler (x, y, params, nullModel, config, out, printer, verbosity, function, file, line),
     keepAllAlignments(keepAllAlignments)
 {
@@ -2589,7 +2634,7 @@ void runQuaffAlignmentTasks (QuaffAlignmentScheduler* qas) {
   }
 }
 
-void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qas, const RemoteServer* remote) {
+void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qas, RemoteServer* remote) {
   while (true) {
     qas->lock();
     if (qas->noMoreTasks()) {

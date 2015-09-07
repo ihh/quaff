@@ -46,19 +46,14 @@
 #define MaxGenericSshAttempts 10
 
 // Maximum number of times a quaff ssh job will be tried
-// To allow for the server's sockets to exit the TIME_WAIT state following a failure,
-// we want the following to hold:
-//  (QuaffDelayMultiplier ** (MaxQuaffSshAttempts - 1)) * MinQuaffRetryDelay > (TIME_WAIT timeout)
-// Default TIME_WAIT time is 120 seconds...
 #define MaxQuaffSshAttempts 20
 
-// If an ssh job emits this string, it is deemed to be a partial success,
+// If an ssh job emits this string, it is deemed to be a partial success;
+// if it then fails, the server will be rebooted (or there will be a delay of QuaffTimeWaitDelay),
 // and the attempt count will be reset
 #define QuaffSshReadyString "# READY"
 
 // Server keep-alive parameters for ssh
-// To give the server ample time to restart after a failure, we want the following to hold:
-//  QuaffServerAliveCountMax*QuaffServerAliveInterval + MaxQuaffRetryDelay + (expected quaff server startup time) < MaxQuaffClientFailures*MinQuaffRetryDelay
 #define QuaffServerAliveInterval 15
 #define QuaffServerAliveCountMax 3
 
@@ -67,13 +62,16 @@
 
 // Retry delay
 #define MinQuaffRetryDelay 10
-#define MaxQuaffRetryDelay 20
 
-// Exponential backoff for retry delay (ssh only)
-#define QuaffSshRetryDelayMultiplier 1.15
+// Exponential backoff for retry delay
+#define QuaffRetryDelayMultiplier 1.15
+
+// Extra delay before attempting to re-run a quaff job (to account for sockets tied up in TIME_WAIT)
+// If it's an EC2 server, we don't bother with this, just reboot the server instead...
+#define QuaffTimeWaitDelay 300
 
 // useful helper methods
-void randomDelayBeforeRetry (unsigned int minSeconds = MinQuaffRetryDelay, unsigned int maxSeconds = MaxQuaffRetryDelay);
+void randomDelayBeforeRetry (int attempts = 0, double minSeconds = MinQuaffRetryDelay, double multiplier = QuaffRetryDelayMultiplier);
 
 // struct describing the probability of a given FASTA symbol,
 // and a negative binomial distribution over the associated quality score
@@ -245,17 +243,23 @@ struct Alignment {
 };
 
 // structs describing remote servers & jobs
-struct RemoteServer {
+class RemoteServer {
+private:
+  TCPSocket* sock;
+public:
   string addr;
   unsigned int port;
   RemoteServer (string addr, unsigned int port);
+  ~RemoteServer() { closeSocket(); }
   string toString() const;
+  TCPSocket* getSocket();
+  void closeSocket();
 };
 
 struct RemoteServerJob {
-  string addr, user;
+  string addr, user, ec2instanceId;
   unsigned int port, threads;
-  RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads);
+  RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& ec2id);
   string toString() const;
 };
 
@@ -310,7 +314,7 @@ struct QuaffDPConfig {
   void syncToBucket (const string& filename) const;
   void makeStagingDir (const RemoteServerJob& remote) const;
   void syncToRemote (const string& filename, const RemoteServerJob& remote) const;
-  void addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads);
+  void addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& ec2id = string());
   void startRemoteServers();
   void stopRemoteServers();
   string ec2StartupScript() const;
@@ -318,7 +322,7 @@ struct QuaffDPConfig {
   string makeServerCommand (const RemoteServerJob& job) const;
   string makeSshCommand() const;
   string makeSshCommand (const string& cmd, const RemoteServerJob& job) const;
-  bool execWithRetries (const string& cmd, int maxAttempts, bool lookForReadyString = false) const;
+  bool execWithRetries (const string& cmd, int maxAttempts, bool lookForReadyString = false, const char* ec2id = NULL) const;
 };
 
 // thread entry point
@@ -444,8 +448,8 @@ struct QuaffTrainer {
   QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, QuaffDPConfig& config);
   QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner);
   QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
-  void serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffDPConfig& config);
-  static void serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, const QuaffDPConfig* pconfig, unsigned int port);
+  void serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, QuaffDPConfig& config);
+  static void serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, QuaffDPConfig* pconfig, unsigned int port);
   static vguard<vguard<size_t> > defaultSortOrder (const vguard<FastSeq>& x, const vguard<FastSeq>& y);
   bool usingParamOutputFile() const { return !saveParamsFilename.empty(); }
   bool usingCountsOutputFile() const { return !rawCountsFilename.empty(); }
@@ -455,9 +459,9 @@ struct QuaffTrainer {
 struct QuaffTask {
   const FastSeq& yfs;
   const QuaffParams& params;
-  const QuaffDPConfig& config;
+  QuaffDPConfig& config;
   const QuaffNullParams& nullModel;
-  QuaffTask (const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config)
+  QuaffTask (const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config)
     : yfs(yfs), params(params), nullModel(nullModel), config(config)
   { }
 };
@@ -469,21 +473,21 @@ struct QuaffCountingTask : QuaffTask {
   QuaffParamCounts& yCounts;
   const bool useNullModel;
   const size_t ny;
-  QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, size_t ny, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& counts);
+  QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, size_t ny, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& counts);
   void run();
-  bool delegate (const RemoteServer& remote);
+  bool delegate (RemoteServer& remote);
 };
 
 struct QuaffScheduler {
   const vguard<FastSeq>& x;
   const vguard<FastSeq>& y;
   const QuaffParams& params;
-  const QuaffDPConfig& config;
+  QuaffDPConfig& config;
   const QuaffNullParams& nullModel;
   size_t ny, pending;
   mutex mx;
   ProgressLogger plog;
-  QuaffScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, int verbosity, const char* function, const char* file, int line)
+  QuaffScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, int verbosity, const char* function, const char* file, int line)
     : x(x), y(y), params(params), nullModel(nullModel), config(config), ny(0), pending(0), plog(verbosity,function,file,line)
   { }
   void lock() { mx.lock(); }
@@ -499,7 +503,7 @@ struct QuaffCountingScheduler : QuaffScheduler {
   const QuaffParamCounts zeroCounts;
   vguard<QuaffParamCounts> yCounts;
   deque<size_t> failed;
-  QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, const QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file, int line);
+  QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file, int line);
   bool noMoreTasks() const;
   bool finished() const;
   QuaffCountingTask nextCountingTask();
@@ -510,7 +514,7 @@ struct QuaffCountingScheduler : QuaffScheduler {
 
 // thread entry points
 void runQuaffCountingTasks (QuaffCountingScheduler* qcs);
-void delegateQuaffCountingTasks (QuaffCountingScheduler* qcs, const RemoteServer* remote);
+void delegateQuaffCountingTasks (QuaffCountingScheduler* qcs, RemoteServer* remote);
 
 // config/wrapper structs for Viterbi alignment
 struct QuaffAlignmentPrinter {
@@ -536,8 +540,8 @@ struct QuaffAligner : QuaffAlignmentPrinter {
   bool parseAlignmentArgs (deque<string>& argvec);
   string serverArgs() const;
   void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
-  void serveAlignments (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
-  static void serveAlignmentsFromThread (QuaffAligner* paligner, const vguard<FastSeq>* px, const vguard<FastSeq>* py, const QuaffParams* pparams, const QuaffNullParams* pnullModel, const QuaffDPConfig* pconfig, unsigned int port);
+  void serveAlignments (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
+  static void serveAlignmentsFromThread (QuaffAligner* paligner, const vguard<FastSeq>* px, const vguard<FastSeq>* py, const QuaffParams* pparams, const QuaffNullParams* pnullModel, QuaffDPConfig* pconfig, unsigned int port);
 };
 
 // structs for scheduling alignment tasks
@@ -545,16 +549,16 @@ struct QuaffAlignmentTask : QuaffTask {
   const vguard<FastSeq>& x;
   QuaffAlignmentPrinter::AlignmentList alignList;
   bool keepAllAlignments;
-  QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments);
+  QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, bool keepAllAlignments);
   void run();
-  bool delegate (const RemoteServer& remote, string& align);
+  bool delegate (RemoteServer& remote, string& align);
 };
 
 struct QuaffAlignmentPrintingScheduler : QuaffScheduler {
   ostream& out;
   QuaffAlignmentPrinter& printer;
   mutex outMx;
-  QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line);
+  QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line);
   void printAlignments (const QuaffAlignmentPrinter::AlignmentList& alignList);
   void printAlignments (const string& alignStr);
 };
@@ -562,7 +566,7 @@ struct QuaffAlignmentPrintingScheduler : QuaffScheduler {
 struct QuaffAlignmentScheduler : QuaffAlignmentPrintingScheduler {
   const bool keepAllAlignments;
   deque<const FastSeq*> failed;
-  QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line);
+  QuaffAlignmentScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, bool keepAllAlignments, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line);
   bool noMoreTasks() const;
   bool finished() const;
   QuaffAlignmentTask nextAlignmentTask();
@@ -571,6 +575,6 @@ struct QuaffAlignmentScheduler : QuaffAlignmentPrintingScheduler {
 
 // thread entry point
 void runQuaffAlignmentTasks (QuaffAlignmentScheduler* qas);
-void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qcs, const RemoteServer* remote);
+void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qcs, RemoteServer* remote);
 
 #endif /* QMODEL_INCLUDED */

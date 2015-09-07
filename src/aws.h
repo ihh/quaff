@@ -50,6 +50,8 @@ public:
   // EC2
   vguard<string> launchInstancesWithScript (unsigned int nInstances, const string& instanceType, const string& ami, const string& userDataScript);
   vguard<string> getInstanceAddresses (const vguard<string>& instanceIDs) const;
+  void waitInstanceStatusOk (const vguard<string>& instanceIDs) const;
+  void rebootInstance (const char* instanceID) const;
   void terminateInstances (const vguard<string>& instanceIDs);
   void terminateInstancesSilently (const vguard<string>& instanceIDs);
   string terminateCommand (const vguard<string>& instanceIDs) const;

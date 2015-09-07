@@ -318,7 +318,7 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
     yThreads.push_back (thread (&runQuaffOverlapTasks, &qos));
     logger.nameLastThread (yThreads, "align");
   }
-  for (const auto& remote : config.remotes) {
+  for (auto& remote : config.remotes) {
     yThreads.push_back (thread (&delegateQuaffOverlapTasks, &qos, &remote));
     logger.nameLastThread (yThreads, "align");
   }
@@ -329,7 +329,7 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
   config.stopRemoteServers();
 }
 
-void QuaffOverlapAligner::serveAlignments (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config) {
+void QuaffOverlapAligner::serveAlignments (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config) {
   list<thread> serverThreads;
   Require (config.threads > 0, "Please allocate at least one thread");
   for (unsigned int n = 0; n < config.threads; ++n) {
@@ -342,7 +342,7 @@ void QuaffOverlapAligner::serveAlignments (const vguard<FastSeq>& seqs, size_t n
   }
 }
 
-void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* paligner, const vguard<FastSeq>* pseqs, size_t nOriginals, const QuaffParams* pparams, const QuaffNullParams* pnullModel, const QuaffDPConfig* pconfig, unsigned int port) {
+void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* paligner, const vguard<FastSeq>* pseqs, size_t nOriginals, const QuaffParams* pparams, const QuaffNullParams* pnullModel, QuaffDPConfig* pconfig, unsigned int port) {
   map<string,const FastSeq*> seqDict;
   for (const auto& s : *pseqs)
     seqDict[s.name] = &s;
@@ -364,59 +364,65 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
   while (true) {
     TCPSocket *sock = NULL;
     sock = servSock.accept();
-    LogThisAt(1, "Handling request from " << sock->getForeignAddress() << endl);
 
-    ParsedJson pj (sock, false);
+    while (true) {
+      LogThisAt(1, "Handling request from " << sock->getForeignAddress() << endl);
 
-    if (pj.parsedOk()) {
+      ParsedJson pj (sock, false);
 
-      LogThisAt(9, "(parsed as valid JSON)" << endl);
+      if (pj.parsedOk()) {
+
+	LogThisAt(9, "(parsed as valid JSON)" << endl);
       
-      if (pj.contains("quit")) {
-	LogThisAt(1, "(quit)" << endl);
-	delete sock;
-	break;
+	if (pj.contains("quit")) {
+	  LogThisAt(1, "(quit)" << endl);
+	  delete sock;
+	  return;
+	}
+
+	if (pj.containsType("xName",JSON_STRING)
+	    && pj.containsType("yName",JSON_STRING)
+	    && pj.containsType("yComplemented",JSON_NUMBER)) {
+    
+	  const string& xName = pj["xName"].toString();
+	  const string& yName = pj["yName"].toString();
+	  const int yComp = (int) pj["yComplemented"].toNumber();
+
+	  if (seqDict.find(xName) != seqDict.end()
+	      && seqDict.find(yName) != seqDict.end()) {
+
+	    LogThisAt(2, "Aligning " << xName << " to " << yName << endl);
+
+	    QuaffOverlapTask task (*seqDict[xName], *seqDict[yName], yComp, *pparams, *pnullModel, *pconfig);
+	    task.run();
+
+	    ostringstream out;
+	    for (const auto& a : task.alignList)
+	      paligner->writeAlignment (out, a);
+	    out << SocketTerminatorString << endl;
+
+	    const string s = out.str();
+	    sock->send (s.c_str(), (int) s.size());
+
+	    LogThisAt(2, "Request completed" << endl);
+
+	  } else {
+	    LogThisAt(1, "Bad request, ignoring" << endl << "xName = \"" << xName << "\"" << endl << "yName = \"" << yName << "\"" << endl << "yComp = " << yComp << endl << "Request follows:" << endl << pj.str << endl);
+	    break;
+	  }
+
+	} else {
+	  LogThisAt(1, "Bad request, ignoring" << endl << "Request follows:" << endl << pj.str << endl);
+	  break;
+	}
       }
-
-      if (pj.containsType("xName",JSON_STRING)
-	  && pj.containsType("yName",JSON_STRING)
-	  && pj.containsType("yComplemented",JSON_NUMBER)) {
-    
-	const string& xName = pj["xName"].toString();
-	const string& yName = pj["yName"].toString();
-	const int yComp = (int) pj["yComplemented"].toNumber();
-
-	if (seqDict.find(xName) != seqDict.end()
-	    && seqDict.find(yName) != seqDict.end()) {
-
-	  LogThisAt(2, "Aligning " << xName << " to " << yName << endl);
-
-	  QuaffOverlapTask task (*seqDict[xName], *seqDict[yName], yComp, *pparams, *pnullModel, *pconfig);
-	  task.run();
-
-	  ostringstream out;
-	  for (const auto& a : task.alignList)
-	    paligner->writeAlignment (out, a);
-	  out << SocketTerminatorString << endl;
-
-	  const string s = out.str();
-	  sock->send (s.c_str(), (int) s.size());
-
-	  LogThisAt(2, "Request completed" << endl);
-
-	} else
-	  LogThisAt(1, "Bad request, ignoring" << endl << "xName = \"" << xName << "\"" << endl << "yName = \"" << yName << "\"" << endl << "yComp = " << yComp << endl << "Request follows:" << endl << pj.str << endl);
-
-      } else
-	LogThisAt(1, "Bad request, ignoring" << endl << "Request follows:" << endl << pj.str << endl);
-
     }
-    
+
     delete sock;
   }
 }
 
-QuaffOverlapTask::QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config)
+QuaffOverlapTask::QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config)
   : QuaffTask(yfs,params,nullModel,config),
     xfs(xfs),
     yComplemented(yComplemented),
@@ -432,7 +438,7 @@ void QuaffOverlapTask::run() {
     alignList.insert (viterbi.scoreAdjustedAlignment(nullModel));
 }
 
-QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line)
+QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line)
   : QuaffAlignmentPrintingScheduler (seqs, seqs, params, nullModel, config, out, printer, verbosity, function, file, line),
     nx(0),
     nOriginals(nOriginals)
@@ -444,7 +450,7 @@ QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_
     printer.writeAlignmentHeader (out, x, false);
 }
 
-bool QuaffOverlapTask::delegate (const RemoteServer& remote, string& response) {
+bool QuaffOverlapTask::delegate (RemoteServer& remote, string& response) {
   bool success = false;
   LogThisAt(3, "Delegating " << xfs.name << " vs " << yfs.name << " to " << remote.toString() << endl);
   ostringstream out;
@@ -457,10 +463,10 @@ bool QuaffOverlapTask::delegate (const RemoteServer& remote, string& response) {
 
   for (int failures = 0; failures < MaxQuaffClientFailures; ++failures) {
     try {
-      TCPSocket sock(remote.addr, remote.port);
-      sock.send (msg.c_str(), (int) msg.size());
+      TCPSocket* sock = remote.getSocket();
+      sock->send (msg.c_str(), (int) msg.size());
 
-      response = JsonUtil::readStringFromSocket (&sock);
+      response = JsonUtil::readStringFromSocket (sock);
       success = true;
       break;
 
@@ -468,7 +474,8 @@ bool QuaffOverlapTask::delegate (const RemoteServer& remote, string& response) {
       LogThisAt(3, e.what() << endl);
     }
 
-    randomDelayBeforeRetry (MinQuaffRetryDelay, MaxQuaffRetryDelay);
+    remote.closeSocket();
+    randomDelayBeforeRetry (failures);
   }
 
   return success;
@@ -522,7 +529,7 @@ void runQuaffOverlapTasks (QuaffOverlapScheduler* qos) {
   }
 }
 
-void delegateQuaffOverlapTasks (QuaffOverlapScheduler* qos, const RemoteServer* remote) {
+void delegateQuaffOverlapTasks (QuaffOverlapScheduler* qos, RemoteServer* remote) {
   while (true) {
     qos->lock();
     if (qos->noMoreTasks()) {

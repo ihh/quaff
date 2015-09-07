@@ -68,8 +68,8 @@ struct QuaffOverlapAligner : QuaffAlignmentPrinter {
   QuaffOverlapAligner();
   bool parseAlignmentArgs (deque<string>& argvec);
   void align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
-  void serveAlignments (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
-  static void serveAlignmentsFromThread (QuaffOverlapAligner* paligner, const vguard<FastSeq>* pseqs, size_t nOriginals, const QuaffParams* pparams, const QuaffNullParams* pnullModel, const QuaffDPConfig* pconfig, unsigned int port);
+  void serveAlignments (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
+  static void serveAlignmentsFromThread (QuaffOverlapAligner* paligner, const vguard<FastSeq>* pseqs, size_t nOriginals, const QuaffParams* pparams, const QuaffNullParams* pnullModel, QuaffDPConfig* pconfig, unsigned int port);
 };
 
 // structs for scheduling overlap tasks
@@ -77,15 +77,15 @@ struct QuaffOverlapTask : QuaffTask {
   const FastSeq& xfs;
   const bool yComplemented;
   QuaffAlignmentPrinter::AlignmentList alignList;
-  QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config);
+  QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   void run();
-  bool delegate (const RemoteServer& remote, string& align);
+  bool delegate (RemoteServer& remote, string& align);
 };
 
 struct QuaffOverlapScheduler : QuaffAlignmentPrintingScheduler {
   size_t nx, nOriginals;
   deque<tuple<const FastSeq*,const FastSeq*,bool> > failed;
-  QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, const QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line);
+  QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line);
   bool noMoreTasks() const;
   bool finished() const;
   QuaffOverlapTask nextOverlapTask();
@@ -94,6 +94,6 @@ struct QuaffOverlapScheduler : QuaffAlignmentPrintingScheduler {
 
 // thread entry point
 void runQuaffOverlapTasks (QuaffOverlapScheduler* qos);
-void delegateQuaffOverlapTasks (QuaffOverlapScheduler* qos, const RemoteServer* remote);
+void delegateQuaffOverlapTasks (QuaffOverlapScheduler* qos, RemoteServer* remote);
 
 #endif /* QOVERLAP_INCLUDED */

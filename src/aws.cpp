@@ -91,15 +91,24 @@ vguard<string> AWS::launchInstancesWithScript (unsigned int nInstances, const st
   for (const auto& id : ids)
     runningInstanceIds.insert (id);
 
-  LogThisAt(3, "Waiting for EC2 instance-status-ok: " << join(ids) << endl);
-
-  const string waitCmd = string("aws ec2 wait instance-status-ok --instance-id ") + join(ids);
-
-  (void) runCommandAndTestStatus (waitCmd);
+  waitInstanceStatusOk (ids);
 
   LogThisAt(3, "EC2 instances running: " << join(ids) << endl);
 
   return ids;
+}
+
+void AWS::waitInstanceStatusOk (const vguard<string>& ids) const {
+  LogThisAt(3, "Waiting for EC2 instance-status-ok: " << join(ids) << endl);
+  const string waitCmd = string("aws ec2 wait instance-status-ok --instance-id ") + join(ids);
+  (void) runCommandAndTestStatus (waitCmd);
+}
+
+void AWS::rebootInstance (const char* id) const {
+  LogThisAt(3, "Rebooting EC2 instance " << id << endl);
+  const string rebootCmd = string("aws ec2 reboot-instances --instance-id ") + id;
+  (void) runCommandAndTestStatus (rebootCmd);
+  waitInstanceStatusOk (vguard<string> (1, string(id)));
 }
 
 vguard<string> AWS::getInstanceAddresses (const vguard<string>& ids) const {

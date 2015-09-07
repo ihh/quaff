@@ -126,6 +126,7 @@ string JsonUtil::readStringFromSocket (TCPSocket* sock, const regex& terminatorR
     }
   }
   delete[] buf;
+  LogThisAt(9,"Read string from socket on port " << sock->getLocalPort() << ":" << endl << msg << endl);
   return msg;
 }
 
