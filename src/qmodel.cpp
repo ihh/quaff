@@ -687,7 +687,7 @@ TCPSocket* RemoteServer::getSocket() {
       LogThisAt(3, e.what() << endl);
       sock = NULL;
     }
-      randomDelayBeforeRetry (failures);
+    randomDelayBeforeRetry (failures);
   }
   return sock;
 }
