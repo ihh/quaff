@@ -243,24 +243,26 @@ struct Alignment {
 };
 
 // structs describing remote servers & jobs
+struct RemoteServerJob {
+  string addr, user, ec2instanceId;
+  unsigned int port, threads;
+  bool ready;
+  RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& ec2id);
+  string toString() const;
+};
+
 class RemoteServer {
 private:
   TCPSocket* sock;
+  const bool* ready;
 public:
   string addr;
   unsigned int port;
-  RemoteServer (string addr, unsigned int port);
+  RemoteServer (const RemoteServerJob& rsj, unsigned int port);
   ~RemoteServer() { closeSocket(); }
   string toString() const;
   TCPSocket* getSocket();
   void closeSocket();
-};
-
-struct RemoteServerJob {
-  string addr, user, ec2instanceId;
-  unsigned int port, threads;
-  RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& ec2id);
-  string toString() const;
 };
 
 // DP config
@@ -322,11 +324,11 @@ struct QuaffDPConfig {
   string makeServerCommand (const RemoteServerJob& job) const;
   string makeSshCommand() const;
   string makeSshCommand (const string& cmd, const RemoteServerJob& job) const;
-  bool execWithRetries (const string& cmd, int maxAttempts, bool lookForReadyString = false, const char* ec2id = NULL) const;
+  bool execWithRetries (const string& cmd, int maxAttempts, bool* foundReadyFlag = NULL, const char* ec2id = NULL) const;
 };
 
 // thread entry point
-void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob* remoteJob);
+void startRemoteQuaffServer (const QuaffDPConfig* config, RemoteServerJob* remoteJob);
 
 class QuaffDPMatrixContainer {
 public:

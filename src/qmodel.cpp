@@ -667,8 +667,8 @@ FastSeq Alignment::getUngapped (size_t row) const {
   return s;
 }
 
-RemoteServer::RemoteServer (string addr, unsigned int port)
-  : addr(addr), port(port), sock(NULL)
+RemoteServer::RemoteServer (const RemoteServerJob& rsj, unsigned int port)
+  : addr(rsj.addr), port(port), sock(NULL), ready(&rsj.ready)
 { }
 
 string RemoteServer::toString() const {
@@ -678,6 +678,10 @@ string RemoteServer::toString() const {
 TCPSocket* RemoteServer::getSocket() {
   for (int failures = 0; sock == NULL && failures < MaxQuaffClientFailures; ++failures) {
     try {
+      while (ready && !*ready) {
+	LogThisAt(6,"Waiting for server at " << toString() << endl);
+	usleep(5000000);  // 5-second delay
+      }
       sock = new TCPSocket (addr, port);
     } catch (SocketException& e) {
       LogThisAt(3, e.what() << endl);
@@ -694,7 +698,7 @@ void RemoteServer::closeSocket() {
 }
 
 RemoteServerJob::RemoteServerJob (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& ec2id)
-  : user(user), addr(addr), port(port), threads(threads), ec2instanceId(ec2id)
+  : user(user), addr(addr), port(port), threads(threads), ec2instanceId(ec2id), ready(false)
 { }
 
 string RemoteServerJob::toString() const {
@@ -999,7 +1003,7 @@ void QuaffDPConfig::syncToRemote (const string& filename, const RemoteServerJob&
 void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned int port, unsigned int threads, const string& ec2id) {
   remoteJobs.push_back (RemoteServerJob (user, addr, port, threads, ec2id));
   for (unsigned int p = port; p < port + threads; ++p)
-    remotes.push_back (RemoteServer (addr, p));
+    remotes.push_back (RemoteServer (remoteJobs.back(), p));
 }
 
 void QuaffDPConfig::startRemoteServers() {
@@ -1018,7 +1022,7 @@ void QuaffDPConfig::startRemoteServers() {
       Assert (bucketStagingDirExists, "Cloud initialization failed");
     }
   }
-  for (const auto& remoteJob : remoteJobs) {
+  for (auto& remoteJob : remoteJobs) {
     if (useRsync || bucket.size())
       makeStagingDir (remoteJob);  // SyncStagingDir will eventually be created by the cloud startup script if server is an EC2 instance (it's the parent directory of ServerReadyDir), but startup may not have gotten to that stage yet
     if (useRsync && !bucket.size()) // -s3bucket overrides -rsync
@@ -1079,8 +1083,10 @@ void QuaffDPConfig::stopRemoteServers() {
 
 // buffer size for popen
 #define PIPE_BUF_SIZE 1024
-bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts, bool lookForReadyString, const char* ec2id) const {
+bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts, bool* foundReadyFlag, const char* ec2id) const {
   int attempts = 0;
+  if (foundReadyFlag)
+    *foundReadyFlag = false;
   while (true) {
   
     LogThisAt(4, "Executing " << cmd << endl);
@@ -1099,15 +1105,18 @@ bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts, bool lo
 	lastLines.erase (lastLines.begin());
       LogThisAt(4, line);
 
-      if (lookForReadyString && !foundReadyString) {
+      if (foundReadyFlag && !foundReadyString) {
 	readyBuf += line;
 	if (regex_search (readyBuf, readyRegex)) {
-	  foundReadyString = true;
+	  foundReadyString = *foundReadyFlag = true;
 	  LogThisAt(3, "Found '" << QuaffSshReadyString << "': connection successful\n");
 	}
       }
     }
 
+    if (foundReadyFlag)
+      *foundReadyFlag = false;
+    
     const int status = pclose (pipe);
     if (status == EXIT_SUCCESS)
       break;
@@ -1134,9 +1143,9 @@ bool QuaffDPConfig::execWithRetries (const string& cmd, int maxAttempts, bool lo
   return true;
 }
 
-void startRemoteQuaffServer (const QuaffDPConfig* config, const RemoteServerJob* remoteJob) {
+void startRemoteQuaffServer (const QuaffDPConfig* config, RemoteServerJob* remoteJob) {
   const string sshCmd = config->makeSshCommand (config->makeServerCommand(*remoteJob), *remoteJob);
-  const bool remoteServerStarted = config->execWithRetries (sshCmd, MaxQuaffSshAttempts, true, remoteJob->ec2instanceId.size() ? remoteJob->ec2instanceId.c_str() : NULL);
+  const bool remoteServerStarted = config->execWithRetries (sshCmd, MaxQuaffSshAttempts, &remoteJob->ready, remoteJob->ec2instanceId.size() ? remoteJob->ec2instanceId.c_str() : NULL);
   Assert (remoteServerStarted, "Failed to start remote server");
 }
 
