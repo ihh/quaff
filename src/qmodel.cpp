@@ -2003,7 +2003,6 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
 	  QuaffNullParams nullModel;
 
 	  if (yDict.find(yName) != yDict.end()
-	      && sortOrder.size()
 	      && params.readJson (pj["params"])
 	      && nullModel.readJson (pj["null"])) {
 
