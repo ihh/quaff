@@ -2124,6 +2124,11 @@ void QuaffCountingTask::run() {
 }
 
 bool QuaffCountingTask::delegate (RemoteServer& remote) {
+  if (sortOrder.empty()) {
+    LogThisAt(3, "Skipping " << yfs.name << " as no refseqs match" << endl);
+    return true;
+  }
+
   bool success = false;
   for (int failures = 0; failures < MaxQuaffClientFailures; ++failures) {
     LogThisAt(3, "Delegating " << yfs.name << " to " << remote.toString() << endl);
