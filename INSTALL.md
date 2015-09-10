@@ -6,5 +6,5 @@ You will need:
 - perl (only to run the tests)
 
 Type:
- "make quaff" to build in bin/
- "make install" to install in /usr/local/bin/
+- "make quaff" to build in bin/
+- "make install" to install in /usr/local/bin/
