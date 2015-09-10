@@ -5,4 +5,6 @@ You will need:
 - make
 - perl (only to run the tests)
 
-Type "make" to install in bin/ directory.
+Type:
+ "make quaff" to build in bin/
+ "make install" to install in /usr/local/bin/
