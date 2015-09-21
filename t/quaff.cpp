@@ -627,6 +627,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -maxiter <n>    Max number of EM iterations (default is " + to_string(QuaffMaxEMIterations) + ")\n"
     + "   -mininc <n>     EM convergence threshold as relative log-likelihood increase\n"
     + "                    (default is " + TOSTRING(QuaffMinEMLogLikeInc) + ")\n"
+    + "   -maxreadmb <n>  Use only the first n megabases of the read training set\n"
     + "   -force          Force each read to match a refseq, i.e. disallow null model\n"
     + "   -suborder <k>   Allow substitutions to depend on k-mer contexts\n"
     + "   -gaporder <k>   Allow gap open probabilities to depend on k-mer contexts\n"

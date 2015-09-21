@@ -30,6 +30,7 @@ Commands:
    -maxiter &lt;n&gt;    Max number of EM iterations (default is 100)
    -mininc &lt;n&gt;     EM convergence threshold as relative log-likelihood increase
                     (default is .01)
+   -maxreadmb &lt;n&gt;  Use only the first n megabases of the read training set
    -force          Force each read to match a refseq, i.e. disallow null model
    -suborder &lt;k&gt;   Allow substitutions to depend on k-mer contexts
    -gaporder &lt;k&gt;   Allow gap open probabilities to depend on k-mer contexts

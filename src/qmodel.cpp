@@ -1821,6 +1821,7 @@ void QuaffNullParams::writeToLog (int v) const {
 QuaffTrainer::QuaffTrainer()
   : maxIterations (QuaffMaxEMIterations),
     minFractionalLoglikeIncrement (QuaffMinEMLogLikeInc),
+    maxReadBases (0),
     allowNullModel (true)
 { }
 
@@ -1839,6 +1840,14 @@ bool QuaffTrainer::parseTrainingArgs (deque<string>& argvec) {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       const char* val = argvec[1].c_str();
       minFractionalLoglikeIncrement = atof (val);
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-maxreadmb") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      const char* val = argvec[1].c_str();
+      maxReadBases = (SeqIdx) (.5 + 1e6 * atof (val));
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -2045,6 +2054,22 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
 }
 
 QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, QuaffDPConfig& config) {
+  if (maxReadBases > 0) {
+    vguard<FastSeq> yLimited;
+    SeqIdx yBases = 0;
+    for (const auto& yfs : y) {
+      yLimited.push_back (yfs);
+      yBases += yfs.length();
+      if (yBases >= maxReadBases)
+	break;
+    }
+    LogThisAt(3,"Using " << yLimited.size() << "/" << y.size() << " reads (" << yBases << " bases) for training" << endl);
+    return fitUnlimited (x, yLimited, seed, nullModel, pseudocounts, config);
+  }
+  return fitUnlimited (x, y, seed, nullModel, pseudocounts, config);
+}
+
+QuaffParams QuaffTrainer::fitUnlimited (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, QuaffDPConfig& config) {
   const unsigned int matchKmerLen = seed.matchContext.kmerLen;
   const unsigned int indelKmerLen = seed.indelContext.kmerLen;
   Assert (pseudocounts.matchContext.kmerLen == matchKmerLen, "Prior must have same match kmer-length as parameters");

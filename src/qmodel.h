@@ -439,6 +439,7 @@ struct QuaffViterbiMatrix : QuaffDPMatrix {
 struct QuaffTrainer {
   int maxIterations;
   double minFractionalLoglikeIncrement;
+  SeqIdx maxReadBases;
   bool allowNullModel;
   string rawCountsFilename, countsWithPriorFilename, saveParamsFilename;
   
@@ -448,6 +449,7 @@ struct QuaffTrainer {
   bool parseServerArgs (deque<string>& argvec);
   string serverArgs() const;
   QuaffParams fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, QuaffDPConfig& config);
+  QuaffParams fitUnlimited (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, QuaffDPConfig& config);
   QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, double& logLike, const char* banner);
   QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   void serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, QuaffDPConfig& config);
