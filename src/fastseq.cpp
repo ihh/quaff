@@ -136,6 +136,15 @@ void writeFastqSeqs (ostream& out, const vguard<FastSeq>& fastSeqs) {
     s.writeFastq (out);
 }
 
+void initFastSeq (FastSeq& seq, kseq_t* ks) {
+  seq.name = string(ks->name.s);
+  seq.seq = string(ks->seq.s);
+  if (ks->comment.l)
+    seq.comment = string(ks->comment.s);
+  if (ks->qual.l == ks->seq.l)
+    seq.qual = string(ks->qual.s);
+}
+
 vguard<FastSeq> readFastSeqs (const char* filename) {
   vguard<FastSeq> seqs;
 
@@ -143,16 +152,18 @@ vguard<FastSeq> readFastSeqs (const char* filename) {
   Require (fp != Z_NULL, "Couldn't open %s", filename);
 
   kseq_t *ks = kseq_init(fp);
-  while (kseq_read(ks) != -1) {
+  while (true) {
+    const z_off_t filepos = gztell (fp);
+    if (kseq_read(ks) == -1)
+      break;
+
     FastSeq seq;
-    seq.name = string(ks->name.s);
-    seq.seq = string(ks->seq.s);
-    if (ks->comment.l)
-      seq.comment = string(ks->comment.s);
-    if (ks->qual.l == ks->seq.l)
-	seq.qual = string(ks->qual.s);
+    initFastSeq (seq, ks);
+    seq.filename = filename;
+    seq.filepos = filepos;
+
     seqs.push_back (seq);
-    }
+  }
   kseq_destroy (ks);
   gzclose (fp);
 
@@ -162,6 +173,28 @@ vguard<FastSeq> readFastSeqs (const char* filename) {
     Warn ("Couldn't read any sequences from %s", filename);
   
   return seqs;
+}
+
+FastSeq readIndexedFastSeq (const char* filename, z_off_t filepos) {
+  gzFile fp = gzopen(filename, "r");
+  Require (fp != Z_NULL, "Couldn't open %s", filename);
+
+  Require (gzseek (fp, filepos, SEEK_SET) == filepos, "Couldn't seek to %l in %s", (long) filepos, filename);
+
+  kseq_t *ks = kseq_init(fp);
+  Require (kseq_read(ks) != -1, "Couldn't read sequence at %l in %s", (long) filepos, filename);
+
+  FastSeq seq;
+  initFastSeq (seq, ks);
+  seq.filename = filename;
+  seq.filepos = filepos;
+
+  kseq_destroy (ks);
+  gzclose (fp);
+
+  LogThisAt(3, "Read 1 sequence from " << filename << " at offset " << filepos << endl);
+
+  return seq;
 }
 
 set<string> fastSeqDuplicateNames (const vguard<FastSeq>& seqs) {

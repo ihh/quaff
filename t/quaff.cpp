@@ -21,6 +21,7 @@ struct QuaffUsage {
 
 struct SeqList {
   vguard<string> filenames;
+  vguard<z_off_t> filepos;
   string type, tag;
   deque<string>& argvec;
   bool wantQualScores, wantRevcomps;
@@ -526,6 +527,16 @@ bool SeqList::parseSeqFilename() {
     if (arg == tag) {
       Require (argvec.size() > 1, "%s needs an argument", arg.c_str());
       filenames.push_back (argvec[1]);
+      filepos.push_back (-1);
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == tag + "index") {
+      Require (argvec.size() > 2, "%s needs an argument", arg.c_str());
+      filenames.push_back (argvec[1]);
+      filepos.push_back (atol (argvec[2].c_str()));
+      argvec.pop_front();
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -588,8 +599,14 @@ void SeqList::loadSequencesForAligner (const QuaffDPConfig& config, const QuaffA
 void SeqList::loadSequences (const QuaffDPConfig& config) {
   Require (filenames.size() > 0, "Please specify at least one %s file using %s", type.c_str(), tag.c_str());
 
-  for (const auto& s : filenames) {
-    vguard<FastSeq> fsvec = readFastSeqs (s.c_str());
+  for (size_t n = 0; n < filenames.size(); ++n) {
+    const auto& s = filenames[n];
+    const z_off_t pos = filepos[n];
+    vguard<FastSeq> fsvec;
+    if (pos < 0)
+      fsvec = readFastSeqs (s.c_str());
+    else
+      fsvec.push_back (readIndexedFastSeq (s.c_str(), pos));
     for (auto& fs: fsvec) {
       if (wantQualScores)
 	Require (fs.hasQual(), "Sequence %s in file %s does not have quality scores", fs.name.c_str(), s.c_str());

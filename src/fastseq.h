@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <map>
 #include <set>
+#include <zlib.h>
 #include "vguard.h"
 #include "../kseq/kseq.h"
 
@@ -39,10 +40,17 @@ struct SeqIntervalCoords {
 };
 
 struct FastSeq {
+  // basic FASTQ data
   string name, comment, seq, qual;
+  // metadata
   SeqIntervalCoords source;  // if !source.isNull(), describes origin
+  string filename;
+  z_off_t filepos;
+  // statics
   static const char minQualityChar, maxQualityChar;
   static const QualScore qualScoreRange;
+  // methods
+  FastSeq() : filepos(-1) { }
   SeqIdx length() const { return (SeqIdx) seq.size(); }
   bool hasQual() const { return qual.size() == length(); }
   static inline QualScore qualScoreForChar (char c) {
@@ -61,6 +69,7 @@ struct FastSeq {
 };
 
 vguard<FastSeq> readFastSeqs (const char* filename);
+FastSeq readIndexedFastSeq (const char* filename, z_off_t filepos);
 void writeFastaSeqs (ostream& out, const vguard<FastSeq>& fastSeqs);
 void writeFastqSeqs (ostream& out, const vguard<FastSeq>& fastSeqs);
 
