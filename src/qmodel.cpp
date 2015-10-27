@@ -927,6 +927,39 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       argvec.pop_front();
       return true;
 
+    } else if (arg == "-pbsthreads") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      pbsThreads = atoi (argvec[1].c_str());
+      pbsTempDir.init();
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-pbsheader") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+
+      ifstream iter (argvec[1].c_str());
+      pbsHeader = string((istreambuf_iterator<char>(iter)),
+			 istreambuf_iterator<char>());
+
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-pbspath") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      pbsPath = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-pbsopts") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      pbsOpts = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
     }
   }
 
@@ -948,19 +981,42 @@ void QuaffDPConfig::setServerArgs (const char* serverType, const string& args) {
   LogThisAt(7, "Remote server arguments: " << remoteServerArgs << endl);
 }
 
-void QuaffDPConfig::addFileArg (const char* tag, const string& filename) {
-  fileArgs.push_back (pair<string,string> (string(tag), filename));
+void QuaffDPConfig::addFileArg (const char* tag, const string& filename, const char* extra) {
+  const string exstr = extra ? (string(" ") + extra) : string();
+  fileArgs.push_back (tuple<string,string,string> (string(tag), filename, exstr));
+  nonReadFileArgs.push_back (tuple<string,string,string> (string(tag), filename, exstr));
+}
+
+void QuaffDPConfig::addReadFileArg (const char* tag, const string& filename, const char* extra) {
+  const string exstr = extra ? (string(" ") + extra) : string();
+  fileArgs.push_back (tuple<string,string,string> (string(tag), filename, exstr));
 }
 
 string QuaffDPConfig::makeServerArgs() const {
   string s = remoteServerArgs;
   if (bucket.size() || useRsync)
     for (const auto& fa : fileArgs)
-      s += ' ' + fa.first + ' ' + SyncStagingDir + '/' + AWS::basenameStr(fa.second);
+      s += ' ' + get<0>(fa) + ' ' + SyncStagingDir + '/' + AWS::basenameStr(get<1>(fa)) + get<2>(fa);
   else
     for (const auto& fa : fileArgs)
-      s += ' ' + fa.first + ' ' + fa.second;
+      s += ' ' + get<0>(fa) + ' ' + get<1>(fa) + get<2>(fa);
   return s;
+}
+
+string QuaffDPConfig::makePbsScript() const {
+  Assert (bucket.empty() && !useRsync, "Sorry - you can't currently combine rsync or S3 staging with PBS");
+  string s = pbsHeader + remoteQuaffPath + remoteServerArgs;
+  for (const auto& fa : nonReadFileArgs)
+    s += ' ' + get<0>(fa) + ' ' + get<1>(fa) + get<2>(fa);
+  return s;
+}
+
+string QuaffDPConfig::makePbsScript (const FastSeq& read) const {
+  return makePbsScript() + " -readindex " + read.filename + " " + to_string(read.filepos);
+}
+
+string QuaffDPConfig::makePbsScript (const FastSeq& xRead, const FastSeq& yRead) const {
+  return makePbsScript(xRead) + " -readindex " + yRead.filename + " " + to_string(yRead.filepos);
 }
 
 DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const KmerIndex& yKmerIndex, size_t cellSize) const {
@@ -1009,7 +1065,7 @@ void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned 
 
 void QuaffDPConfig::startRemoteServers() {
   for (const auto& fa : fileArgs)
-    syncToBucket (fa.second);
+    syncToBucket (get<1>(fa));
   if (ec2Instances > 0) {
     ec2InstanceIds = aws.launchInstancesWithScript (ec2Instances, ec2Type, ec2Ami, ec2StartupScript());
     ec2InstanceAddresses = aws.getInstanceAddresses (ec2InstanceIds);
@@ -1028,7 +1084,7 @@ void QuaffDPConfig::startRemoteServers() {
       makeStagingDir (remoteJob);  // SyncStagingDir will eventually be created by the cloud startup script if server is an EC2 instance (it's the parent directory of ServerReadyDir), but startup may not have gotten to that stage yet
     if (useRsync && !bucket.size()) // -s3bucket overrides -rsync
       for (const auto& fa : fileArgs)
-	syncToRemote (fa.second, remoteJob);
+	syncToRemote (get<1>(fa), remoteJob);
     remoteServerThreads.push_back (thread (&startRemoteQuaffServer, this, &remoteJob));
     logger.nameLastThread (remoteServerThreads, "ssh");
   }

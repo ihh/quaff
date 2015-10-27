@@ -443,11 +443,15 @@ QuaffOverlapScheduler::QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_
     nx(0),
     nOriginals(nOriginals)
 {
-  ++ny;  // no self-comparisons
-  if (ny == y.size())  // handle annoying trivial edge case of being given a single sequence
+  advance();  // no self-comparisons
+  printer.writeAlignmentHeader (out, x, false);
+}
+
+void QuaffOverlapScheduler::advance() {
+  if (++ny == y.size()) {
     ++nx;
-  else
-    printer.writeAlignmentHeader (out, x, false);
+    ny = nx + 1;
+  }
 }
 
 bool QuaffOverlapTask::delegate (RemoteServer& remote, string& response) {
@@ -505,7 +509,7 @@ QuaffOverlapTask QuaffOverlapScheduler::nextOverlapTask() {
     }
     pxfs = &x[oldNx];
     pyfs = &y[oldNy];
-    yComp = (ny >= nOriginals);
+    yComp = (oldNy >= nOriginals);
   }
   return QuaffOverlapTask (*pxfs, *pyfs, yComp, params, nullModel, config);
 }

@@ -179,10 +179,10 @@ FastSeq readIndexedFastSeq (const char* filename, z_off_t filepos) {
   gzFile fp = gzopen(filename, "r");
   Require (fp != Z_NULL, "Couldn't open %s", filename);
 
-  Require (gzseek (fp, filepos, SEEK_SET) == filepos, "Couldn't seek to %l in %s", (long) filepos, filename);
+  Require (gzseek (fp, filepos, SEEK_SET) == filepos, "Couldn't seek to byte %ld in %s", (long) filepos, filename);
 
   kseq_t *ks = kseq_init(fp);
-  Require (kseq_read(ks) != -1, "Couldn't read sequence at %l in %s", (long) filepos, filename);
+  Require (kseq_read(ks) != -1, "Couldn't read sequence starting at byte %ld in %s", (long) filepos, filename);
 
   FastSeq seq;
   initFastSeq (seq, ks);

@@ -70,6 +70,9 @@
 // If it's an EC2 server, we don't bother with this, just reboot the server instead...
 #define QuaffTimeWaitDelay 300
 
+// mandatory PBS options
+#define QuaffPbsOpts "-sync y -z"
+
 // useful helper methods
 void randomDelayBeforeRetry (int attempts = 0, double minSeconds = MinQuaffRetryDelay, double multiplier = QuaffRetryDelayMultiplier);
 
@@ -279,10 +282,14 @@ struct QuaffDPConfig {
   string bucket, sshPath, rsyncPath, sshKey, remoteQuaffPath;
   bool useRsync;
   string remoteServerArgs;
-  vguard<pair<string,string> > fileArgs;
+  vguard<tuple<string,string,string> > fileArgs;
+  vguard<tuple<string,string,string> > nonReadFileArgs;  // excludes all (read) seq files that may be split by parallelization
   unsigned int ec2Instances, ec2Cores, ec2Port;
   vguard<string> ec2InstanceIds, ec2InstanceAddresses;
   string ec2Ami, ec2Type, ec2User;
+  unsigned int pbsThreads;
+  string pbsHeader, pbsPath, pbsOpts;
+  TempDir pbsTempDir;
   QuaffDPConfig()
     : local(true),
       sparse(true),
@@ -303,13 +310,17 @@ struct QuaffDPConfig {
       ec2Type(AWS_DEFAULT_INSTANCE_TYPE),
       ec2Cores(AWS_DEFAULT_INSTANCE_CORES),
       ec2User(AWS_DEFAULT_USER),
-      ec2Port(DefaultServerPort)
+      ec2Port(DefaultServerPort),
+      pbsThreads(0),
+      pbsPath("qsub"),
+      pbsHeader("#!/bin/sh\n")
   { }
   bool parseRefSeqConfigArgs (deque<string>& argvec);
   bool parseGeneralConfigArgs (deque<string>& argvec);
   bool parseServerConfigArgs (deque<string>& argvec);
   void setServerArgs (const char* serverType, const string& args);
-  void addFileArg (const char* tag, const string& filename);
+  void addFileArg (const char* tag, const string& filename, const char* extra = NULL);
+  void addReadFileArg (const char* tag, const string& filename, const char* extra = NULL);
   DiagonalEnvelope makeEnvelope (const FastSeq& x, const KmerIndex& yKmerIndex, size_t cellSize) const;
   size_t effectiveMaxSize() const;  // takes threading into account
   void syncFromBucket (const string& filename) const;
@@ -325,6 +336,9 @@ struct QuaffDPConfig {
   string makeSshCommand() const;
   string makeSshCommand (const string& cmd, const RemoteServerJob& job) const;
   bool execWithRetries (const string& cmd, int maxAttempts, bool* foundReadyFlag = NULL, const char* ec2id = NULL) const;
+  string makePbsScript() const;
+  string makePbsScript (const FastSeq& read) const;
+  string makePbsScript (const FastSeq& xRead, const FastSeq& yRead) const;
 };
 
 // thread entry point

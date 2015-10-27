@@ -41,14 +41,29 @@ std::string plural (long n, const char* singular, const char* plural);
 /* pipe to string */
 std::string pipeToString (const char* command, int* status = NULL);
 
+/* temp files and dirs */
+#define DefaultTempFilePrefix "tempfile"
+#define DefaultTempDirPrefix  "tempdir"
+
 /* temp file */
 struct TempFile {
   static const std::string dir;  /* /tmp */
   static unsigned int count;
+  static std::mutex mx;
+  static std::string getNewPath (const char* filenamePrefix);
   std::string fullPath;
-  std::mutex mx;
-  TempFile (const std::string& contents, const char* filenamePrefix = "tempfile");
+  TempFile();
+  TempFile (const std::string& contents, const char* filenamePrefix = DefaultTempFilePrefix);
   ~TempFile();
+  void init (const std::string& contents, const char* filenamePrefix = DefaultTempFilePrefix);
+};
+
+/* temp directory */
+struct TempDir {
+  std::string fullPath;
+  TempDir (const char* filenamePrefix = DefaultTempDirPrefix);
+  ~TempDir();
+  void init (const char* filenamePrefix = DefaultTempDirPrefix);
 };
 
 /* join */

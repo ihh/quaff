@@ -1,3 +1,7 @@
+// feature test macro requirement for ftw
+// #define _XOPEN_SOURCE 500
+
+// includes
 #include <fstream>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +11,8 @@
 #include <math.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <ftw.h>
+
 #include "util.h"
 #include "stacktrace.h"
 #include "logger.h"
@@ -14,6 +20,25 @@
 // buffer size for popen
 #define PIPE_BUF_SIZE 1024
 
+
+// recursive rmdir
+// http://stackoverflow.com/questions/3184445/how-to-clear-directory-contents-in-c-on-linux-basically-i-want-to-do-rm-rf/3184915#3184915
+int rmdirCallback(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
+{
+    int rv = remove(fpath);
+
+    if (rv)
+        perror(fpath);
+
+    return rv;
+}
+
+int rmdirRecursive(const char *path)
+{
+    return nftw(path, rmdirCallback, 64, FTW_DEPTH | FTW_PHYS);
+}
+
+// function defs
 void Warn(const char* warning, ...) {
   va_list argptr;
   fprintf(stderr,"Warning: ");
@@ -92,13 +117,25 @@ std::string plural (long n, const char* singular, const char* plural) {
 
 const string TempFile::dir = "/tmp";
 unsigned int TempFile::count = 0;
-TempFile::TempFile (const std::string& contents, const char* filenamePrefix) {
+std::mutex TempFile::mx;
+
+std::string TempFile::getNewPath (const char* filenamePrefix) {
+  std::string fullPath;
   mx.lock();
   do {
     fullPath = dir + '/' + filenamePrefix + std::to_string(getpid()) + '.' + std::to_string(++count);
   } while (access(fullPath.c_str(),F_OK ) != -1);
   mx.unlock();
-  ofstream out (fullPath);
+  return fullPath;
+}
+
+TempFile::TempFile (const std::string& contents, const char* filenamePrefix) {
+  init (contents, filenamePrefix);
+}
+
+void TempFile::init (const std::string& contents, const char* filenamePrefix) {
+  fullPath = getNewPath (filenamePrefix);
+  std::ofstream out (fullPath);
   Assert (out.is_open() && !out.fail(), "Couldn't write to temp file %s", fullPath.c_str());
   out << contents;
 }
@@ -106,6 +143,22 @@ TempFile::TempFile (const std::string& contents, const char* filenamePrefix) {
 TempFile::~TempFile() {
   if (fullPath.size())
     unlink (fullPath.c_str());
+}
+
+TempDir::TempDir (const char* filenamePrefix) {
+  init (filenamePrefix);
+}
+
+void TempDir::init (const char* filenamePrefix) {
+  if (fullPath.empty()) {
+    fullPath = TempFile::getNewPath (filenamePrefix);
+    Assert (mkdir(fullPath.c_str(),0700) == 0, "Couldn't make temp directory %s", fullPath.c_str());
+  }
+}
+
+TempDir::~TempDir() {
+  if (fullPath.size())
+    rmdirRecursive (fullPath.c_str());
 }
 
 string pipeToString (const char* command, int* status) {

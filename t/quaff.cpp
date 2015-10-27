@@ -45,6 +45,8 @@ struct SeqList {
   void loadSequencesForAligner (const QuaffDPConfig& config, const QuaffAlignmentPrinter& aligner);
   SeqList& syncBucket (const QuaffDPConfig& config);
   SeqList& addFileArgs (QuaffDPConfig& config);
+  SeqList& addReadFileArgs (QuaffDPConfig& config);
+  string indexedTag() const { return tag + "index"; }
 };
 
 struct QuaffParamsIn : QuaffParams {
@@ -139,7 +141,7 @@ int main (int argc, char** argv) {
 	     || usage.parseUnknown())
 	{ }
 
-      reads.addFileArgs(config).loadSequencesForAligner (config, aligner);
+      reads.addReadFileArgs(config).loadSequencesForAligner (config, aligner);
       refs.addFileArgs(config).loadSequencesForAligner (config, aligner);
       params.addFileArgs(config).requireParamsOrUseDefaults (config);
       nullModel.addFileArgs(config).requireNullModelOrFit (config, reads);
@@ -168,7 +170,7 @@ int main (int argc, char** argv) {
 	     || usage.parseUnknown())
 	{ }
 
-      reads.addFileArgs(config).loadSequences (config);
+      reads.addReadFileArgs(config).loadSequences (config);
       refs.addFileArgs(config).loadSequences (config);
 
       nullModel.requireNullModelOrFit (config, reads);
@@ -199,7 +201,7 @@ int main (int argc, char** argv) {
 	     || usage.parseUnknown())
 	{ }
 
-      reads.addFileArgs(config).loadSequences (config);
+      reads.addReadFileArgs(config).loadSequences (config);
       refs.addFileArgs(config).loadSequences (config);
 
       nullModel.requireNullModelOrFit (config, reads);
@@ -228,7 +230,7 @@ int main (int argc, char** argv) {
 	     || usage.parseUnknown())
 	{ }
 
-      reads.addFileArgs(config).loadSequencesForAligner (config, aligner);
+      reads.addReadFileArgs(config).loadSequencesForAligner (config, aligner);
       params.addFileArgs(config).requireParamsOrUseDefaults (config);
       nullModel.addFileArgs(config).requireNullModelOrFit (config, reads);
 
@@ -532,7 +534,7 @@ bool SeqList::parseSeqFilename() {
       argvec.pop_front();
       return true;
 
-    } else if (arg == tag + "index") {
+    } else if (arg == indexedTag()) {
       Require (argvec.size() > 2, "%s needs an argument", arg.c_str());
       filenames.push_back (argvec[1]);
       filepos.push_back (atol (argvec[2].c_str()));
@@ -578,8 +580,26 @@ SeqList& SeqList::syncBucket (const QuaffDPConfig& config) {
 }
 
 SeqList& SeqList::addFileArgs (QuaffDPConfig& config) {
-  for (const auto& s : filenames)
-    config.addFileArg (tag.c_str(), s);
+  for (size_t n = 0; n < filenames.size(); ++n) {
+    const auto& s = filenames[n];
+    const z_off_t pos = filepos[n];
+    if (pos < 0)
+      config.addFileArg (tag.c_str(), s);
+    else
+      config.addFileArg (indexedTag().c_str(), s, to_string(pos).c_str());
+  }
+  return *this;
+}
+
+SeqList& SeqList::addReadFileArgs (QuaffDPConfig& config) {
+  for (size_t n = 0; n < filenames.size(); ++n) {
+    const auto& s = filenames[n];
+    const z_off_t pos = filepos[n];
+    if (pos < 0)
+      config.addReadFileArg (tag.c_str(), s);
+    else
+      config.addReadFileArg (indexedTag().c_str(), s, to_string(pos).c_str());
+  }
   return *this;
 }
 

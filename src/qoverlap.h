@@ -82,7 +82,10 @@ struct QuaffOverlapTask : QuaffTask {
   bool delegate (RemoteServer& remote, string& align);
 };
 
-struct QuaffOverlapScheduler : QuaffAlignmentPrintingScheduler {
+class QuaffOverlapScheduler : public QuaffAlignmentPrintingScheduler {
+private:
+  void advance();
+public:
   size_t nx, nOriginals;
   deque<tuple<const FastSeq*,const FastSeq*,bool> > failed;
   QuaffOverlapScheduler (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line);
