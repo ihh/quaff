@@ -1,5 +1,6 @@
-#!/usr/bin/env perl -w
+#!/usr/bin/env perl
 
+use warnings;
 use File::Temp;
 
 die "Usage: $0 <prog> <args...> <expected>" unless @ARGV == 3;
