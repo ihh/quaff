@@ -486,7 +486,7 @@ bool QuaffOverlapTask::remoteRun (RemoteServer& remote, string& response) {
 }
 
 bool QuaffOverlapScheduler::noMoreTasks() const {
-  return nx == nOriginals && failed.empty();
+  return nx + 1 >= nOriginals && failed.empty();
 }
 
 bool QuaffOverlapScheduler::finished() const {

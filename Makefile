@@ -75,9 +75,12 @@ osx-install: osx-dep
 osx-dep:
 	brew install gsl boost awscli
 
+# Tests
+test: unit-tests quaff-tests
+
 # Unit tests
 # testaws is not included in the top-level 'make test' target
-test: testfast testquaffjsonio testquaffcountsjsonio testquaffnulljsonio testlogsumexp testnegbinom testdiagenv testregex
+unit-tests: testfast testquaffjsonio testquaffcountsjsonio testquaffnulljsonio testlogsumexp testnegbinom testdiagenv testregex
 
 bin/%: $(CPPFILES) t/%.cpp
 	test -e bin || mkdir bin
@@ -115,9 +118,35 @@ testregex: t/testregex.cpp src/regexmacros.h
 	$(CPP) $(CPPFLAGS) $(LIBFLAGS) -o bin/$@ $<
 	bin/$@
 
-# quaff tests
+
+# quaff tests (integration tests)
+# Tests of basic commands
+quaff-tests: testquaffcountself testquaffalignself testquaffoverlapself testquaffcountself-remote testquaffalignself-remote testquaffoverlapself-remote
+
 testquaffcountself: bin/quaff
-	perl/testexpect.pl quaff count $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand t/c8f30-self-counts.json
+	perl/testexpect.pl quaff count data/c8f30.fastq.gz data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand t/c8f30-self-counts.json
+
+testquaffalignself: bin/quaff
+	perl/testexpect.pl quaff align data/c8f30.fastq.gz data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand t/c8f30-self-align.json
+
+testquaffoverlapself: bin/quaff data/copy-of-c8f30.fastq
+	perl/testexpect.pl quaff overlap data/c8f30.fastq.gz data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand t/c8f30-self-overlap.json
+
+data/copy-of-c8f30.fastq: data/c8f30.fastq.gz
+	gzcat $< | perl -pe s/channel/copy/ >$@
+
+# Tests of the -remote option (parallelization over sockets)
+testquaffcountself-remote: bin/quaff
+	perl/testexpect.pl quaff count $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -remote localhost:8000 t/c8f30-self-counts.json
+
+testquaffalignself-remote: bin/quaff
+	perl/testexpect.pl quaff align $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remote localhost:8000 t/c8f30-self-align.json
+
+testquaffoverlapself-remote: bin/quaff data/copy-of-c8f30.fastq
+	perl/testexpect.pl quaff overlap $(PWD)/data/c8f30.fastq.gz $(PWD)/data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand -remote localhost:8000 t/c8f30-self-overlap.json
+
+
+
 
 # testaws should be run separately (it needs secret keys, could cost money, etc)
 testaws: bin/testaws
