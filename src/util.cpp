@@ -161,6 +161,10 @@ TempDir::~TempDir() {
     rmdirRecursive (fullPath.c_str());
 }
 
+string TempDir::makePath (const string& filename) const {
+  return fullPath + '/' + filename;
+}
+
 string pipeToString (const char* command, int* status) {
   string result;
   FILE* pipe = popen (command, "r");

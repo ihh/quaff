@@ -469,6 +469,14 @@ ostream& QuaffParamCounts::writeJson (ostream& out) const {
   return out;
 }
 
+ostream& QuaffParamCounts::writeJsonWithMeta (ostream& out, const string& name, const vguard<size_t>& sortOrder, const double logLike) const {
+  out << "{\"yName\": \"" << name << "\"," << endl;
+  out << " \"xSort\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
+  out << " \"loglike\": " << logLike << "," << endl;
+  writeJson (out << " \"counts\": ") << " }" << endl;
+  return out;
+}
+
 void QuaffParamCounts::readJson (istream& in) {
   ParsedJson pj (in);
   Require (readJson(pj), "Couldn't read counts");
@@ -927,35 +935,35 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-pbsthreads") {
+    } else if (arg == "-qsubthreads") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
-      pbsThreads = atoi (argvec[1].c_str());
-      pbsTempDir.init();
+      qsubThreads = atoi (argvec[1].c_str());
+      qsubTempDir.init();
       argvec.pop_front();
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-pbsheader") {
+    } else if (arg == "-qsubheader") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
 
       ifstream iter (argvec[1].c_str());
-      pbsHeader = string((istreambuf_iterator<char>(iter)),
+      qsubHeader = string((istreambuf_iterator<char>(iter)),
 			 istreambuf_iterator<char>());
 
       argvec.pop_front();
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-pbspath") {
+    } else if (arg == "-qsubpath") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
-      pbsPath = argvec[1];
+      qsubPath = argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-pbsopts") {
+    } else if (arg == "-qsubopts") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
-      pbsOpts = argvec[1];
+      qsubOpts = argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -1005,7 +1013,7 @@ string QuaffDPConfig::makeServerArgs() const {
 
 string QuaffDPConfig::makePbsScript() const {
   Assert (bucket.empty() && !useRsync, "Sorry - you can't currently combine rsync or S3 staging with PBS");
-  string s = pbsHeader + remoteQuaffPath + remoteServerArgs;
+  string s = qsubHeader + remoteQuaffPath + remoteServerArgs;
   for (const auto& fa : nonReadFileArgs)
     s += ' ' + get<0>(fa) + ' ' + get<1>(fa) + get<2>(fa);
   return s;
@@ -1017,6 +1025,10 @@ string QuaffDPConfig::makePbsScript (const FastSeq& read) const {
 
 string QuaffDPConfig::makePbsScript (const FastSeq& xRead, const FastSeq& yRead) const {
   return makePbsScript(xRead) + " -readindex " + yRead.filename + " " + to_string(yRead.filepos);
+}
+
+string QuaffDPConfig::makePbsCommand (const string& pbsFilename) const {
+  return qsubPath + ' ' + QuaffPbsOpts + ' ' + qsubOpts + ' ' + pbsFilename;
 }
 
 DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const KmerIndex& yKmerIndex, size_t cellSize) const {
@@ -1979,7 +1991,7 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
     logger.nameLastThread (yThreads, "DP");
   }
   for (auto& remote : config.remotes) {
-    yThreads.push_back (thread (&delegateQuaffCountingTasks, &qcs, &remote));
+    yThreads.push_back (thread (&remoteRunQuaffCountingTasks, &qcs, &remote));
     logger.nameLastThread (yThreads, "DP");
   }
   for (auto& t : yThreads) {
@@ -2083,9 +2095,7 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
 	    task.run();
 
 	    ostringstream out;
-	    out << "{\"xSort\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
-	    out << " \"loglike\": " << yLogLike << "," << endl;
-	    yCounts.writeJson (out << " \"counts\": ") << " }" << endl;
+	    yCounts.writeJsonWithMeta (out, yName, sortOrder, yLogLike);
 	    out << SocketTerminatorString << endl;
 
 	    const string s = out.str();
@@ -2213,7 +2223,7 @@ void QuaffCountingTask::run() {
   sortOrder.erase (sortOrderCutoff, sortOrder.end());  // bye bye unproductive refseqs
 }
 
-bool QuaffCountingTask::delegate (RemoteServer& remote) {
+bool QuaffCountingTask::remoteRun (RemoteServer& remote) {
   if (sortOrder.empty()) {
     LogThisAt(3, "Skipping " << yfs.name << " as no refseqs match" << endl);
     return true;
@@ -2266,6 +2276,23 @@ bool QuaffCountingTask::delegate (RemoteServer& remote) {
   }
 
   return success;
+}
+
+void QuaffCountingTask::pbsRun (size_t taskId) {
+  // TODO: pass sortOrder (via cmdline?) and update (from JSON? by using writeJsonWithMeta?)
+  const string prefix = to_string (taskId);
+  const string pbsFilename = config.qsubTempDir.makePath (prefix + ".pbs");
+  const string outFilename = config.qsubTempDir.makePath (prefix + ".out");
+  const string errFilename = config.qsubTempDir.makePath (prefix + ".err");
+  ofstream pbsFile (pbsFilename);
+  pbsFile << config.makePbsScript (yfs);
+  pbsFile.close();
+  config.execWithRetries (config.makePbsCommand (pbsFilename), MaxQuaffPbsAttempts);
+  ifstream outFile (outFilename);
+  yCounts.readJson (outFile);
+  unlink (pbsFilename.c_str());
+  unlink (outFilename.c_str());
+  unlink (errFilename.c_str());
 }
 
 QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file, int line)
@@ -2327,7 +2354,7 @@ void runQuaffCountingTasks (QuaffCountingScheduler* qcs) {
   }
 }
 
-void delegateQuaffCountingTasks (QuaffCountingScheduler* qcs, RemoteServer* remote) {
+void remoteRunQuaffCountingTasks (QuaffCountingScheduler* qcs, RemoteServer* remote) {
   while (true) {
     qcs->lock();
     if (qcs->noMoreTasks()) {
@@ -2343,7 +2370,7 @@ void delegateQuaffCountingTasks (QuaffCountingScheduler* qcs, RemoteServer* remo
     QuaffCountingTask task = qcs->nextCountingTask();
     ++qcs->pending;
     qcs->unlock();
-    const bool taskDone = task.delegate (*remote);
+    const bool taskDone = task.remoteRun (*remote);
     qcs->lock();
     --qcs->pending;
     if (taskDone)
@@ -2511,7 +2538,7 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
     logger.nameLastThread (yThreads, "align");
   }
   for (auto& remote : config.remotes) {
-    yThreads.push_back (thread (&delegateQuaffAlignmentTasks, &qas, &remote));
+    yThreads.push_back (thread (&remoteRunQuaffAlignmentTasks, &qas, &remote));
     logger.nameLastThread (yThreads, "align");
   }
   for (auto& t : yThreads) {
@@ -2631,7 +2658,7 @@ void QuaffAlignmentTask::run() {
   }
 }
 
-bool QuaffAlignmentTask::delegate (RemoteServer& remote, string& response) {
+bool QuaffAlignmentTask::remoteRun (RemoteServer& remote, string& response) {
   bool success = false;
   LogThisAt(3, "Delegating " << yfs.name << " to " << remote.toString() << endl);
   ostringstream out;
@@ -2729,7 +2756,7 @@ void runQuaffAlignmentTasks (QuaffAlignmentScheduler* qas) {
   }
 }
 
-void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qas, RemoteServer* remote) {
+void remoteRunQuaffAlignmentTasks (QuaffAlignmentScheduler* qas, RemoteServer* remote) {
   while (true) {
     qas->lock();
     if (qas->noMoreTasks()) {
@@ -2746,7 +2773,7 @@ void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qas, RemoteServer* re
     ++qas->pending;
     qas->unlock();
     string alignStr;
-    const bool taskDone = task.delegate (*remote, alignStr);
+    const bool taskDone = task.remoteRun (*remote, alignStr);
     qas->lock();
     --qas->pending;
     if (taskDone)

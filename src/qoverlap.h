@@ -79,7 +79,8 @@ struct QuaffOverlapTask : QuaffTask {
   QuaffAlignmentPrinter::AlignmentList alignList;
   QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   void run();
-  bool delegate (RemoteServer& remote, string& align);
+  bool remoteRun (RemoteServer& remote, string& align);
+  void pbsRun (size_t taskId);
 };
 
 class QuaffOverlapScheduler : public QuaffAlignmentPrintingScheduler {
@@ -97,6 +98,7 @@ public:
 
 // thread entry point
 void runQuaffOverlapTasks (QuaffOverlapScheduler* qos);
-void delegateQuaffOverlapTasks (QuaffOverlapScheduler* qos, RemoteServer* remote);
+void remoteRunQuaffOverlapTasks (QuaffOverlapScheduler* qos, RemoteServer* remote);
+void pbsRunQuaffOverlapTasks (QuaffOverlapScheduler* qos);
 
 #endif /* QOVERLAP_INCLUDED */

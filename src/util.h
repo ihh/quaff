@@ -64,6 +64,7 @@ struct TempDir {
   TempDir (const char* filenamePrefix = DefaultTempDirPrefix);
   ~TempDir();
   void init (const char* filenamePrefix = DefaultTempDirPrefix);
+  std::string makePath (const std::string& filename) const;
 };
 
 /* join */

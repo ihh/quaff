@@ -70,8 +70,11 @@
 // If it's an EC2 server, we don't bother with this, just reboot the server instead...
 #define QuaffTimeWaitDelay 300
 
-// mandatory PBS options
+// mandatory PBS qsub options
 #define QuaffPbsOpts "-sync y -z"
+
+// max qsub attempts
+#define MaxQuaffPbsAttempts 3
 
 // useful helper methods
 void randomDelayBeforeRetry (int attempts = 0, double minSeconds = MinQuaffRetryDelay, double multiplier = QuaffRetryDelayMultiplier);
@@ -214,6 +217,7 @@ struct QuaffParamCounts : QuaffEmitCounts {
   void initCounts (double noBeginCount, double yesExtendCount, double matchIdentCount, double otherCount, const QuaffNullParams* nullModel = NULL);
   void writeToLog (int v = 0) const;
   ostream& writeJson (ostream& out) const;
+  ostream& writeJsonWithMeta (ostream& out, const string& name, const vguard<size_t>& sortOrder, const double logLike) const;
   void readJson (istream& in);
   bool readJson (const JsonMap& jm);
   bool readJson (const JsonValue& val);
@@ -287,9 +291,9 @@ struct QuaffDPConfig {
   unsigned int ec2Instances, ec2Cores, ec2Port;
   vguard<string> ec2InstanceIds, ec2InstanceAddresses;
   string ec2Ami, ec2Type, ec2User;
-  unsigned int pbsThreads;
-  string pbsHeader, pbsPath, pbsOpts;
-  TempDir pbsTempDir;
+  unsigned int qsubThreads;
+  string qsubHeader, qsubPath, qsubOpts;
+  TempDir qsubTempDir;
   QuaffDPConfig()
     : local(true),
       sparse(true),
@@ -311,9 +315,9 @@ struct QuaffDPConfig {
       ec2Cores(AWS_DEFAULT_INSTANCE_CORES),
       ec2User(AWS_DEFAULT_USER),
       ec2Port(DefaultServerPort),
-      pbsThreads(0),
-      pbsPath("qsub"),
-      pbsHeader("#!/bin/sh\n")
+      qsubThreads(0),
+      qsubPath("qsub"),
+      qsubHeader("#!/bin/sh\n")
   { }
   bool parseRefSeqConfigArgs (deque<string>& argvec);
   bool parseGeneralConfigArgs (deque<string>& argvec);
@@ -339,6 +343,7 @@ struct QuaffDPConfig {
   string makePbsScript() const;
   string makePbsScript (const FastSeq& read) const;
   string makePbsScript (const FastSeq& xRead, const FastSeq& yRead) const;
+  string makePbsCommand (const string& pbsFilename) const;
 };
 
 // thread entry point
@@ -493,7 +498,8 @@ struct QuaffCountingTask : QuaffTask {
   const size_t ny;
   QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, size_t ny, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& counts);
   void run();
-  bool delegate (RemoteServer& remote);
+  bool remoteRun (RemoteServer& remote);
+  void pbsRun (size_t taskId);
 };
 
 struct QuaffScheduler {
@@ -502,13 +508,13 @@ struct QuaffScheduler {
   const QuaffParams& params;
   QuaffDPConfig& config;
   const QuaffNullParams& nullModel;
-  size_t ny, pending;
+  size_t ny, pending, lockCount;  // lockCount is used by PBS runners as a unique temp filename for tasks
   mutex mx;
   ProgressLogger plog;
   QuaffScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, int verbosity, const char* function, const char* file, int line)
-    : x(x), y(y), params(params), nullModel(nullModel), config(config), ny(0), pending(0), plog(verbosity,function,file,line)
+    : x(x), y(y), params(params), nullModel(nullModel), config(config), ny(0), pending(0), lockCount(0), plog(verbosity,function,file,line)
   { }
-  void lock() { mx.lock(); }
+  void lock() { mx.lock(); ++lockCount; }
   void unlock() { mx.unlock(); }
 };
 
@@ -532,7 +538,8 @@ struct QuaffCountingScheduler : QuaffScheduler {
 
 // thread entry points
 void runQuaffCountingTasks (QuaffCountingScheduler* qcs);
-void delegateQuaffCountingTasks (QuaffCountingScheduler* qcs, RemoteServer* remote);
+void remoteRunQuaffCountingTasks (QuaffCountingScheduler* qcs, RemoteServer* remote);
+void pbsRunQuaffCountingTasks (QuaffCountingScheduler* qcs);
 
 // config/wrapper structs for Viterbi alignment
 struct QuaffAlignmentPrinter {
@@ -569,7 +576,8 @@ struct QuaffAlignmentTask : QuaffTask {
   bool keepAllAlignments;
   QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, bool keepAllAlignments);
   void run();
-  bool delegate (RemoteServer& remote, string& align);
+  bool remoteRun (RemoteServer& remote, string& align);
+  void pbsRun (size_t taskId);
 };
 
 struct QuaffAlignmentPrintingScheduler : QuaffScheduler {
@@ -593,6 +601,7 @@ struct QuaffAlignmentScheduler : QuaffAlignmentPrintingScheduler {
 
 // thread entry point
 void runQuaffAlignmentTasks (QuaffAlignmentScheduler* qas);
-void delegateQuaffAlignmentTasks (QuaffAlignmentScheduler* qcs, RemoteServer* remote);
+void remoteRunQuaffAlignmentTasks (QuaffAlignmentScheduler* qcs, RemoteServer* remote);
+void pbsRunQuaffAlignmentTasks (QuaffAlignmentScheduler* qcs);
 
 #endif /* QMODEL_INCLUDED */

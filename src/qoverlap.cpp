@@ -319,7 +319,7 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
     logger.nameLastThread (yThreads, "align");
   }
   for (auto& remote : config.remotes) {
-    yThreads.push_back (thread (&delegateQuaffOverlapTasks, &qos, &remote));
+    yThreads.push_back (thread (&remoteRunQuaffOverlapTasks, &qos, &remote));
     logger.nameLastThread (yThreads, "align");
   }
   for (auto& t : yThreads) {
@@ -454,7 +454,7 @@ void QuaffOverlapScheduler::advance() {
   }
 }
 
-bool QuaffOverlapTask::delegate (RemoteServer& remote, string& response) {
+bool QuaffOverlapTask::remoteRun (RemoteServer& remote, string& response) {
   bool success = false;
   LogThisAt(3, "Delegating " << xfs.name << " vs " << yfs.name << " to " << remote.toString() << endl);
   ostringstream out;
@@ -533,7 +533,7 @@ void runQuaffOverlapTasks (QuaffOverlapScheduler* qos) {
   }
 }
 
-void delegateQuaffOverlapTasks (QuaffOverlapScheduler* qos, RemoteServer* remote) {
+void remoteRunQuaffOverlapTasks (QuaffOverlapScheduler* qos, RemoteServer* remote) {
   while (true) {
     qos->lock();
     if (qos->noMoreTasks()) {
@@ -550,7 +550,7 @@ void delegateQuaffOverlapTasks (QuaffOverlapScheduler* qos, RemoteServer* remote
     ++qos->pending;
     qos->unlock();
     string alignStr;
-    const bool taskDone = task.delegate (*remote, alignStr);
+    const bool taskDone = task.remoteRun (*remote, alignStr);
     qos->lock();
     --qos->pending;
     if (taskDone)
