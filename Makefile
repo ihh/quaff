@@ -39,6 +39,11 @@ CPPFILES = $(wildcard src/*.cpp)
 # change this to g++ if using gcc
 CPP = clang++
 
+# pwd
+PWD = $(shell pwd)
+
+
+# Targets
 
 all: quaff
 
@@ -70,7 +75,7 @@ osx-install: osx-dep
 osx-dep:
 	brew install gsl boost awscli
 
-# Tests
+# Unit tests
 # testaws is not included in the top-level 'make test' target
 test: testfast testquaffjsonio testquaffcountsjsonio testquaffnulljsonio testlogsumexp testnegbinom testdiagenv testregex
 
@@ -109,6 +114,10 @@ testdiagenv: bin/testdiagenv
 testregex: t/testregex.cpp src/regexmacros.h
 	$(CPP) $(CPPFLAGS) $(LIBFLAGS) -o bin/$@ $<
 	bin/$@
+
+# quaff tests
+testquaffcountself: bin/quaff
+	perl/testexpect.pl quaff count $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand t/c8f30-self-counts.json
 
 # testaws should be run separately (it needs secret keys, could cost money, etc)
 testaws: bin/testaws

@@ -3,7 +3,7 @@
 use warnings;
 use File::Temp;
 
-die "Usage: $0 <prog> <args...> <expected>" unless @ARGV == 3;
+die "Usage: $0 <prog> <args...> <expected>" unless @ARGV >= 3;
 my $expected = pop @ARGV;
 my ($prog, @args) = @ARGV;
 
