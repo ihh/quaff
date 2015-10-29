@@ -124,26 +124,26 @@ testregex: t/testregex.cpp src/regexmacros.h
 quaff-tests: testquaffcountself testquaffalignself testquaffoverlapself testquaffcountself-remote testquaffalignself-remote testquaffoverlapself-remote
 
 testquaffcountself: bin/quaff
-	perl/testexpect.pl quaff count data/c8f30.fastq.gz data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand t/c8f30-self-counts.json
+	perl/testexpect.pl quaff count data/c8f30.fastq.gz data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand data/c8f30-self-counts.json
 
 testquaffalignself: bin/quaff
-	perl/testexpect.pl quaff align data/c8f30.fastq.gz data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand t/c8f30-self-align.json
+	perl/testexpect.pl quaff align data/c8f30.fastq.gz data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand data/c8f30-self-align.json
 
 testquaffoverlapself: bin/quaff data/copy-of-c8f30.fastq
-	perl/testexpect.pl quaff overlap data/c8f30.fastq.gz data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand t/c8f30-self-overlap.json
+	perl/testexpect.pl quaff overlap data/c8f30.fastq.gz data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand data/c8f30-self-overlap.json
 
 data/copy-of-c8f30.fastq: data/c8f30.fastq.gz
 	gzcat $< | perl -pe s/channel/copy/ >$@
 
 # Tests of the -remote option (parallelization over sockets)
 testquaffcountself-remote: bin/quaff
-	perl/testexpect.pl quaff count $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -remote localhost:8000 t/c8f30-self-counts.json
+	perl/testexpect.pl quaff count $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -remote localhost:8000 data/c8f30-self-counts.json
 
 testquaffalignself-remote: bin/quaff
-	perl/testexpect.pl quaff align $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remote localhost:8000 t/c8f30-self-align.json
+	perl/testexpect.pl quaff align $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remote localhost:8000 data/c8f30-self-align.json
 
 testquaffoverlapself-remote: bin/quaff data/copy-of-c8f30.fastq
-	perl/testexpect.pl quaff overlap $(PWD)/data/c8f30.fastq.gz $(PWD)/data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand -remote localhost:8000 t/c8f30-self-overlap.json
+	perl/testexpect.pl quaff overlap $(PWD)/data/c8f30.fastq.gz $(PWD)/data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand -remote localhost:8000 data/c8f30-self-overlap.json
 
 
 
