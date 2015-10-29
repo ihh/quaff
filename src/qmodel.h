@@ -480,7 +480,6 @@ struct QuaffTrainer {
   QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   void serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, QuaffDPConfig& config);
   static void serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, QuaffDPConfig* pconfig, unsigned int port);
-  static map<string,size_t> makeSeqDictionary (const vguard<FastSeq>& y);
   static string getCountJobResult (const vguard<FastSeq>& x, const vguard<FastSeq>& y, bool useNullModel, QuaffDPConfig& config, map<string,size_t>& yDict, const JsonMap& jobDescription, bool& validJson);
   static vguard<vguard<size_t> > defaultSortOrder (const vguard<FastSeq>& x, const vguard<FastSeq>& y);
   bool usingParamOutputFile() const { return !saveParamsFilename.empty(); }
@@ -578,6 +577,7 @@ struct QuaffAligner : QuaffAlignmentPrinter {
   void align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   void serveAlignments (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   static void serveAlignmentsFromThread (QuaffAligner* paligner, const vguard<FastSeq>* px, const vguard<FastSeq>* py, const QuaffParams* pparams, const QuaffNullParams* pnullModel, QuaffDPConfig* pconfig, unsigned int port);
+  static string getAlignmentJobResult (QuaffAligner& aligner, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, map<string,size_t>& yDict, const JsonMap& jobDescription, bool& validJson);
 };
 
 // structs for scheduling alignment tasks
@@ -588,7 +588,8 @@ struct QuaffAlignmentTask : QuaffTask {
   QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, bool keepAllAlignments);
   void run();
   bool remoteRun (RemoteServer& remote, string& align);
-  void qsubRun (size_t taskId);
+  void qsubRun (size_t taskId, string& align);
+  string toJson() const;
 };
 
 struct QuaffAlignmentPrintingScheduler : QuaffScheduler {

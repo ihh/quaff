@@ -254,3 +254,10 @@ KmerIndex::KmerIndex (const FastSeq& seq, const string& alphabet, SeqIdx kmerLen
     }
   }
 }
+
+map<string,size_t> FastSeq::makeNameIndex (const vguard<FastSeq>& y) {
+  map<string,size_t> yDict;
+  for (size_t ny = 0; ny < y.size(); ++ny)
+    yDict[y[ny].name] = ny;
+  return yDict;
+}

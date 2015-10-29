@@ -343,9 +343,7 @@ void QuaffOverlapAligner::serveAlignments (const vguard<FastSeq>& seqs, size_t n
 }
 
 void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* paligner, const vguard<FastSeq>* pseqs, size_t nOriginals, const QuaffParams* pparams, const QuaffNullParams* pnullModel, QuaffDPConfig* pconfig, unsigned int port) {
-  map<string,const FastSeq*> seqDict;
-  for (const auto& s : *pseqs)
-    seqDict[s.name] = &s;
+  map<string,size_t> seqDict = FastSeq::makeNameIndex (*pseqs);
 
   if (LoggingThisAt(8)) {
     ostringstream l;
@@ -380,46 +378,60 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
 	  return;
 	}
 
-	if (pj.containsType("xName",JSON_STRING)
-	    && pj.containsType("yName",JSON_STRING)
-	    && pj.containsType("yComplemented",JSON_NUMBER)) {
-    
-	  const string& xName = pj["xName"].toString();
-	  const string& yName = pj["yName"].toString();
-	  const int yComp = (int) pj["yComplemented"].toNumber();
+	bool validJson = false;
+	string s = getAlignmentJobResult (*paligner, *pseqs, nOriginals, *pparams, *pnullModel, *pconfig, seqDict, pj, validJson);
+	if (validJson) {
+	  s += SocketTerminatorString;
+	  s += '\n';
+	  sock->send (s.c_str(), (int) s.size());
 
-	  if (seqDict.find(xName) != seqDict.end()
-	      && seqDict.find(yName) != seqDict.end()) {
-
-	    LogThisAt(2, "Aligning " << xName << " to " << yName << endl);
-
-	    QuaffOverlapTask task (*seqDict[xName], *seqDict[yName], yComp, *pparams, *pnullModel, *pconfig);
-	    task.run();
-
-	    ostringstream out;
-	    for (const auto& a : task.alignList)
-	      paligner->writeAlignment (out, a);
-	    out << SocketTerminatorString << endl;
-
-	    const string s = out.str();
-	    sock->send (s.c_str(), (int) s.size());
-
-	    LogThisAt(2, "Request completed" << endl);
-
-	  } else {
-	    LogThisAt(1, "Bad request, ignoring" << endl << "xName = \"" << xName << "\"" << endl << "yName = \"" << yName << "\"" << endl << "yComp = " << yComp << endl << "Request follows:" << endl << pj.str << endl);
-	    break;
-	  }
+	  LogThisAt(2, "Request completed" << endl);
 
 	} else {
-	  LogThisAt(1, "Bad request, ignoring" << endl << "Request follows:" << endl << pj.str << endl);
+	  LogThisAt(1, "Bad job description:" << endl << pj.str << endl);
 	  break;
 	}
       }
+      
+      delete sock;
     }
-
-    delete sock;
   }
+}
+
+string QuaffOverlapAligner::getAlignmentJobResult (QuaffOverlapAligner& aligner, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, map<string,size_t>& seqDict, const JsonMap& jobDescription, bool& validJson) {
+
+  string result;
+  validJson = false;
+
+  if (jobDescription.containsType("xName",JSON_STRING)
+      && jobDescription.containsType("yName",JSON_STRING)
+      && jobDescription.containsType("yComplemented",JSON_NUMBER)) {
+    
+    const string& xName = jobDescription["xName"].toString();
+    const string& yName = jobDescription["yName"].toString();
+    const int yComp = (int) jobDescription["yComplemented"].toNumber();
+
+    if (seqDict.find(xName) != seqDict.end()
+	&& seqDict.find(yName) != seqDict.end()) {
+
+      LogThisAt(2, "Aligning " << xName << " to " << yName << endl);
+
+      QuaffOverlapTask task (seqs[seqDict[xName]], seqs[seqDict[yName]], yComp, params, nullModel, config);
+      task.run();
+
+      ostringstream out;
+      for (const auto& a : task.alignList)
+	aligner.writeAlignment (out, a);
+
+      result = out.str();
+      validJson = true;
+
+    } else {
+      LogThisAt(1, "xName = \"" << xName << "\"" << endl << "yName = \"" << yName << "\"" << endl << "yComp = " << yComp << endl);
+    }
+  }
+
+  return result;
 }
 
 QuaffOverlapTask::QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config)
@@ -457,13 +469,8 @@ void QuaffOverlapScheduler::advance() {
 bool QuaffOverlapTask::remoteRun (RemoteServer& remote, string& response) {
   bool success = false;
   LogThisAt(3, "Delegating " << xfs.name << " vs " << yfs.name << " to " << remote.toString() << endl);
-  ostringstream out;
-  out << "{ \"xName\": " << JsonUtil::quoteEscaped(xfs.name) << "," << endl;
-  out << "  \"yName\": " << JsonUtil::quoteEscaped(yfs.name) << "," << endl;
-  out << "  \"yComplemented\": " << yComplemented << " }" << endl;
-  out << SocketTerminatorString << endl;
-  
-  const string msg = out.str();
+
+  const string msg = toJson() + SocketTerminatorString + '\n';
 
   for (int failures = 0; failures < MaxQuaffClientFailures; ++failures) {
     try {
@@ -483,6 +490,15 @@ bool QuaffOverlapTask::remoteRun (RemoteServer& remote, string& response) {
   }
 
   return success;
+}
+
+
+string QuaffOverlapTask::toJson() const {
+  ostringstream out;
+  out << "{ \"xName\": " << JsonUtil::quoteEscaped(xfs.name) << "," << endl;
+  out << "  \"yName\": " << JsonUtil::quoteEscaped(yfs.name) << "," << endl;
+  out << "  \"yComplemented\": " << yComplemented << " }" << endl;
+  return out.str();
 }
 
 bool QuaffOverlapScheduler::noMoreTasks() const {

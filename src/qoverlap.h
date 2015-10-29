@@ -70,6 +70,7 @@ struct QuaffOverlapAligner : QuaffAlignmentPrinter {
   void align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   void serveAlignments (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   static void serveAlignmentsFromThread (QuaffOverlapAligner* paligner, const vguard<FastSeq>* pseqs, size_t nOriginals, const QuaffParams* pparams, const QuaffNullParams* pnullModel, QuaffDPConfig* pconfig, unsigned int port);
+  static string getAlignmentJobResult (QuaffOverlapAligner& aligner, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, map<string,size_t>& yDict, const JsonMap& jobDescription, bool& validJson);
 };
 
 // structs for scheduling overlap tasks
@@ -80,7 +81,8 @@ struct QuaffOverlapTask : QuaffTask {
   QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   void run();
   bool remoteRun (RemoteServer& remote, string& align);
-  void pbsRun (size_t taskId);
+  void qsubRun (size_t taskId);
+  string toJson() const;
 };
 
 class QuaffOverlapScheduler : public QuaffAlignmentPrintingScheduler {
@@ -99,6 +101,6 @@ public:
 // thread entry point
 void runQuaffOverlapTasks (QuaffOverlapScheduler* qos);
 void remoteRunQuaffOverlapTasks (QuaffOverlapScheduler* qos, RemoteServer* remote);
-void pbsRunQuaffOverlapTasks (QuaffOverlapScheduler* qos);
+void qsubRunQuaffOverlapTasks (QuaffOverlapScheduler* qos);
 
 #endif /* QOVERLAP_INCLUDED */

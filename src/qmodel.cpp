@@ -2046,7 +2046,7 @@ QuaffParamCounts QuaffTrainer::getCounts (const vguard<FastSeq>& x, const vguard
 
 void QuaffTrainer::serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, QuaffDPConfig& config) {
   if (config.jobFilename.size()) {
-    map<string,size_t> yDict = makeSeqDictionary (y);
+    map<string,size_t> yDict = FastSeq::makeNameIndex (y);
     ifstream jobFile (config.jobFilename);
     ParsedJson pj (jobFile);
     bool validJson;
@@ -2067,7 +2067,7 @@ void QuaffTrainer::serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>&
 }
 
 void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, QuaffDPConfig* pconfig, unsigned int port) {
-  map<string,size_t> yDict = makeSeqDictionary (*py);
+  map<string,size_t> yDict = FastSeq::makeNameIndex (*py);
 
   if (LoggingThisAt(8)) {
     ostringstream l;
@@ -2120,13 +2120,6 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
     
     delete sock;
   }
-}
-
-map<string,size_t> QuaffTrainer::makeSeqDictionary (const vguard<FastSeq>& y) {
-  map<string,size_t> yDict;
-  for (size_t ny = 0; ny < y.size(); ++ny)
-    yDict[y[ny].name] = ny;
-  return yDict;
 }
 
 string QuaffTrainer::getCountJobResult (const vguard<FastSeq>& x, const vguard<FastSeq>& y, bool useNullModel, QuaffDPConfig& config, map<string,size_t>& yDict, const JsonMap& json, bool& validJson) {
@@ -2281,15 +2274,6 @@ void QuaffCountingTask::run() {
   sortOrder.erase (sortOrderCutoff, sortOrder.end());  // bye bye unproductive refseqs
 }
 
-string QuaffCountingTask::toJson() const {
-  ostringstream out;
-  out << "{\"yName\": " << JsonUtil::quoteEscaped(yfs.name) << "," << endl;
-  out << " \"xSort\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
-  nullModel.writeJson (out << " \"null\": ") << "," << endl;
-  params.writeJson (out << " \"params\": ") << " }" << endl;
-  return out.str();
-}
-
 bool QuaffCountingTask::remoteRun (RemoteServer& remote) {
   if (sortOrder.empty()) {
     LogThisAt(3, "Skipping " << yfs.name << " as no refseqs match" << endl);
@@ -2329,6 +2313,15 @@ bool QuaffCountingTask::remoteRun (RemoteServer& remote) {
   return success;
 }
 
+string QuaffCountingTask::toJson() const {
+  ostringstream out;
+  out << "{\"yName\": " << JsonUtil::quoteEscaped(yfs.name) << "," << endl;
+  out << " \"xSort\": [ " << to_string_join(sortOrder,", ") << " ]," << endl;
+  nullModel.writeJson (out << " \"null\": ") << "," << endl;
+  params.writeJson (out << " \"params\": ") << " }" << endl;
+  return out.str();
+}
+
 bool QuaffCountingTask::getResultFromJson (const JsonMap& result) {
   if (result.containsType("xSort",JSON_ARRAY)
       && result.containsType("loglike",JSON_NUMBER)
@@ -2344,7 +2337,6 @@ bool QuaffCountingTask::getResultFromJson (const JsonMap& result) {
 }
 
 void QuaffCountingTask::qsubRun (size_t taskId) {
-  // TODO: pass in sortOrder via jobfile and update from returned JSON
   const string prefix = config.qsubTempDir.makePath (to_string (taskId));
   const string scriptFilename = prefix + QuaffQsubScriptSuffix;
   const string jobFilename = prefix + QuaffQsubInfoSuffix;
@@ -2665,9 +2657,7 @@ void QuaffAligner::serveAlignments (const vguard<FastSeq>& x, const vguard<FastS
 }
 
 void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vguard<FastSeq>* px, const vguard<FastSeq>* py, const QuaffParams* pparams, const QuaffNullParams* pnullModel, QuaffDPConfig* pconfig, unsigned int port) {
-  map<string,const FastSeq*> yDict;
-  for (const auto& s : *py)
-    yDict[s.name] = &s;
+  map<string,size_t> yDict = FastSeq::makeNameIndex (*py);
 
   if (LoggingThisAt(8)) {
     ostringstream l;
@@ -2701,41 +2691,57 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
 	  return;
 	}
 
-	if (pj.containsType("yName",JSON_STRING)) {
+	bool validJson = false;
+	string s = getAlignmentJobResult (*paligner, *px, *py, *pparams, *pnullModel, *pconfig, yDict, pj, validJson);
 
-	  const string yName = pj["yName"].toString();
+	if (validJson) {
+	  s += SocketTerminatorString;
+	  s += '\n';
+	  sock->send (s.c_str(), (int) s.size());
 
-	  if (yDict.find(yName) != yDict.end()) {
-
-	    LogThisAt(2, "Aligning " << yName << endl);
-
-	    QuaffAlignmentTask task (*px, *yDict[yName], *pparams, *pnullModel, *pconfig, paligner->printAllAlignments);
-	    task.run();
-
-	    ostringstream out;
-	    for (const auto& a : task.alignList)
-	      paligner->writeAlignment (out, a);
-	    out << SocketTerminatorString << endl;
-
-	    const string s = out.str();
-	    sock->send (s.c_str(), (int) s.size());
-
-	    LogThisAt(2, "Request completed" << endl);
-
-	  } else {
-	    LogThisAt(1, "Bad request, ignoring" << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << pj.str << endl);
-	    break;
-	  }
+	  LogThisAt(2, "Request completed" << endl);
 
 	} else {
-	  LogThisAt(1, "Bad request, ignoring" << endl << pj.str << endl);
+	  LogThisAt(1, "Bad job description:" << endl << pj.str << endl);
 	  break;
 	}
+
       }
     }
     
     delete sock;
   }
+}
+
+string QuaffAligner::getAlignmentJobResult (QuaffAligner& aligner, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, map<string,size_t>& yDict, const JsonMap& jobDescription, bool& validJson) {
+
+  string result;
+  validJson = false;
+
+  if (jobDescription.containsType("yName",JSON_STRING)) {
+
+    const string yName = jobDescription["yName"].toString();
+
+    if (yDict.find(yName) != yDict.end()) {
+
+      LogThisAt(2, "Aligning " << yName << endl);
+
+      QuaffAlignmentTask task (x, y[yDict[yName]], params, nullModel, config, aligner.printAllAlignments);
+      task.run();
+
+      ostringstream out;
+      for (const auto& a : task.alignList)
+	aligner.writeAlignment (out, a);
+
+      result = out.str();
+      validJson = true;
+
+    } else {
+      LogThisAt(1, "yName = \"" << yName << endl);
+    }
+  }
+
+  return result;
 }
 
 QuaffAlignmentTask::QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, bool keepAllAlignments)
@@ -2764,12 +2770,8 @@ void QuaffAlignmentTask::run() {
 bool QuaffAlignmentTask::remoteRun (RemoteServer& remote, string& response) {
   bool success = false;
   LogThisAt(3, "Delegating " << yfs.name << " to " << remote.toString() << endl);
-  ostringstream out;
-  out << "{ \"yName\": " << JsonUtil::quoteEscaped(yfs.name) << " }" << endl;
-  out << SocketTerminatorString << endl;
-  
-  const string msg = out.str();
 
+  const string msg = toJson() + SocketTerminatorString + '\n';
   for (int failures = 0; failures < MaxQuaffClientFailures; ++failures) {
     try {
       TCPSocket* sock = remote.getSocket();
@@ -2788,6 +2790,12 @@ bool QuaffAlignmentTask::remoteRun (RemoteServer& remote, string& response) {
   }
 
   return success;
+}
+
+string QuaffAlignmentTask::toJson() const {
+  ostringstream out;
+  out << "{ \"yName\": " << JsonUtil::quoteEscaped(yfs.name) << " }" << endl;
+  return out.str();
 }
 
 QuaffAlignmentPrintingScheduler::QuaffAlignmentPrintingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, ostream& out, QuaffAlignmentPrinter& printer, int verbosity, const char* function, const char* file, int line)

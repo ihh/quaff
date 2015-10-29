@@ -66,6 +66,7 @@ struct FastSeq {
   void writeFasta (ostream& out) const;
   void writeFastq (ostream& out) const;
   FastSeq revcomp() const;
+  static map<string,size_t> makeNameIndex (const vguard<FastSeq>& y);
 };
 
 vguard<FastSeq> readFastSeqs (const char* filename);
