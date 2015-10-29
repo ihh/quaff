@@ -317,6 +317,7 @@ struct QuaffDPConfig {
       ec2Port(DefaultServerPort),
       qsubThreads(0),
       qsubPath("qsub"),
+      qsubOpts(QuaffPbsOpts),
       qsubHeader("#!/bin/sh\n")
   { }
   bool parseRefSeqConfigArgs (deque<string>& argvec);

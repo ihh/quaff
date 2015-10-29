@@ -124,26 +124,26 @@ testregex: t/testregex.cpp src/regexmacros.h
 quaff-tests: testquaffcountself testquaffalignself testquaffoverlapself testquaffcountself-remote testquaffalignself-remote testquaffoverlapself-remote
 
 testquaffcountself: bin/quaff
-	perl/testexpect.pl quaff count data/c8f30.fastq.gz data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand data/c8f30-self-counts.json
+	perl/testexpect.pl bin/quaff count data/c8f30.fastq.gz data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand data/c8f30-self-counts.json
 
 testquaffalignself: bin/quaff
-	perl/testexpect.pl quaff align data/c8f30.fastq.gz data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand data/c8f30-self-align.json
+	perl/testexpect.pl bin/quaff align data/c8f30.fastq.gz data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand data/c8f30-self-align.json
 
 testquaffoverlapself: bin/quaff data/copy-of-c8f30.fastq
-	perl/testexpect.pl quaff overlap data/c8f30.fastq.gz data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand data/c8f30-self-overlap.json
+	perl/testexpect.pl bin/quaff overlap data/c8f30.fastq.gz data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand data/c8f30-self-overlap.json
 
 data/copy-of-c8f30.fastq: data/c8f30.fastq.gz
 	gzcat $< | perl -pe s/channel/copy/ >$@
 
 # Tests of the -remote option (parallelization over sockets)
 testquaffcountself-remote: bin/quaff
-	perl/testexpect.pl quaff count $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -remote localhost:8000 data/c8f30-self-counts.json
+	perl/testexpect.pl bin/quaff count $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -remote localhost:8000 data/c8f30-self-counts.json
 
 testquaffalignself-remote: bin/quaff
-	perl/testexpect.pl quaff align $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remote localhost:8000 data/c8f30-self-align.json
+	perl/testexpect.pl bin/quaff align $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remote localhost:8000 data/c8f30-self-align.json
 
 testquaffoverlapself-remote: bin/quaff data/copy-of-c8f30.fastq
-	perl/testexpect.pl quaff overlap $(PWD)/data/c8f30.fastq.gz $(PWD)/data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand -remote localhost:8000 data/c8f30-self-overlap.json
+	perl/testexpect.pl bin/quaff overlap $(PWD)/data/c8f30.fastq.gz $(PWD)/data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand -remote localhost:8000 data/c8f30-self-overlap.json
 
 
 
@@ -152,9 +152,11 @@ testquaffoverlapself-remote: bin/quaff data/copy-of-c8f30.fastq
 testaws: bin/testaws
 	echo Run like this: 'bin/testaws keyPairName'
 
+
+# Rules for building files in the repository
 # For updating README.md
 README.md: bin/quaff
-	PATH=bin:$(PATH); quaff help | perl -pe 's/</&lt;/g;s/>/&gt;/g;' | perl -e 'open FILE,"<README.md";while(<FILE>){last if/<pre>/;print}close FILE;print"<pre><code>\n";while(<>){print};print"</code></pre>\n"' >temp.md
+	PATH=bin:$(PATH); bin/quaff help | perl -pe 's/</&lt;/g;s/>/&gt;/g;' | perl -e 'open FILE,"<README.md";while(<FILE>){last if/<pre>/;print}close FILE;print"<pre><code>\n";while(<>){print};print"</code></pre>\n"' >temp.md
 	mv temp.md $@
 
 # For updating default params

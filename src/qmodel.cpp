@@ -963,11 +963,17 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
 
     } else if (arg == "-qsubopts") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
-      qsubOpts = argvec[1];
+      qsubOpts += argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
 
+    } else if (arg == "-qsubsetopts") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      qsubOpts = argvec[1];
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
     }
   }
 
@@ -1028,7 +1034,7 @@ string QuaffDPConfig::makePbsScript (const FastSeq& xRead, const FastSeq& yRead)
 }
 
 string QuaffDPConfig::makePbsCommand (const string& pbsFilename) const {
-  return qsubPath + ' ' + QuaffPbsOpts + ' ' + qsubOpts + ' ' + pbsFilename;
+  return qsubPath + ' ' + qsubOpts + ' ' + pbsFilename;
 }
 
 DiagonalEnvelope QuaffDPConfig::makeEnvelope (const FastSeq& x, const KmerIndex& yKmerIndex, size_t cellSize) const {
