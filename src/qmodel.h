@@ -294,6 +294,7 @@ struct QuaffDPConfig {
   unsigned int qsubThreads;
   string qsubHeader, qsubPath, qsubOpts;
   TempDir qsubTempDir;
+  string jobFilename;
   QuaffDPConfig()
     : local(true),
       sparse(true),
@@ -474,6 +475,8 @@ struct QuaffTrainer {
   QuaffParamCounts getCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   void serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>& y, QuaffDPConfig& config);
   static void serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, QuaffDPConfig* pconfig, unsigned int port);
+  static map<string,size_t> makeSeqDictionary (const vguard<FastSeq>& y);
+  static string getCountJobResult (const vguard<FastSeq>& x, const vguard<FastSeq>& y, bool useNullModel, QuaffDPConfig& config, map<string,size_t>& yDict, const JsonMap& jobDescription, bool& validJson);
   static vguard<vguard<size_t> > defaultSortOrder (const vguard<FastSeq>& x, const vguard<FastSeq>& y);
   bool usingParamOutputFile() const { return !saveParamsFilename.empty(); }
   bool usingCountsOutputFile() const { return !rawCountsFilename.empty(); }

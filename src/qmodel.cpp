@@ -730,8 +730,17 @@ bool QuaffDPConfig::parseServerConfigArgs (deque<string>& argvec) {
       argvec.pop_front();
       argvec.pop_front();
       return true;
+
+    } else if (arg == "-job") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      Require (jobFilename.empty(), "Can't specify multiple jobs");
+      jobFilename = argvec[1].c_str();
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
     }
   }
+
   return false;
 }
 
@@ -948,7 +957,7 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
 
       ifstream iter (argvec[1].c_str());
       qsubHeader = string((istreambuf_iterator<char>(iter)),
-			 istreambuf_iterator<char>());
+			  istreambuf_iterator<char>());
 
       argvec.pop_front();
       argvec.pop_front();
@@ -2036,9 +2045,7 @@ void QuaffTrainer::serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>&
 }
 
 void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguard<FastSeq>* py, bool useNullModel, QuaffDPConfig* pconfig, unsigned int port) {
-  map<string,size_t> yDict;
-  for (size_t ny = 0; ny < py->size(); ++ny)
-    yDict[(*py)[ny].name] = ny;
+  map<string,size_t> yDict = makeSeqDictionary (*py);
 
   if (LoggingThisAt(8)) {
     ostringstream l;
@@ -2048,7 +2055,7 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
     l << endl;
     LogStream(8,l.str());
   }
-  
+
   TCPServerSocket servSock (port);
   LogThisAt(1, "(listening on port " << port << ')' << endl);
 
@@ -2072,50 +2079,18 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
 	  return;
 	}
 
-	if (pj.containsType("yName",JSON_STRING)
-	    && pj.containsType("xSort",JSON_ARRAY)
-	    && pj.containsType("params",JSON_OBJECT)
-	    && pj.containsType("null",JSON_OBJECT)) {
+	bool validJson = false;
+	string s = getCountJobResult (*px, *py, useNullModel, *pconfig, yDict, pj, validJson);
 
-	  const string yName = pj["yName"].toString();
-	  const JsonValue& xSort = pj["xSort"];
+	if (validJson) {
+	  s += SocketTerminatorString;
+	  s += '\n';
+	  sock->send (s.c_str(), (int) s.size());
 
-	  vguard<size_t> sortOrder = JsonUtil::indexVec (xSort);
-
-	  QuaffParams params;
-	  QuaffNullParams nullModel;
-
-	  if (yDict.find(yName) != yDict.end()
-	      && params.readJson (pj["params"])
-	      && nullModel.readJson (pj["null"])) {
-
-	    LogThisAt(2, "Aligning " << plural(sortOrder.size(),"reference") << " to " << yName << endl);
-    
-	    const unsigned int matchKmerLen = params.matchContext.kmerLen;
-	    const unsigned int indelKmerLen = params.indelContext.kmerLen;
-	    QuaffParamCounts yCounts (matchKmerLen, indelKmerLen);
-
-	    double yLogLike;
-	    const size_t ny = yDict[yName];
-	    QuaffCountingTask task (*px, (*py)[ny], ny, params, nullModel, useNullModel, *pconfig, sortOrder, yLogLike, yCounts);
-	    task.run();
-
-	    ostringstream out;
-	    yCounts.writeJsonWithMeta (out, yName, sortOrder, yLogLike);
-	    out << SocketTerminatorString << endl;
-
-	    const string s = out.str();
-	    sock->send (s.c_str(), (int) s.size());
-
-	    LogThisAt(2, "Request completed" << endl);
-
-	  } else {
-	    LogThisAt(1, "Bad request, ignoring" << endl << "sortOrder = (" << to_string_join(sortOrder) << ')' << endl << "yName = \"" << yName << "\"" << endl << "Request follows:" << endl << pj.str << endl);
-	    break;
-	  }
+	  LogThisAt(2, "Request completed" << endl);
 
 	} else {
-	  LogThisAt(1, "Bad request, ignoring" << endl << "Request follows:" << endl << pj.str << endl);
+	  LogThisAt(1, "Bad job description:" << endl << pj.str << endl);
 	  break;
 	}
       }
@@ -2124,6 +2099,61 @@ void QuaffTrainer::serveCountsFromThread (const vguard<FastSeq>* px, const vguar
     delete sock;
   }
 }
+
+map<string,size_t> QuaffTrainer::makeSeqDictionary (const vguard<FastSeq>& y) {
+  map<string,size_t> yDict;
+  for (size_t ny = 0; ny < y.size(); ++ny)
+    yDict[y[ny].name] = ny;
+  return yDict;
+}
+
+string QuaffTrainer::getCountJobResult (const vguard<FastSeq>& x, const vguard<FastSeq>& y, bool useNullModel, QuaffDPConfig& config, map<string,size_t>& yDict, const JsonMap& json, bool& validJson) {
+
+  string result;
+  validJson = false;
+
+  if (json.containsType("yName",JSON_STRING)
+      && json.containsType("xSort",JSON_ARRAY)
+      && json.containsType("params",JSON_OBJECT)
+      && json.containsType("null",JSON_OBJECT)) {
+
+    const string yName = json["yName"].toString();
+    const JsonValue& xSort = json["xSort"];
+
+    vguard<size_t> sortOrder = JsonUtil::indexVec (xSort);
+
+    QuaffParams params;
+    QuaffNullParams nullModel;
+
+    if (yDict.find(yName) != yDict.end()
+	&& params.readJson (json["params"])
+	&& nullModel.readJson (json["null"])) {
+
+      LogThisAt(2, "Aligning " << plural(sortOrder.size(),"reference") << " to " << yName << endl);
+    
+      const unsigned int matchKmerLen = params.matchContext.kmerLen;
+      const unsigned int indelKmerLen = params.indelContext.kmerLen;
+      QuaffParamCounts yCounts (matchKmerLen, indelKmerLen);
+
+      double yLogLike;
+      const size_t ny = yDict[yName];
+      QuaffCountingTask task (x, y[ny], ny, params, nullModel, useNullModel, config, sortOrder, yLogLike, yCounts);
+      task.run();
+
+      ostringstream out;
+      yCounts.writeJsonWithMeta (out, yName, sortOrder, yLogLike);
+
+      result = out.str();
+      validJson = true;
+
+    } else {
+      LogThisAt(1, "sortOrder = (" << to_string_join(sortOrder) << ')' << endl << "yName = \"" << yName << "\"" << endl);
+    }
+  }
+
+  return result;
+}
+
 
 QuaffParams QuaffTrainer::fit (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& seed, const QuaffNullParams& nullModel, const QuaffParamCounts& pseudocounts, QuaffDPConfig& config) {
   if (maxReadBases > 0) {
@@ -2285,7 +2315,7 @@ bool QuaffCountingTask::remoteRun (RemoteServer& remote) {
 }
 
 void QuaffCountingTask::pbsRun (size_t taskId) {
-  // TODO: pass sortOrder (via cmdline?) and update (from JSON? by using writeJsonWithMeta?)
+  // TODO: pass in sortOrder via jobfile and update from returned JSON
   const string prefix = to_string (taskId);
   const string pbsFilename = config.qsubTempDir.makePath (prefix + ".pbs");
   const string outFilename = config.qsubTempDir.makePath (prefix + ".out");
