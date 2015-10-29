@@ -119,11 +119,11 @@ const string TempFile::dir = "/tmp";
 unsigned int TempFile::count = 0;
 std::mutex TempFile::mx;
 
-std::string TempFile::getNewPath (const char* filenamePrefix) {
+std::string TempFile::getNewPath (const char* basePath, const char* filenamePrefix) {
   std::string fullPath;
   mx.lock();
   do {
-    fullPath = dir + '/' + filenamePrefix + std::to_string(getpid()) + '.' + std::to_string(++count);
+    fullPath = string(basePath) + '/' + filenamePrefix + std::to_string(getpid()) + '.' + std::to_string(++count);
   } while (access(fullPath.c_str(),F_OK ) != -1);
   mx.unlock();
   return fullPath;
@@ -134,7 +134,7 @@ TempFile::TempFile (const std::string& contents, const char* filenamePrefix) {
 }
 
 void TempFile::init (const std::string& contents, const char* filenamePrefix) {
-  fullPath = getNewPath (filenamePrefix);
+  fullPath = getNewPath (dir.c_str(), filenamePrefix);
   std::ofstream out (fullPath);
   Assert (out.is_open() && !out.fail(), "Couldn't write to temp file %s", fullPath.c_str());
   out << contents;
@@ -145,13 +145,9 @@ TempFile::~TempFile() {
     unlink (fullPath.c_str());
 }
 
-TempDir::TempDir (const char* filenamePrefix) {
-  init (filenamePrefix);
-}
-
-void TempDir::init (const char* filenamePrefix) {
+void TempDir::init (const char* dir, const char* filenamePrefix) {
   if (fullPath.empty()) {
-    fullPath = TempFile::getNewPath (filenamePrefix);
+    fullPath = TempFile::getNewPath (dir, filenamePrefix);
     Assert (mkdir(fullPath.c_str(),0700) == 0, "Couldn't make temp directory %s", fullPath.c_str());
   }
 }
@@ -180,3 +176,7 @@ string pipeToString (const char* command, int* status) {
   return result;
 }
 
+bool file_exists (const char *filename) {
+  struct stat buffer;   
+  return stat (filename, &buffer) == 0;
+}

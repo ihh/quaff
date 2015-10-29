@@ -9,6 +9,7 @@
 #include <functional>
 #include <cassert>
 #include <mutex>
+#include <sys/stat.h>
 
 /* uncomment to enable NaN checks */
 #define NAN_DEBUG
@@ -50,7 +51,7 @@ struct TempFile {
   static const std::string dir;  /* /tmp */
   static unsigned int count;
   static std::mutex mx;
-  static std::string getNewPath (const char* filenamePrefix);
+  static std::string getNewPath (const char* basePath, const char* filenamePrefix);
   std::string fullPath;
   TempFile();
   TempFile (const std::string& contents, const char* filenamePrefix = DefaultTempFilePrefix);
@@ -61,11 +62,14 @@ struct TempFile {
 /* temp directory */
 struct TempDir {
   std::string fullPath;
-  TempDir (const char* filenamePrefix = DefaultTempDirPrefix);
+  TempDir() { }
   ~TempDir();
-  void init (const char* filenamePrefix = DefaultTempDirPrefix);
+  void init (const char* dir, const char* filenamePrefix = DefaultTempDirPrefix);
   std::string makePath (const std::string& filename) const;
 };
+
+/* test file exists */
+bool file_exists (const char *filename);
 
 /* join */
 template<class Container>
