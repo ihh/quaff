@@ -73,7 +73,7 @@
 // qsub file suffices
 #define QuaffQsubScriptSuffix ".sh"
 #define QuaffQsubInfoSuffix   ".info"
-#define QuaffQsubCountsSuffix ".counts"
+#define QuaffQsubResultSuffix ".result"
 #define QuaffQsubDoneSuffix   ".done"
 #define QuaffQsubOutSuffix    ".out"
 #define QuaffQsubErrSuffix    ".err"
@@ -347,8 +347,7 @@ struct QuaffDPConfig {
   string makeSshCommand (const string& cmd, const RemoteServerJob& job) const;
   bool execWithRetries (const string& cmd, int maxAttempts, bool* foundReadyFlag = NULL, const char* ec2id = NULL) const;
   string makeQsubScript (const string& prefix, const string& args) const;
-  string makeQsubScript (const string& prefix, const FastSeq& read) const;
-  string makeQsubScript (const string& prefix, const FastSeq& xRead, const FastSeq& yRead) const;
+  string makeReadIndexOpt (const FastSeq& read) const;
   string makeQsubCommand (const string& scriptFilename) const;
   bool atLeastOneThread() const;
 };
@@ -495,6 +494,7 @@ struct QuaffTask {
   QuaffTask (const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config)
     : yfs(yfs), params(params), nullModel(nullModel), config(config)
   { }
+  string qsubResult (size_t taskId, const string& jobDescription, const string& quaffArgs);
 };
 
 struct QuaffCountingTask : QuaffTask {

@@ -959,8 +959,8 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
     } else if (arg == "-qsubheader") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
 
-      ifstream iter (argvec[1].c_str());
-      qsubHeader = string((istreambuf_iterator<char>(iter)),
+      ifstream qsubHeaderFile (argvec[1].c_str());
+      qsubHeader = string((istreambuf_iterator<char>(qsubHeaderFile)),
 			  istreambuf_iterator<char>());
 
       argvec.pop_front();
@@ -1029,22 +1029,13 @@ string QuaffDPConfig::makeQsubScript (const string& prefix, const string& args) 
   for (const auto& fa : nonReadFileArgs)
     s += ' ' + get<0>(fa) + ' ' + get<1>(fa) + get<2>(fa);
   s += " -job " + prefix + QuaffQsubInfoSuffix;
-  s += " 1>>" + prefix + QuaffQsubCountsSuffix;
+  s += " 1>>" + prefix + QuaffQsubResultSuffix;
   s += "\ntouch " + prefix + QuaffQsubDoneSuffix + '\n';
   return s;
 }
 
-string QuaffDPConfig::makeQsubScript (const string& prefix, const FastSeq& read) const {
-  string args;
-  args += " -readindex " + read.filename + " " + to_string(read.filepos);
-  return makeQsubScript (prefix, args);
-}
-
-string QuaffDPConfig::makeQsubScript (const string& prefix, const FastSeq& xRead, const FastSeq& yRead) const {
-  string args;
-  args += " -readindex " + xRead.filename + " " + to_string(xRead.filepos);
-  args += " -readindex " + yRead.filename + " " + to_string(yRead.filepos);
-  return makeQsubScript (prefix, args);
+string QuaffDPConfig::makeReadIndexOpt (const FastSeq& read) const {
+  return string(" -readindex ") + read.filename + " " + to_string(read.filepos);
 }
 
 string QuaffDPConfig::makeQsubCommand (const string& scriptFilename) const {
@@ -2050,7 +2041,7 @@ void QuaffTrainer::serveCounts (const vguard<FastSeq>& x, const vguard<FastSeq>&
     ifstream jobFile (config.jobFilename);
     ParsedJson pj (jobFile);
     bool validJson;
-    cout << getCountJobResult (x, y, allowNullModel, config, yDict, pj, validJson) << endl;
+    cout << getCountJobResult (x, y, allowNullModel, config, yDict, pj, validJson) << flush;
 
   } else {
     list<thread> serverThreads;
@@ -2337,20 +2328,27 @@ bool QuaffCountingTask::getResultFromJson (const JsonMap& result) {
 }
 
 void QuaffCountingTask::qsubRun (size_t taskId) {
+  const string countsJson = qsubResult (taskId, toJson(), config.makeReadIndexOpt (yfs));
+  ParsedJson pj (countsJson);
+  Require (getResultFromJson (pj), "Couldn't parse JSON output");
+}
+
+string QuaffTask::qsubResult (size_t taskId, const string& jobDescription, const string& quaffArgs) {
+
   const string prefix = config.qsubTempDir.makePath (to_string (taskId));
   const string scriptFilename = prefix + QuaffQsubScriptSuffix;
   const string jobFilename = prefix + QuaffQsubInfoSuffix;
-  const string countsFilename = prefix + QuaffQsubCountsSuffix;
+  const string resultFilename = prefix + QuaffQsubResultSuffix;
   const string doneFilename = prefix + QuaffQsubDoneSuffix;
   const string outFilename = prefix + QuaffQsubOutSuffix;
   const string errFilename = prefix + QuaffQsubErrSuffix;
 
   ofstream jobFile (jobFilename);
-  jobFile << toJson();
+  jobFile << jobDescription;
   jobFile.close();
 
   ofstream scriptFile (scriptFilename);
-  scriptFile << config.makeQsubScript (prefix, yfs);
+  scriptFile << config.makeQsubScript (prefix, quaffArgs);
   scriptFile.close();
   config.execWithRetries (config.makeQsubCommand (scriptFilename), MaxQuaffQsubAttempts);
 
@@ -2364,16 +2362,18 @@ void QuaffCountingTask::qsubRun (size_t taskId) {
     usleep (delay);
   }
 
-  ifstream countsFile (countsFilename);
-  ParsedJson pj (countsFile);
-  Require (getResultFromJson (pj), "Couldn't parse JSON output");
+  ifstream resultFile (resultFilename);
+  const string result ((istreambuf_iterator<char>(resultFile)),
+		       istreambuf_iterator<char>());
 
   unlink (scriptFilename.c_str());
   unlink (jobFilename.c_str());
   unlink (doneFilename.c_str());
-  unlink (countsFilename.c_str());
+  unlink (resultFilename.c_str());
   unlink (outFilename.c_str());
   unlink (errFilename.c_str());
+
+  return result;
 }
 
 QuaffCountingScheduler::QuaffCountingScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, QuaffDPConfig& config, vguard<vguard<size_t> >& sortOrder, const char* banner, int verbosity, const char* function, const char* file, int line)
@@ -2626,7 +2626,7 @@ string QuaffAligner::serverArgs() const {
 void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config) {
   QuaffAlignmentScheduler qas (x, y, params, nullModel, config, printAllAlignments, out, *this, 2, __func__, __FILE__, __LINE__);
   list<thread> yThreads;
-  Require (config.threads > 0 || config.ec2Instances > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
+  Require (config.atLeastOneThread(), "Please allocate at least one thread or one remote server");
   config.startRemoteServers();
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffAlignmentTasks, &qas));
@@ -2634,6 +2634,10 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
   }
   for (auto& remote : config.remotes) {
     yThreads.push_back (thread (&remoteRunQuaffAlignmentTasks, &qas, &remote));
+    logger.nameLastThread (yThreads, "align");
+  }
+  for (unsigned int n = 0; n < config.qsubThreads; ++n) {
+    yThreads.push_back (thread (&qsubRunQuaffAlignmentTasks, &qas));
     logger.nameLastThread (yThreads, "align");
   }
   for (auto& t : yThreads) {
@@ -2644,15 +2648,24 @@ void QuaffAligner::align (ostream& out, const vguard<FastSeq>& x, const vguard<F
 }
 
 void QuaffAligner::serveAlignments (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config) {
-  list<thread> serverThreads;
-  Require (config.threads > 0, "Please allocate at least one thread");
-  for (unsigned int n = 0; n < config.threads; ++n) {
-    serverThreads.push_back (thread (&serveAlignmentsFromThread, this, &x, &y, &params, &nullModel, &config, config.serverPort + n));
-    logger.nameLastThread (serverThreads, "server");
-  }
-  for (auto& t : serverThreads) {
-    t.join();
-    logger.eraseThreadName (t);
+  if (config.jobFilename.size()) {
+    map<string,size_t> yDict = FastSeq::makeNameIndex (y);
+    ifstream jobFile (config.jobFilename);
+    ParsedJson pj (jobFile);
+    bool validJson;
+    cout << getAlignmentJobResult (*this, x, y, params, nullModel, config, yDict, pj, validJson) << flush;
+
+  } else {
+    list<thread> serverThreads;
+    Require (config.threads > 0, "Please allocate at least one thread");
+    for (unsigned int n = 0; n < config.threads; ++n) {
+      serverThreads.push_back (thread (&serveAlignmentsFromThread, this, &x, &y, &params, &nullModel, &config, config.serverPort + n));
+      logger.nameLastThread (serverThreads, "server");
+    }
+    for (auto& t : serverThreads) {
+      t.join();
+      logger.eraseThreadName (t);
+    }
   }
 }
 
@@ -2705,7 +2718,6 @@ void QuaffAligner::serveAlignmentsFromThread (QuaffAligner* paligner, const vgua
 	  LogThisAt(1, "Bad job description:" << endl << pj.str << endl);
 	  break;
 	}
-
       }
     }
     
@@ -2765,6 +2777,10 @@ void QuaffAlignmentTask::run() {
 	alignList.erase (++alignList.begin(), alignList.end());
     }
   }
+}
+
+void QuaffAlignmentTask::qsubRun (size_t taskId, string& align) {
+  align = qsubResult (taskId, toJson(), config.makeReadIndexOpt (yfs));
 }
 
 bool QuaffAlignmentTask::remoteRun (RemoteServer& remote, string& response) {
@@ -2864,6 +2880,22 @@ void runQuaffAlignmentTasks (QuaffAlignmentScheduler* qas) {
     qas->unlock();
     task.run();
     qas->printAlignments (task.alignList);
+  }
+}
+
+void qsubRunQuaffAlignmentTasks (QuaffAlignmentScheduler* qas) {
+  while (true) {
+    qas->lock();
+    if (qas->finished()) {
+      qas->unlock();
+      break;
+    }
+    QuaffAlignmentTask task = qas->nextAlignmentTask();
+    const size_t taskId = qas->lockCount;
+    qas->unlock();
+    string alignStr;
+    task.qsubRun (taskId, alignStr);
+    qas->printAlignments (alignStr);
   }
 }
 

@@ -312,15 +312,19 @@ bool QuaffOverlapAligner::parseAlignmentArgs (deque<string>& argvec) {
 void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config) {
   QuaffOverlapScheduler qos (seqs, nOriginals, params, nullModel, config, out, *this, 2, __func__, __FILE__, __LINE__);
   list<thread> yThreads;
-  Require (config.threads > 0 || config.ec2Instances > 0 || !config.remotes.empty(), "Please allocate at least one thread or one remote server");
+  Require (config.atLeastOneThread(), "Please allocate at least one thread or one remote server");
   config.startRemoteServers();
   for (unsigned int n = 0; n < config.threads; ++n) {
     yThreads.push_back (thread (&runQuaffOverlapTasks, &qos));
-    logger.nameLastThread (yThreads, "align");
+    logger.nameLastThread (yThreads, "overlap");
   }
   for (auto& remote : config.remotes) {
     yThreads.push_back (thread (&remoteRunQuaffOverlapTasks, &qos, &remote));
-    logger.nameLastThread (yThreads, "align");
+    logger.nameLastThread (yThreads, "overlap");
+  }
+  for (unsigned int n = 0; n < config.qsubThreads; ++n) {
+    yThreads.push_back (thread (&qsubRunQuaffOverlapTasks, &qos));
+    logger.nameLastThread (yThreads, "overlap");
   }
   for (auto& t : yThreads) {
     t.join();
@@ -330,15 +334,24 @@ void QuaffOverlapAligner::align (ostream& out, const vguard<FastSeq>& seqs, size
 }
 
 void QuaffOverlapAligner::serveAlignments (const vguard<FastSeq>& seqs, size_t nOriginals, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config) {
-  list<thread> serverThreads;
-  Require (config.threads > 0, "Please allocate at least one thread");
-  for (unsigned int n = 0; n < config.threads; ++n) {
-    serverThreads.push_back (thread (&QuaffOverlapAligner::serveAlignmentsFromThread, this, &seqs, nOriginals, &params, &nullModel, &config, config.serverPort + n));
-    logger.nameLastThread (serverThreads, "server");
-  }
-  for (auto& t : serverThreads) {
-    t.join();
-    logger.eraseThreadName (t);
+  if (config.jobFilename.size()) {
+    map<string,size_t> seqDict = FastSeq::makeNameIndex (seqs);
+    ifstream jobFile (config.jobFilename);
+    ParsedJson pj (jobFile);
+    bool validJson;
+    cout << getAlignmentJobResult (*this, seqs, nOriginals, params, nullModel, config, seqDict, pj, validJson) << flush;
+
+  } else {
+    list<thread> serverThreads;
+    Require (config.threads > 0, "Please allocate at least one thread");
+    for (unsigned int n = 0; n < config.threads; ++n) {
+      serverThreads.push_back (thread (&QuaffOverlapAligner::serveAlignmentsFromThread, this, &seqs, nOriginals, &params, &nullModel, &config, config.serverPort + n));
+      logger.nameLastThread (serverThreads, "server");
+    }
+    for (auto& t : serverThreads) {
+      t.join();
+      logger.eraseThreadName (t);
+    }
   }
 }
 
@@ -392,9 +405,9 @@ void QuaffOverlapAligner::serveAlignmentsFromThread (QuaffOverlapAligner* palign
 	  break;
 	}
       }
-      
-      delete sock;
     }
+
+    delete sock;
   }
 }
 
@@ -492,6 +505,9 @@ bool QuaffOverlapTask::remoteRun (RemoteServer& remote, string& response) {
   return success;
 }
 
+void QuaffOverlapTask::qsubRun (size_t taskId, string& align) {
+  align = qsubResult (taskId, toJson(), config.makeReadIndexOpt (xfs) + ' ' + config.makeReadIndexOpt (yfs));
+}
 
 string QuaffOverlapTask::toJson() const {
   ostringstream out;
@@ -546,6 +562,23 @@ void runQuaffOverlapTasks (QuaffOverlapScheduler* qos) {
     qos->unlock();
     task.run();
     qos->printAlignments (task.alignList);
+  }
+}
+
+void qsubRunQuaffOverlapTasks (QuaffOverlapScheduler* qos) {
+  while (true) {
+    qos->lock();
+    if (qos->finished()) {
+      qos->unlock();
+      break;
+    }
+    QuaffOverlapTask task = qos->nextOverlapTask();
+    qos->unlock();
+    const size_t taskId = qos->lockCount;
+    qos->unlock();
+    string alignStr;
+    task.qsubRun (taskId, alignStr);
+    qos->printAlignments (alignStr);
   }
 }
 

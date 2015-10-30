@@ -42,8 +42,11 @@ CPP = clang++
 # pwd
 PWD = $(shell pwd)
 
+# /bin/sh
+SH = /bin/sh
+
 # perl to generate random port
-PORT = `perl -e 'print int rand(1e5)+8000'`
+RANDOMPORT = `perl -e 'print int rand(1e5)+8000'`
 
 # Targets
 
@@ -123,7 +126,7 @@ testregex: t/testregex.cpp src/regexmacros.h
 
 # quaff tests (integration tests)
 # Tests of basic commands
-quaff-tests: testquaffcountself testquaffalignself testquaffoverlapself testquaffcountself-remote testquaffalignself-remote testquaffoverlapself-remote
+quaff-tests: testquaffcountself testquaffalignself testquaffoverlapself testquaffcountself-remote testquaffalignself-remote testquaffoverlapself-remote testquaffcountself-qsub testquaffalignself-qsub testquaffoverlapself-qsub
 
 testquaffcountself: bin/quaff
 	perl/testexpect.pl bin/quaff count data/c8f30.fastq.gz data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand data/c8f30-self-counts.json
@@ -139,17 +142,23 @@ data/copy-of-c8f30.fastq: data/c8f30.fastq.gz
 
 # Tests of the -remote option (parallelization over sockets)
 testquaffcountself-remote: bin/quaff
-	perl/testexpect.pl bin/quaff count $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -remote localhost:$(PORT) data/c8f30-self-counts.json
+	perl/testexpect.pl bin/quaff count $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -remote localhost:$(RANDOMPORT) data/c8f30-self-counts.json
 
 testquaffalignself-remote: bin/quaff
-	perl/testexpect.pl bin/quaff align $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remote localhost:$(PORT) data/c8f30-self-align.json
+	perl/testexpect.pl bin/quaff align $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -remote localhost:$(RANDOMPORT) data/c8f30-self-align.json
 
 testquaffoverlapself-remote: bin/quaff data/copy-of-c8f30.fastq
-	perl/testexpect.pl bin/quaff overlap $(PWD)/data/c8f30.fastq.gz $(PWD)/data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand -remote localhost:$(PORT) data/c8f30-self-overlap.json
+	perl/testexpect.pl bin/quaff overlap $(PWD)/data/c8f30.fastq.gz $(PWD)/data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -remote localhost:$(RANDOMPORT) data/c8f30-self-overlap.json
 
-# Test of qsub
+# Test of -qsub* options (parallelization via shell scripts and NFS coordination; a.k.a. Sun Grid Engine, PBS and the like)
 testquaffcountself-qsub: bin/quaff
-	perl/testexpect.pl bin/quaff count $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -qsubthreads 1 -qsubpath /bin/sh -v5 data/c8f30-self-counts.json
+	perl/testexpect.pl bin/quaff count $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -qsubthreads 1 -qsubpath $(SH) data/c8f30-self-counts.json
+
+testquaffalignself-qsub: bin/quaff
+	perl/testexpect.pl bin/quaff align $(PWD)/data/c8f30.fastq.gz $(PWD)/data/c8f30.fastq.gz -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -qsubthreads 1 -qsubpath $(SH) data/c8f30-self-align.json
+
+testquaffoverlapself-qsub: bin/quaff data/copy-of-c8f30.fastq
+	perl/testexpect.pl bin/quaff overlap $(PWD)/data/c8f30.fastq.gz $(PWD)/data/copy-of-c8f30.fastq -kmatchmb 10 -fwdstrand -remotepath $(PWD)/bin/quaff -qsubthreads 1 -qsubpath $(SH) data/c8f30-self-overlap.json
 
 
 
