@@ -779,7 +779,7 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "   -qsubjobs <N>   Submit up to N simultaneous jobs to queueing system\n"
     + "   -qsub <path>, -qsubopts <options>\n"
     + "                   Path to, and options for, job submission program (qsub)\n"
-    + "   -qsubdir <path> Temporary directory to use for job scripts\n"
+    + "   -qsubdir <path> Temp directory to use for job scripts (must be on NFS)\n"
     + "   -qsubheader <header file>\n"
     + "                   Specify header for job scripts (e.g. for PBS directives)\n"
     + "\n"

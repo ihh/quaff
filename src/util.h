@@ -66,6 +66,7 @@ public:
 /* temp directory */
 struct TempDir {
   std::string fullPath;
+  bool cleanup;
   TempDir (const char* filenamePrefix = DefaultTempDirPrefix);  // by default, creates tempdir in cwd
   ~TempDir();
   void init();

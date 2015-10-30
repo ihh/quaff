@@ -138,7 +138,7 @@ Options for parallel processing over queueing system:
    -qsubjobs &lt;N&gt;   Submit up to N simultaneous jobs to queueing system
    -qsub &lt;path&gt;, -qsubopts &lt;options&gt;
                    Path to, and options for, job submission program (qsub)
-   -qsubdir &lt;path&gt; Temporary directory to use for job scripts
+   -qsubdir &lt;path&gt; Temp directory to use for job scripts (must be on NFS)
    -qsubheader &lt;header file&gt;
                    Specify header for job scripts (e.g. for PBS directives)
 

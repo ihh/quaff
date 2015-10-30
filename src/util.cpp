@@ -156,18 +156,22 @@ TempFile::~TempFile() {
     unlink (fullPath.c_str());
 }
 
-TempDir::TempDir (const char* filenamePrefix) {
+TempDir::TempDir (const char* filenamePrefix)
+  : cleanup(false)
+{
   char dirbuf[DIR_BUF_SIZE];
   fullPath = TempFile::newPath (string (getcwd (dirbuf, DIR_BUF_SIZE)) + '/' + filenamePrefix);
 }
 
 void TempDir::init() {
-  if (!file_exists(fullPath.c_str()))
+  if (!file_exists(fullPath.c_str())) {
     Assert (mkdir(fullPath.c_str(),0700) == 0, "Couldn't make temp directory %s", fullPath.c_str());
+    cleanup = true;
+  }
 }
 
 TempDir::~TempDir() {
-  if (fullPath.size() && file_exists(fullPath.c_str()))
+  if (cleanup && fullPath.size() && file_exists(fullPath.c_str()))
     rmdirRecursive (fullPath.c_str());
 }
 
