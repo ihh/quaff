@@ -20,13 +20,13 @@ with the following features:
   or launch its own temporary Amazon EC2 cluster
 
 <pre><code>
-Usage: bin/quaff {help,train,align,overlap} [options]
+Usage: quaff {help,train,align,overlap} [options]
 
 Commands:
 
 TRAINING
 
- bin/quaff train refs.fasta reads.fastq  &gt;params.json
+ quaff train refs.fasta reads.fastq  &gt;params.json
   (to fit a model to unaligned sequences, using EM/Forward-Backward)
 
    -maxiter &lt;n&gt;    Max number of EM iterations (default is 100)
@@ -46,13 +46,13 @@ TRAINING
 
 ALIGNMENT
 
- bin/quaff align refs.fasta reads.fastq
+ quaff align refs.fasta reads.fastq
   (to align FASTQ reads to FASTA reference sequences, using Viterbi)
 
    -printall       Print all pairwise alignments, not just best for each read
 
 
- bin/quaff overlap reads.fastq
+ quaff overlap reads.fastq
   (to find overlaps between FASTQ reads, using Viterbi)
 
 
