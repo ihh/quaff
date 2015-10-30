@@ -81,7 +81,7 @@ struct QuaffOverlapTask : QuaffTask {
   QuaffOverlapTask (const FastSeq& xfs, const FastSeq& yfs, const bool yComplemented, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config);
   void run();
   bool remoteRun (RemoteServer& remote, string& align);
-  void qsubRun (size_t taskId, string& align);
+  void qsubRun (string& align);
   string toJson() const;
 };
 

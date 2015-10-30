@@ -944,14 +944,18 @@ bool QuaffDPConfig::parseGeneralConfigArgs (deque<string>& argvec) {
       argvec.pop_front();
       return true;
 
-    } else if (arg == "-qsubthreads") {
+    } else if (arg == "-qsubjobs") {
       Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
       qsubThreads = atoi (argvec[1].c_str());
       if (!threadsSpecified)
 	threads = 0;
-#define MaxDirBufSize 4096
-      char dirbuf[MaxDirBufSize];
-      qsubTempDir.init (getcwd (dirbuf, MaxDirBufSize));
+      argvec.pop_front();
+      argvec.pop_front();
+      return true;
+
+    } else if (arg == "-qsubdir") {
+      Require (argvec.size() > 1, "%s must have an argument", arg.c_str());
+      qsubTempDir.fullPath = argvec[1];
       argvec.pop_front();
       argvec.pop_front();
       return true;
@@ -1023,14 +1027,14 @@ string QuaffDPConfig::makeServerArgs() const {
   return s;
 }
 
-string QuaffDPConfig::makeQsubScript (const string& prefix, const string& args) const {
-  Assert (bucket.empty() && !useRsync, "Sorry - you can't currently combine rsync or S3 staging with queueing");
+string QuaffDPConfig::makeQsubScript (const TempDir& dir, const string& args) const {
+  Assert (bucket.empty() && !useRsync, "Sorry - you can't currently use rsync or S3 file-staging with queueing. Use NFS, or sync files manually.");
   string s = qsubHeader + remoteQuaffPath + " server " + remoteServerArgs + ' ' + args;
   for (const auto& fa : nonReadFileArgs)
     s += ' ' + get<0>(fa) + ' ' + get<1>(fa) + get<2>(fa);
-  s += " -job " + prefix + QuaffQsubInfoSuffix;
-  s += " 1>>" + prefix + QuaffQsubResultSuffix;
-  s += "\ntouch " + prefix + QuaffQsubDoneSuffix + '\n';
+  s += " -job " + dir.makePath(QuaffQsubInfoFilename);
+  s += " 1>>" + dir.makePath(QuaffQsubResultFilename);
+  s += "\ntouch " + dir.makePath(QuaffQsubDoneFilename) + '\n';
   return s;
 }
 
@@ -1087,6 +1091,7 @@ void QuaffDPConfig::addRemote (const string& user, const string& addr, unsigned 
 }
 
 void QuaffDPConfig::startRemoteServers() {
+  qsubTempDir.init();
   for (const auto& fa : fileArgs)
     syncToBucket (get<1>(fa));
   if (ec2Instances > 0) {
@@ -2327,28 +2332,29 @@ bool QuaffCountingTask::getResultFromJson (const JsonMap& result) {
   return false;
 }
 
-void QuaffCountingTask::qsubRun (size_t taskId) {
-  const string countsJson = qsubResult (taskId, toJson(), config.makeReadIndexOpt (yfs));
+void QuaffCountingTask::qsubRun() {
+  const string countsJson = qsubResult (toJson(), config.makeReadIndexOpt (yfs));
   ParsedJson pj (countsJson);
   Require (getResultFromJson (pj), "Couldn't parse JSON output");
 }
 
-string QuaffTask::qsubResult (size_t taskId, const string& jobDescription, const string& quaffArgs) {
+string QuaffTask::qsubResult (const string& jobDescription, const string& quaffArgs) {
 
-  const string prefix = config.qsubTempDir.makePath (to_string (taskId));
-  const string scriptFilename = prefix + QuaffQsubScriptSuffix;
-  const string jobFilename = prefix + QuaffQsubInfoSuffix;
-  const string resultFilename = prefix + QuaffQsubResultSuffix;
-  const string doneFilename = prefix + QuaffQsubDoneSuffix;
-  const string outFilename = prefix + QuaffQsubOutSuffix;
-  const string errFilename = prefix + QuaffQsubErrSuffix;
+  TempDir jobTempDir;
+  jobTempDir.fullPath = TempFile::newPath (config.qsubTempDir.makePath (QuaffQsubTempDirPrefix));
+  jobTempDir.init();
+  
+  const string scriptFilename = jobTempDir.makePath (QuaffQsubScriptFilename);
+  const string jobFilename = jobTempDir.makePath (QuaffQsubInfoFilename);
+  const string resultFilename = jobTempDir.makePath (QuaffQsubResultFilename);
+  const string doneFilename = jobTempDir.makePath (QuaffQsubDoneFilename);
 
   ofstream jobFile (jobFilename);
   jobFile << jobDescription;
   jobFile.close();
 
   ofstream scriptFile (scriptFilename);
-  scriptFile << config.makeQsubScript (prefix, quaffArgs);
+  scriptFile << config.makeQsubScript (jobTempDir, quaffArgs);
   scriptFile.close();
   config.execWithRetries (config.makeQsubCommand (scriptFilename), MaxQuaffQsubAttempts);
 
@@ -2365,13 +2371,6 @@ string QuaffTask::qsubResult (size_t taskId, const string& jobDescription, const
   ifstream resultFile (resultFilename);
   const string result ((istreambuf_iterator<char>(resultFile)),
 		       istreambuf_iterator<char>());
-
-  unlink (scriptFilename.c_str());
-  unlink (jobFilename.c_str());
-  unlink (doneFilename.c_str());
-  unlink (resultFilename.c_str());
-  unlink (outFilename.c_str());
-  unlink (errFilename.c_str());
 
   return result;
 }
@@ -2443,9 +2442,8 @@ void qsubRunQuaffCountingTasks (QuaffCountingScheduler* qcs) {
       break;
     }
     QuaffCountingTask task = qcs->nextCountingTask();
-    const size_t taskId = qcs->lockCount;
     qcs->unlock();
-    task.qsubRun (taskId);
+    task.qsubRun();
   }
 }
 
@@ -2779,8 +2777,8 @@ void QuaffAlignmentTask::run() {
   }
 }
 
-void QuaffAlignmentTask::qsubRun (size_t taskId, string& align) {
-  align = qsubResult (taskId, toJson(), config.makeReadIndexOpt (yfs));
+void QuaffAlignmentTask::qsubRun (string& align) {
+  align = qsubResult (toJson(), config.makeReadIndexOpt (yfs));
 }
 
 bool QuaffAlignmentTask::remoteRun (RemoteServer& remote, string& response) {
@@ -2891,10 +2889,9 @@ void qsubRunQuaffAlignmentTasks (QuaffAlignmentScheduler* qas) {
       break;
     }
     QuaffAlignmentTask task = qas->nextAlignmentTask();
-    const size_t taskId = qas->lockCount;
     qas->unlock();
     string alignStr;
-    task.qsubRun (taskId, alignStr);
+    task.qsubRun (alignStr);
     qas->printAlignments (alignStr);
   }
 }

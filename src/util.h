@@ -47,11 +47,15 @@ std::string pipeToString (const char* command, int* status = NULL);
 #define DefaultTempDirPrefix  "tempdir"
 
 /* temp file */
-struct TempFile {
+class TempFile {
+private:
+  static std::string makeNewPath (std::string basePath, bool usePid);
+public:
   static const std::string dir;  /* /tmp */
   static unsigned int count;
   static std::mutex mx;
-  static std::string getNewPath (const char* basePath, const char* filenamePrefix);
+  static std::string newPathWithPid (std::string basePath);
+  static std::string newPath (std::string basePath);
   std::string fullPath;
   TempFile();
   TempFile (const std::string& contents, const char* filenamePrefix = DefaultTempFilePrefix);
@@ -62,9 +66,9 @@ struct TempFile {
 /* temp directory */
 struct TempDir {
   std::string fullPath;
-  TempDir() { }
+  TempDir (const char* filenamePrefix = DefaultTempDirPrefix);  // by default, creates tempdir in cwd
   ~TempDir();
-  void init (const char* dir, const char* filenamePrefix = DefaultTempDirPrefix);
+  void init();
   std::string makePath (const std::string& filename) const;
 };
 

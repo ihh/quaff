@@ -70,13 +70,12 @@
 // If it's an EC2 server, we don't bother with this, just reboot the server instead...
 #define QuaffTimeWaitDelay 300
 
-// qsub file suffices
-#define QuaffQsubScriptSuffix ".sh"
-#define QuaffQsubInfoSuffix   ".info"
-#define QuaffQsubResultSuffix ".result"
-#define QuaffQsubDoneSuffix   ".done"
-#define QuaffQsubOutSuffix    ".out"
-#define QuaffQsubErrSuffix    ".err"
+// qsub temp files
+#define QuaffQsubTempDirPrefix  "job"
+#define QuaffQsubScriptFilename "job.sh"
+#define QuaffQsubInfoFilename   "info.json"
+#define QuaffQsubResultFilename "result"
+#define QuaffQsubDoneFilename   "done"
 
 // max qsub attempts
 #define MaxQuaffQsubAttempts 3
@@ -346,7 +345,7 @@ struct QuaffDPConfig {
   string makeSshCommand() const;
   string makeSshCommand (const string& cmd, const RemoteServerJob& job) const;
   bool execWithRetries (const string& cmd, int maxAttempts, bool* foundReadyFlag = NULL, const char* ec2id = NULL) const;
-  string makeQsubScript (const string& prefix, const string& args) const;
+  string makeQsubScript (const TempDir& dir, const string& args) const;
   string makeReadIndexOpt (const FastSeq& read) const;
   string makeQsubCommand (const string& scriptFilename) const;
   bool atLeastOneThread() const;
@@ -494,7 +493,7 @@ struct QuaffTask {
   QuaffTask (const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config)
     : yfs(yfs), params(params), nullModel(nullModel), config(config)
   { }
-  string qsubResult (size_t taskId, const string& jobDescription, const string& quaffArgs);
+  string qsubResult (const string& jobDescription, const string& quaffArgs);
 };
 
 struct QuaffCountingTask : QuaffTask {
@@ -507,7 +506,7 @@ struct QuaffCountingTask : QuaffTask {
   QuaffCountingTask (const vguard<FastSeq>& x, const FastSeq& yfs, size_t ny, const QuaffParams& params, const QuaffNullParams& nullModel, bool useNullModel, QuaffDPConfig& config, vguard<size_t>& sortOrder, double& yLogLike, QuaffParamCounts& counts);
   void run();
   bool remoteRun (RemoteServer& remote);
-  void qsubRun (size_t taskId);
+  void qsubRun();
   string toJson() const;
   bool getResultFromJson (const JsonMap& result);
 };
@@ -518,13 +517,13 @@ struct QuaffScheduler {
   const QuaffParams& params;
   QuaffDPConfig& config;
   const QuaffNullParams& nullModel;
-  size_t ny, pending, lockCount;  // lockCount is used by queue runners as a unique temp filename for tasks
+  size_t ny, pending;
   mutex mx;
   ProgressLogger plog;
   QuaffScheduler (const vguard<FastSeq>& x, const vguard<FastSeq>& y, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, int verbosity, const char* function, const char* file, int line)
-    : x(x), y(y), params(params), nullModel(nullModel), config(config), ny(0), pending(0), lockCount(0), plog(verbosity,function,file,line)
+    : x(x), y(y), params(params), nullModel(nullModel), config(config), ny(0), pending(0), plog(verbosity,function,file,line)
   { }
-  void lock() { mx.lock(); ++lockCount; }
+  void lock() { mx.lock(); }
   void unlock() { mx.unlock(); }
 };
 
@@ -588,7 +587,7 @@ struct QuaffAlignmentTask : QuaffTask {
   QuaffAlignmentTask (const vguard<FastSeq>& x, const FastSeq& yfs, const QuaffParams& params, const QuaffNullParams& nullModel, QuaffDPConfig& config, bool keepAllAlignments);
   void run();
   bool remoteRun (RemoteServer& remote, string& align);
-  void qsubRun (size_t taskId, string& align);
+  void qsubRun (string& align);
   string toJson() const;
 };
 

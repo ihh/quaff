@@ -505,8 +505,8 @@ bool QuaffOverlapTask::remoteRun (RemoteServer& remote, string& response) {
   return success;
 }
 
-void QuaffOverlapTask::qsubRun (size_t taskId, string& align) {
-  align = qsubResult (taskId, toJson(), config.makeReadIndexOpt (xfs) + ' ' + config.makeReadIndexOpt (yfs));
+void QuaffOverlapTask::qsubRun (string& align) {
+  align = qsubResult (toJson(), config.makeReadIndexOpt (xfs) + ' ' + config.makeReadIndexOpt (yfs));
 }
 
 string QuaffOverlapTask::toJson() const {
@@ -574,10 +574,8 @@ void qsubRunQuaffOverlapTasks (QuaffOverlapScheduler* qos) {
     }
     QuaffOverlapTask task = qos->nextOverlapTask();
     qos->unlock();
-    const size_t taskId = qos->lockCount;
-    qos->unlock();
     string alignStr;
-    task.qsubRun (taskId, alignStr);
+    task.qsubRun (alignStr);
     qos->printAlignments (alignStr);
   }
 }

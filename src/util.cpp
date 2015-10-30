@@ -20,6 +20,9 @@
 // buffer size for popen
 #define PIPE_BUF_SIZE 1024
 
+// buffer size for getcwd
+#define DIR_BUF_SIZE 4096
+
 
 // recursive rmdir
 // http://stackoverflow.com/questions/3184445/how-to-clear-directory-contents-in-c-on-linux-basically-i-want-to-do-rm-rf/3184915#3184915
@@ -119,14 +122,22 @@ const string TempFile::dir = "/tmp";
 unsigned int TempFile::count = 0;
 std::mutex TempFile::mx;
 
-std::string TempFile::getNewPath (const char* basePath, const char* filenamePrefix) {
+std::string TempFile::makeNewPath (std::string basePath, bool usePid) {
   std::string fullPath;
   mx.lock();
   do {
-    fullPath = string(basePath) + '/' + filenamePrefix + std::to_string(getpid()) + '.' + std::to_string(++count);
-  } while (access(fullPath.c_str(),F_OK ) != -1);
+    fullPath = basePath + (usePid ? (std::to_string(getpid()) + '.') : std::string()) + std::to_string(++count);
+  } while (file_exists (fullPath.c_str()));
   mx.unlock();
   return fullPath;
+}
+
+std::string TempFile::newPathWithPid (std::string basePath) {
+  return makeNewPath (basePath, true);
+}
+
+std::string TempFile::newPath (std::string basePath) {
+  return makeNewPath (basePath, false);
 }
 
 TempFile::TempFile (const std::string& contents, const char* filenamePrefix) {
@@ -134,7 +145,7 @@ TempFile::TempFile (const std::string& contents, const char* filenamePrefix) {
 }
 
 void TempFile::init (const std::string& contents, const char* filenamePrefix) {
-  fullPath = getNewPath (dir.c_str(), filenamePrefix);
+  fullPath = newPathWithPid (dir + filenamePrefix);
   std::ofstream out (fullPath);
   Assert (out.is_open() && !out.fail(), "Couldn't write to temp file %s", fullPath.c_str());
   out << contents;
@@ -145,15 +156,18 @@ TempFile::~TempFile() {
     unlink (fullPath.c_str());
 }
 
-void TempDir::init (const char* dir, const char* filenamePrefix) {
-  if (fullPath.empty()) {
-    fullPath = TempFile::getNewPath (dir, filenamePrefix);
+TempDir::TempDir (const char* filenamePrefix) {
+  char dirbuf[DIR_BUF_SIZE];
+  fullPath = TempFile::newPath (string (getcwd (dirbuf, DIR_BUF_SIZE)) + '/' + filenamePrefix);
+}
+
+void TempDir::init() {
+  if (!file_exists(fullPath.c_str()))
     Assert (mkdir(fullPath.c_str(),0700) == 0, "Couldn't make temp directory %s", fullPath.c_str());
-  }
 }
 
 TempDir::~TempDir() {
-  if (fullPath.size())
+  if (fullPath.size() && file_exists(fullPath.c_str()))
     rmdirRecursive (fullPath.c_str());
 }
 

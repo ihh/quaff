@@ -20,11 +20,13 @@ with the following features:
   or launch its own temporary Amazon EC2 cluster
 
 <pre><code>
-Usage: quaff {help,train,align,overlap} [options]
+Usage: bin/quaff {help,train,align,overlap} [options]
 
 Commands:
 
- quaff train refs.fasta reads.fastq  &gt;params.json
+TRAINING
+
+ bin/quaff train refs.fasta reads.fastq  &gt;params.json
   (to fit a model to unaligned sequences, using EM/Forward-Backward)
 
    -maxiter &lt;n&gt;    Max number of EM iterations (default is 100)
@@ -42,13 +44,15 @@ Commands:
                     (saved counts can subsequently be used as a prior)
 
 
- quaff align refs.fasta reads.fastq
+ALIGNMENT
+
+ bin/quaff align refs.fasta reads.fastq
   (to align FASTQ reads to FASTA reference sequences, using Viterbi)
 
    -printall       Print all pairwise alignments, not just best for each read
 
 
- quaff overlap reads.fastq
+ bin/quaff overlap reads.fastq
   (to find overlaps between FASTQ reads, using Viterbi)
 
 
@@ -60,6 +64,8 @@ Alignment options (for align/overlap commands):
                    Stream alignments to file, instead of stdout
    -format {fasta,stockholm,sam,refseq}
                    Alignment output format
+
+GENERAL
 
 General options (for all commands, except where indicated):
    -verbose, -vv, -vvv, -v4, -v5, etc.
@@ -80,7 +86,17 @@ General options (for all commands, except where indicated):
    -kmatchmax      Set kmer threshold to use all available memory (slow)
    -kmatchoff      No kmer threshold, do full DP (typically very slow)
 
-Parallel procesing options:
+
+PARALLEL PROCESSING
+
+Parallelization is via a thread pool, which can be extended over a cluster.
+If IP addresses (or AWS credentials) are given, then jobs are run over sockets,
+and (if NFS is unavailable) files may be synchronized using S3 or rsync.
+Alternatively, jobs can be run using a queueing system (such as PBS or SGE),
+in which case NFS is required for both job synchronization and file sharing.
+
+
+Options for parallel processing over sockets:
    -threads &lt;N&gt;, -maxthreads
                    Use N threads, or use all cores available
    -remote [user@]host[:port[-maxport]]
@@ -116,5 +132,16 @@ on ports 22 (ssh) and the range from &lt;port&gt; .. &lt;port&gt; + &lt;numberOf
 Any problems can often be diagnosed by turning up the logging to -v5 or so.
 
 Quaff makes every effort to clean up rogue EC2 instances, but please check!
+
+
+Options for parallel processing over queueing system:
+   -qsubjobs &lt;N&gt;   Submit up to N simultaneous jobs to queueing system
+   -qsub &lt;path&gt;, -qsubopts &lt;options&gt;
+                   Path to, and options for, job submission program (qsub)
+   -qsubdir &lt;path&gt; Temporary directory to use for job scripts
+   -qsubheader &lt;header file&gt;
+                   Specify header for job scripts (e.g. for PBS directives)
+
+To use queueing, specify a nonzero value for -qsubjobs.
 
 </code></pre>
