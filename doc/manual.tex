@@ -1,0 +1,152 @@
+\documentclass{article}
+\date{October 30, 2015}
+\author{Ian Holmes}
+\title{The Quaff Manual}
+
+\newcommand\opt[1]{{\tt -#1}}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\section{Introduction}
+
+Quaff is a pair HMM for aligning FASTQ reads to FASTA references,
+with the following features:
+
+\begin{itemize}
+\item it pre-filters and bands the DP algorithms by looking for diagonals
+  with lots of k-mer matches
+
+\item you can train the pair HMM on sequences using the Forward-Backward
+  algorithm
+
+\item you can align reads to references using the Viterbi algorithm
+
+\item you can also align reads to reads (i.e. look for overlaps), using
+  Viterbi
+
+\item it attempts to model the FASTQ quality scores (using a negative
+  binomial distribution), and also uses k-mer context for modeling
+  substitution and/or gap-opening probabilities
+
+\item it's highly parallel: multithreaded, can run remote servers,
+  or launch its own temporary Amazon EC2 cluster
+
+\end{itemize}
+
+The main usage modes of Quaff are:
+\begin{description}
+\item[Alignment mode] --- aligning nanopore reads to a reference genome
+\item[Overlap mode] --- aligning nanopore reads to each other
+\item[Training mode] --- fitting Quaff's underlying model to data
+\end{description}
+
+Further information is available via the Quaff usage message
+(printed by ``{\tt quaff help}'').
+
+\section{Installation}
+
+To install Quaff, you will need:
+\begin{itemize}
+\item clang C++11 compiler (or, optionally, gcc + Boost)
+\item libz (compression)
+\item libgsl (GNU Scientific Library)
+\item make
+\item perl (only to run the tests)
+\end{itemize}
+
+Type:
+\begin{itemize}
+\item ``{\tt make aws-dep}'' to use the {\tt yum} package manager to download dependencies
+\item ``{\tt make quaff}'' to build in {\tt bin/}
+\item ``{\tt make test}'' to run tests
+\item ``{\tt make install}'' to install in {\tt /usr/local/bin/}
+\end{itemize}
+
+
+\section{General features}
+
+\subsection{File formats}
+
+Input sequence files can be provided in FASTA format, FASTQ format, or gzipped versions of those formats.
+
+Model parameters are saved in a JSON format, as are expected emission and transition counts (computed by the Forward-Backward algorithm); the latter can be used as pseudocounts during subsequent training runs (effectively specifying a Dirichlet prior distribution on parameters). Alignments can be output in a variety of formats, including Stockholm, gapped FASTA, and SAM.
+
+
+\subsection{General features of the model}
+
+Several signals can be exploited in the pursuit of improved alignment accuracy. For sequencing technologies such as Oxford Nanopore, where the raw signal is derived from a convolution of overlapping k-mers, gap and substitution rates may depend on recent sequence context.
+An additional, and under-exploited, signal is available in the case of FASTQ data which contains quality scores, as well as base-called nucleotides. According to the usual definition of FASTQ format, these ``Q-scores'' are nominally to be interpreted as PHRED scores; i.e., the logarithm of the probability of error. Such an interpretation offers one way to incorporate Q-scores in a statistical analysis.  However, the distributions of Q-scores from different sequencing technologies and base-calling pipelines may be very different and there can be no guarantee that the relationship between Q-score and actual observed error rate is consistent across such different regimes.
+
+Pair Hidden Markov models (HMMs), along with transducers (their input-conditioned relatives), are well-suited to the problem of aligning noisy, long reads. The emission and transition parameters of an HMM can be learned in an unsupervised way (i.e. without user-supplied training alignments), using the Baum-Welch algorithm, a version of the Expectation Maximization (EM) algorithm. The expected emission and transition counts computed by EM are themselves relevant to some statistics of interest (for example, sequence coverage, percentage identity, or indel frequencies). Furthermore, HMMs (and transducers) are easily extended. Incorporating adjunct data into the HMM emissions (such as quality scores) is straightforward; and transducer theory allows the systematic derivation of elaborated alignment tasks (e.g. finding the overlap of two reads, hypothesizing that they were both derived from a single unknown reference) without the need to re-parameterize the elaborated model.
+
+Quaff's underlying transducer incorporates the k-mer signal directly by allowing the substitution and gap probabilities at any given position to depend on the last k nucleotides of the read sequence. (It would be a better reflection of reality to allow the weights to depend on the last k nucleotides of the reference sequence; however, since the reference is not directly observed in many applications, such as read-to-read alignment, this would increase the computational expense of those applications.)
+
+Quality scores are modeled using a negative binomial distribution with emission-dependent parameters. They are required for training, but are optional in alignment and overlap modes.
+
+Any problems can often be diagnosed by turning up the logging to \opt{v5} or so.
+
+
+\subsection{General algorithmic principles applicable to all models}
+
+To accelerate the dynamic programming (DP) algorithms, Quaff uses a strategy of pre-filtering by word-matching, as used by BLAST and DALIGNER. Specifically, the DP is constrained to fixed-size diagonal bands around a small number of seed diagonals that contain more than a certain threshold of matching k-mers between the sequences being aligned. These thresholds can be specified directly by the user; alternatively, Quaff can be configured to select the largest threshold that will fit either within a user-specified memory limit, or within available system memory.
+
+\section{Parallel operation}
+
+
+For additional speed, Quaff offers several multiprocessor modes to parallelize computations on large read datasets:
+\begin{enumerate}
+\item It can utilize multi-core architectures on a single machine by distributing DP jobs over a thread pool.
+\item It can launch server jobs on remote machines, effectively increasing the size of the thread pool by using an existing cluster. These server jobs are long-running, and are controlled by the master node over sockets. If the Amazon Web Services (AWS) command-line tools are installed (and the user has an AWS account), Quaff can instantiate a temporary cluster on the AWS Elastic Compute Cloud (EC2), download and build itself on the temporarily created EC2 instances, and use them as servers for the duration of the run (automatically terminating the instances after the run). In order to distribute data to server nodes, Quaff can either transfer files using the {\tt rsync} command, or can alternatively use `buckets' of the AWS Simple Storage Service (S3). None of these parallel functions require any queueing or other cluster management software, except {\tt ssh}, {\tt rsync} and (in the case of EC2/S3) the AWS command-line tools.
+\item If a job queueing system (such as Portable Batch System or Sun Grid Engine) is installed, together with NFS, then Quaff can use these to distribute the workload over a cluster.
+\end{enumerate}
+
+Parallelization is via a thread pool, which can be extended over a cluster.
+If IP addresses (or AWS credentials) are given, then jobs are run over sockets,
+and (if NFS is unavailable) files may be synchronized using S3 or {\tt rsync}.
+Alternatively, jobs can be run using a queueing system (such as PBS or SGE),
+in which case NFS is required for both job synchronization and file sharing.
+
+By default, quaff assumes all data files are in the same place on the server.
+You can copy them across using \opt{rsync}, or \opt{s3bucket}, or other means (eg NFS).
+
+\subsection{Running in multiple threads}
+
+\subsection{Running on a cluster}
+
+Since quaff opens one socket per remote thread (plus one ssh job per server),
+you may need to raise the system limits on the number of files/sockets per process
+(e.g. OSX 10.10 limits you to 128 sockets/process by default).
+
+\subsection{Running on AWS Elastic Compute Cloud (EC2)}
+
+
+For AWS, ensure aws CLI tools are installed and credentials are set
+(i.e. {\tt AWS\_ACCESS\_KEY\_ID} \& {\tt AWS\_SECRET\_ACCESS\_KEY} environment variables).
+You must use an AMI consistent with your {\tt AWS\_DEFAULT\_REGION}
+(the default AMI is a standard Amazon EC2 Linux for us-east-1).
+A standard AMI should be fine: quaff downloads prereqs and builds itself.
+
+Also ensure that the specified AWS security group allows incoming connections
+on ports 22 (ssh) and on ports $N \ldots N+C-1$ where $N$ was the lowest port
+specified on the command-line and $C$ is the number of core.
+
+Quaff makes every effort to clean up rogue EC2 instances, but please check!
+
+
+\subsection{Running on PBS or Sun Grid Engine}
+
+\subsection{Synchronizing files via AWS Simple Storage Service (S3)}
+
+
+\section{Usage modes}
+
+\subsection{Alignment mode}
+
+\subsection{Training mode}
+
+\subsection{Overlap mode}
+
+
+\end{document}
