@@ -19,6 +19,10 @@ with the following features:
 - it's highly parallel: multithreaded, can run remote servers,
   or launch its own temporary Amazon EC2 cluster
 
+
+A full manual can be found in the repository at doc/manual.pdf
+
+
 <pre><code>
 Usage: quaff {help,train,align,overlap} [options]
 

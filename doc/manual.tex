@@ -1,9 +1,18 @@
 \documentclass{article}
+
+\usepackage{url}
+\usepackage{hyperref}
+
+\newcommand\quaff{{\tt quaff}}
+\newcommand\opt[1]{{\tt -#1}}
+\newcommand\opttable[1]{\begin{tabular}[l]{ll} \hline {\em Option} & {\em Effect} \\ #1 \hline \end{tabular} \\}
+\newcommand\optdesc[2]{\hline \opt{#1} & \parbox{.8\linewidth}{#2} \\ }
+\newcommand\example[1]{\begin{center} \framebox[.95\linewidth][l]{\tt #1} \end{center}}
+\newcommand\longexample[1]{\begin{center} \framebox[.95\linewidth][l]{\parbox{.95\linewidth}{{\tt #1}}} \end{center}}
+
 \date{October 30, 2015}
 \author{Ian Holmes}
-\title{The Quaff Manual}
-
-\newcommand\opt[1]{{\tt -#1}}
+\title{The \quaff\ Manual}
 
 \begin{document}
 \maketitle
@@ -11,7 +20,7 @@
 
 \section{Introduction}
 
-Quaff is a pair HMM for aligning FASTQ reads to FASTA references,
+\quaff\ is a pair HMM-based tool for aligning FASTQ reads to FASTA references,
 with the following features:
 
 \begin{itemize}
@@ -35,30 +44,45 @@ with the following features:
 
 \end{itemize}
 
-The main usage modes of Quaff are:
+\newcommand\usagemodes{
+The main usage modes of \quaff\ are:
 \begin{description}
-\item[Alignment mode] --- aligning nanopore reads to a reference genome
-\item[Overlap mode] --- aligning nanopore reads to each other
-\item[Training mode] --- fitting Quaff's underlying model to data
+\item[Alignment mode] --- align nanopore reads to a reference genome
+\item[Overlap mode] --- align nanopore reads to each other
+\item[Training mode] --- fit \quaff's underlying model parameters to data
 \end{description}
+}
 
-Further information is available via the Quaff usage message
-(printed by ``{\tt quaff help}'').
+\usagemodes
+
+Further information is available via the \quaff\ usage message
+(which can be printed by ``{\tt quaff help}'').
 
 \section{Installation}
 
-To install Quaff, you will need:
+You should first download \quaff\ from \url{https://github.com/ihh/quaff}
+or clone the \quaff\ git repository
+
+\example{git clone https://github.com/ihh/quaff.git}
+
+Then unzip (if applicable) and {\tt cd} into the {\tt quaff} directory.
+
+To build \quaff\, you will need:
 \begin{itemize}
-\item clang C++11 compiler (or, optionally, gcc + Boost)
-\item libz (compression)
-\item libgsl (GNU Scientific Library)
-\item make
+\item EITHER of the following two compilers:
+  \begin{itemize}
+  \item The clang C++11 compiler (version clang-700 or later)
+  \item The gcc compiler (version 4.8.3 or later), PLUS the Boost C++ library (version 1.53.0 or later)
+    \end{itemize}
+\item libz (compression library), version 1.2.8 or later
+\item libgsl (GNU Scientific Library), version 0.14.0 or later
+\item GNU make
 \item perl (only to run the tests)
 \end{itemize}
 
 Type:
 \begin{itemize}
-\item ``{\tt make aws-dep}'' to use the {\tt yum} package manager to download dependencies
+\item ``{\tt make aws-dep}'' to use the {\tt yum} package manager to download dependencies (if {\tt yum} is installed on your system)
 \item ``{\tt make quaff}'' to build in {\tt bin/}
 \item ``{\tt make test}'' to run tests
 \item ``{\tt make install}'' to install in {\tt /usr/local/bin/}
@@ -81,25 +105,129 @@ An additional, and under-exploited, signal is available in the case of FASTQ dat
 
 Pair Hidden Markov models (HMMs), along with transducers (their input-conditioned relatives), are well-suited to the problem of aligning noisy, long reads. The emission and transition parameters of an HMM can be learned in an unsupervised way (i.e. without user-supplied training alignments), using the Baum-Welch algorithm, a version of the Expectation Maximization (EM) algorithm. The expected emission and transition counts computed by EM are themselves relevant to some statistics of interest (for example, sequence coverage, percentage identity, or indel frequencies). Furthermore, HMMs (and transducers) are easily extended. Incorporating adjunct data into the HMM emissions (such as quality scores) is straightforward; and transducer theory allows the systematic derivation of elaborated alignment tasks (e.g. finding the overlap of two reads, hypothesizing that they were both derived from a single unknown reference) without the need to re-parameterize the elaborated model.
 
-Quaff's underlying transducer incorporates the k-mer signal directly by allowing the substitution and gap probabilities at any given position to depend on the last k nucleotides of the read sequence. (It would be a better reflection of reality to allow the weights to depend on the last k nucleotides of the reference sequence; however, since the reference is not directly observed in many applications, such as read-to-read alignment, this would increase the computational expense of those applications.)
+\quaff's underlying transducer incorporates the k-mer signal directly by allowing the substitution and gap probabilities at any given position to depend on the last k nucleotides of the read sequence. (It would be a better reflection of reality to allow the weights to depend on the last k nucleotides of the reference sequence; however, since the reference is not directly observed in many applications, such as read-to-read alignment, this would increase the computational expense of those applications.)
 
 Quality scores are modeled using a negative binomial distribution with emission-dependent parameters. They are required for training, but are optional in alignment and overlap modes.
 
+
+\subsection{General options}
+
+General options that apply to all usage modes:
+
+\opttable{
+  \optdesc{params F}{Load parameters from file {\tt F}}
+  \optdesc{ref F}{Load reference sequences from file {\tt F}, which may be in FASTA, FASTQ, or zipped/gzipped versions of those formats. (Quality scores in FASTQ files will be ignored for reference sequences.) You can specify more than one reference sequence file.}
+  \optdesc{read F}{Load reads from file {\tt F}, which may be in FASTA, FASTQ, or zipped/gzipped versions of those formats. You can specify more than one reference sequence file.}
+  \optdesc{fwdstrand}{The default behavior is to consider each reference sequence twice: once as loaded, once reverse-complemented. This option turns off the reverse complement.}
+  \optdesc{global}{The default behavior is to do alignment that is global in the read, local in the reference sequence. This option makes it global in both.}
+  \optdesc{null F}{Load a null model from file F (default is to compute it automatically from the read sequences)}
+  \optdesc{savenull F}{After computing the null model, or loading it, save it to file F}
+}
+
+
+\subsection{Word-matching}
+
+To accelerate the dynamic programming (DP) algorithms, \quaff\ uses a strategy of pre-filtering by word-matching, as used by programs such as BLAST and DALIGNER from the Myersphere. Specifically, the DP is constrained to fixed-size diagonal bands around a small number of seed diagonals that contain more than a certain threshold of matching k-mers between the sequences being aligned. These thresholds can be specified directly by the user; alternatively, \quaff\ can be configured to select the largest threshold that will fit either within a user-specified memory limit, or within available system memory.
+
+\opttable{
+  \optdesc{kmatch k}{Specify length of k-mers for pre-filtering heuristic}
+  \optdesc{kmatchn N}{Specify threshold number of k-mers that must match on a given diagonal, before that diagonal is used to seed a band through the DP matrix}
+  \optdesc{kmatchband W}{Specify width of a band through the DP matrix}
+  \optdesc{kmatchmb M}{As an alternative to \opt{kmatchn}, set the threshold just high enough that the banded DP matrix fits within {\tt M} megabytes of memory}
+  \optdesc{kmatchmax}{As an alternative to \opt{kmatchmb}, set the threshold just high enough that the banded DP matrix fits within available memory, divided by the number of threads that \quaff\ is using}
+  \optdesc{kmatchoff}{Turn off the word-matching heuristic, do full DP. Typically this is very slow and should be avoided except perhaps for small test datasets}
+}
+
+\subsection{Logging}
+
+The default is silent operation.
+Use \opt{v} to turn on logging, \opt{vv} or \opt{v2} to make it a bit more verbose,
+and so on (\opt{vvv} is equivalent to \opt{v3}, \opt{vvvv} is equivalent to \opt{v4}, etc.)
+
 Any problems can often be diagnosed by turning up the logging to \opt{v5} or so.
 
+As a debugging feature,
+you can also turn on all logging within specific functions or source files
+with \opt{log FUNCTION\_NAME} or \opt{log SOURCE\_FILE\_NAME}, respectively.
 
-\subsection{General algorithmic principles applicable to all models}
+The log is printed on standard error.
+By default, log messages are colorized by log level, using ANSI terminal color codes.
+Piping through {\tt less -r} preserves these color codes (just using regular {\tt less} without options may fill your output with nonsense characters).
+Alternatively, they can be turned off using the \opt{nocolor} option.
 
-To accelerate the dynamic programming (DP) algorithms, Quaff uses a strategy of pre-filtering by word-matching, as used by BLAST and DALIGNER. Specifically, the DP is constrained to fixed-size diagonal bands around a small number of seed diagonals that contain more than a certain threshold of matching k-mers between the sequences being aligned. These thresholds can be specified directly by the user; alternatively, Quaff can be configured to select the largest threshold that will fit either within a user-specified memory limit, or within available system memory.
+
+\section{Usage modes}
+
+\usagemodes
+
+The algorithms used by alignment, overlap and training are (essentially) versions of Viterbi and Baum-Welch.
+It should be noted that the maximum-likelihood alignment, as returned by the Viterbi algorithm, is not necessarily the most accurate alignment obtainable with a given parameterization: the decision-theoretic ``optimal accuracy'' alignment is better. Nor indeed does the maximum-likelihood parameterization, as given by Baum-Welch, in general yield the most accurate Viterbi alignments of any parameterization. Nevertheless, Quaff implements Viterbi alignment (because it is around threefold faster than ``optimal accuracy'') and Baum-Welch training (because, to our knowledge, no unsupervised training algorithm yields more accurate parameterizations).
+
+\subsection{Alignment mode}
+
+\example{quaff align refs.fasta reads.fastq >align.stockholm}
+
+The alignment algorithm is Viterbi on a pair HMM.
+
+Alignment options:
+
+\opttable{
+  \optdesc{threshold}{Specifies the score threshold for printing an alignment. The default is zero, so only positive-scoring alignments will be printed (it is a log-odds score, so a positive score means the likelihood of an alignment is higher than the likelihood under the null model.)}
+  \optdesc{nothreshold}{Don't use any score threshold, just print all alignments (or best alignment for every read, depending on \opt{printall})}
+  \optdesc{printall}{Prints every reference-read alignment that is above the scoring threshold, as opposed to just printing the best reference alignment for each read (which is the default).}
+  \optdesc{noquals}{Ignore the quality scores when doing an alignment; treat them as missing data, just do a DNA-DNA alignment}
+  \optdesc{format F}{Specify the output format as {\tt F}, which should be one of {\tt fasta}, {\tt stockholm}, {\tt sam} or {\tt refseq}. The latter ({\tt refseq}) just prints the part of the reference sequence that matches the read.}
+}
+
+\subsection{Overlap mode}
+
+\example{quaff overlap reads.fastq}
+
+The read-overlap algorithm is a variant of Viterbi that probabilistically sums degenerate paths through gap states (so that biologically unmeaningful permutations of the gap order are marginalized). The underlying pair HMM is a minimal (3-state) approximation to a larger (27-state) pair HMM derived using phylocomposer, which implements algorithms for combining transducers (specifically, the 27-state machine arises from the intersection of two reference-to-read transducers, composed with a single-state generative HMM for the common underlying reference). The 3-state approximation trades meticulous accuracy for pragmatic run times.
+
+The same options apply as in Alignment mode.
+
+\subsection{Training mode}
+
+\example{quaff train refs.fasta reads.fastq >params.json}
+
+Training uses the Baum-Welch (EM) algorithm.
+Various options can be used to control the EM convergence, and other aspects of training:
+
+\opttable{
+  \optdesc{maxiter N}{Specify maximum number of iterations before EM will be stopped}
+  \optdesc{mininc F}{Specify the minimum {\em fractional} increase in the log-likelihood before EM is considered to have (approximately) converged, and is stopped}
+  \optdesc{maxreadmb N}{A crude way of down-sampling the training set by using only the first {\tt N} megabytes of the reads.}
+  \optdesc{force}{By default, reads that are more likely to have been generated by the null model (vs being derived from a reference sequence) are not used in training, because they are probably nonsense. This option forces them to be used anyway}
+}
+
+Other options control the model parameters and prior:
+
+\opttable{
+  \optdesc{saveparams F}{By default the trained parameters are printed to standard output. This option saves them to a file {\tt F} (and does so after each iteration of the EM algorithm, so you can get some idea of progress during long runs).}
+  \optdesc{savecounts F}{The E-step of the EM algorithm involves computing expected counts for each type of substitution and insertion-deletion event (corresponding to emission and transition events in the pair HMM). These counts may be of interest in themselves, and furthermore, they can be used as ``pseudocounts'' (i.e. the hyperparameters of a Dirichlet prior) to guide subsequent training runs. The \opt{savecounts} option saves these counts to a file {\tt F} for later usage or analysis.}
+  \optdesc{savecountswithprior F}{Like \opt{savecounts}, but adds in the Dirichlet prior pseudocounts before saving.}
+  \optdesc{prior F}{Loads Dirichlet pseudocounts from a prior file, which may have been created with \opt{savecounts}, \opt{savecountswithprior} or \opt{saveprior}.}
+  \optdesc{saveprior F}{Saves a copy of the Dirichlet pseudocounts to a file}
+}
+
+Yet more options control the structure of the underlying pair HMM itself:
+
+\opttable{
+  \optdesc{suborder K}{Make the substitution probability parameters depend on the previous {\tt K} read nucleotides}
+  \optdesc{gaporder K}{Make the indel probability parameters depend on the previous {\tt K} read nucleotides}
+  \optdesc{order K}{A shorthand for {\tt -suborder K -gaporder K}}
+  }
+
 
 \section{Parallel operation}
 
 
-For additional speed, Quaff offers several multiprocessor modes to parallelize computations on large read datasets:
+For additional speed, \quaff\ offers several multiprocessor modes to parallelize computations on large read datasets:
 \begin{enumerate}
 \item It can utilize multi-core architectures on a single machine by distributing DP jobs over a thread pool.
-\item It can launch server jobs on remote machines, effectively increasing the size of the thread pool by using an existing cluster. These server jobs are long-running, and are controlled by the master node over sockets. If the Amazon Web Services (AWS) command-line tools are installed (and the user has an AWS account), Quaff can instantiate a temporary cluster on the AWS Elastic Compute Cloud (EC2), download and build itself on the temporarily created EC2 instances, and use them as servers for the duration of the run (automatically terminating the instances after the run). In order to distribute data to server nodes, Quaff can either transfer files using the {\tt rsync} command, or can alternatively use `buckets' of the AWS Simple Storage Service (S3). None of these parallel functions require any queueing or other cluster management software, except {\tt ssh}, {\tt rsync} and (in the case of EC2/S3) the AWS command-line tools.
-\item If a job queueing system (such as Portable Batch System or Sun Grid Engine) is installed, together with NFS, then Quaff can use these to distribute the workload over a cluster.
+\item It can launch server jobs on remote machines, effectively increasing the size of the thread pool by using an existing cluster. These server jobs are long-running, and are controlled by the master node over sockets. If the Amazon Web Services (AWS) command-line tools are installed (and the user has an AWS account), \quaff\ can instantiate a temporary cluster on the AWS Elastic Compute Cloud (EC2), download and build itself on the temporarily created EC2 instances, and use them as servers for the duration of the run (automatically terminating the instances after the run). In order to distribute data to server nodes, \quaff\ can either transfer files using the {\tt rsync} command, or can alternatively use `buckets' of the AWS Simple Storage Service (S3). None of these parallel functions require any queueing or other cluster management software, except {\tt ssh}, {\tt rsync} and (in the case of EC2/S3) the AWS command-line tools.
+\item If a job queueing system (such as Portable Batch System or Sun Grid Engine) is installed, together with NFS, then \quaff\ can use these to distribute the workload over a cluster.
 \end{enumerate}
 
 Parallelization is via a thread pool, which can be extended over a cluster.
@@ -108,45 +236,162 @@ and (if NFS is unavailable) files may be synchronized using S3 or {\tt rsync}.
 Alternatively, jobs can be run using a queueing system (such as PBS or SGE),
 in which case NFS is required for both job synchronization and file sharing.
 
-By default, quaff assumes all data files are in the same place on the server.
+By default, \quaff\ assumes all data files are in the same place on the server.
 You can copy them across using \opt{rsync}, or \opt{s3bucket}, or other means (eg NFS).
 
 \subsection{Running in multiple threads}
 
+Use the \opt{threads N} option to run a thread pool of {\tt N} parallel compute threads,
+or \opt{maxthreads} to automatically detect the number of cores on the machine
+and use that many threads.
+{\bf WARNING:} do NOT do this unless you are in full control of the machine.
+For example, if you are running \quaff\ on a cluster, avoid this option unless you
+are sure that the cluster software is not already loading multi-core worker nodes
+with multiple jobs!
+
 \subsection{Running on a cluster}
 
-Since quaff opens one socket per remote thread (plus one ssh job per server),
-you may need to raise the system limits on the number of files/sockets per process
+If you have a cluster and a list of hostnames (or IP addresses),
+with {\tt ssh} access into each machine,
+you can have \quaff\ fire up a bunch of worker nodes,
+effectively extending the thread pool across the cluster.
+
+Typically you will need to do several things to make this work:
+\begin{itemize}
+  \item Tell \quaff\ where to find your {\tt ssh} private key
+  \item Tell \quaff\ the address of the machine you want to run a worker on,
+    the number of worker threads you want to run on that machine,
+    and the port range on which the worker threads should listen
+    (all three of these are specified with the \opt{remote} option)
+  \item Tell \quaff\ the location of the \quaff\ binary on the remote machine(s)
+  \item Ensure that data files are synchronized.
+    There are several ways of doing this: NFS, {\tt rsync}, or Amazon S3 buckets.
+    The first (NFS) should be seamless without \quaff; the latter two ({\tt rsync}/buckets)
+    require some complicity by \quaff\ to make them seamless.
+\end{itemize}
+
+The \opt{remote} option has various different forms:
+
+\opttable{
+  \optdesc{remote H}{Uses {\tt ssh} to launch a single-threaded \quaff\ worker on host {\tt H}, listening at the default port (8000)}
+  \optdesc{remote U@H}{Uses {\tt ssh} (with username {\tt U}) to launch a single-threaded \quaff\ worker on host {\tt H}, listening at the default port (8000)}
+  \optdesc{remote H:P}{Uses {\tt ssh} to launch a single-threaded \quaff\ worker on host {\tt H}, listening at port {\tt P}}
+  \optdesc{remote U@H:P}{Uses {\tt ssh} (with username {\tt U}) to launch a single-threaded \quaff\ worker on host {\tt H}, listening at port {\tt P}}
+  \optdesc{remote H:MIN-MAX}{Uses {\tt ssh} to launch a multi-threaded \quaff\ worker on {\tt H}, with one thread listening on each port in the range {\tt MIN} to {\tt MAX}}
+  \optdesc{remote U@H:MIN-MAX}{Uses {\tt ssh} (with username {\tt U}) to launch a multi-threaded \quaff\ worker on host {\tt H}, with one thread listening on each port in the range {\tt MIN} to {\tt MAX}}
+  }
+
+On the client, \quaff\ opens one socket per remote thread (plus one ssh job per server),
+so you may need to raise the system limits on the number of files/sockets per process
 (e.g. OSX 10.10 limits you to 128 sockets/process by default).
+
+Unless you explicitly specify the \opt{threads} option, running remote workers will turn off all local processing (i.e. implicitly setting \opt{threads 0}).
+
+Other options for using remote servers include
+
+\opttable{
+  \optdesc{sshkey FILE}{Specify location of {\tt ssh} private key file}
+  \optdesc{sshpath PATH}{Specify path to {\tt ssh} executable}
+  \optdesc{remotepath PATH}{Specify path to \quaff\ executable on remote machines (must be in the same place on all remote servers)}
+  }
 
 \subsection{Running on AWS Elastic Compute Cloud (EC2)}
 
+\quaff\ can launch a temporary Amazon cluster if you have the {\tt aws} command-line interface tools.
+Relevant options include:
 
-For AWS, ensure aws CLI tools are installed and credentials are set
-(i.e. {\tt AWS\_ACCESS\_KEY\_ID} \& {\tt AWS\_SECRET\_ACCESS\_KEY} environment variables).
+\opttable{
+  \optdesc{ec2instances N}{Launch {\tt N} temporary EC2 instances as servers, shutting them down after computation has finished. This is the main option you need to use EC2, but you will typically need a few others as well (see below; many of these options have sensible defaults, but \opt{ec2key} is essential, and \opt{ec2group} is advised).}
+  \optdesc{ec2ami AMI}{Specify the Amazon Machine Image to use. \quaff\ will download itself (and pre-reqs), and build/install itself, on this image, so a generic Amazon Linux image should suffice. However, the AMI you choose must be available in your EC2 region. If none is specified, \quaff\ will attempt to use a sensible default.}
+  \optdesc{ec2type TYPE}{Specify what EC2 instance type you want to use ({\tt m3.medium}, {\tt c3.large}, etc.). The default is {\tt m3.medium}.}
+  \optdesc{ec2cores N}{You must also specify the number of cores that your instance type has, so that \quaff\ knows how many worker threads to start on it. The default is 1.}
+  \optdesc{ec2user USER}{This is the user-name to log into the instance. Default is {\tt ec2-user}}
+  \optdesc{ec2key KEYPAIR}{Name of the key-pair you want to use to log in. This must match the {\tt ssh} key you specify with \opt{sshkey}}
+  \optdesc{ec2port MINPORT}{The port that the worker thread will listen on (or the first port in the range, if using a multithreaded server, i.e. if your \opt{ec2cores} specifies more than one core). This must be compatible with the security access rules implied by your \opt{ec2group}. Default is 8000}
+  \optdesc{ec2group GROUP}{Name of the security group you want AWS to use. This security group should allow incoming connections on port 22 ({\tt ssh}) and on the ports you want worker threads to listen on (i.e. the {\tt N} ports starting at {\tt MINPORT}, where {\tt N} and {\tt MINPORT} are specified by {\tt -ec2port MINPORT -ec2cores N})}
+  }
+
+AWS requires a few fiddly things to work correctly, and clusters can take a while to launch,
+making debugging tricky.
+A few things to check: ensure that your AWS credentials are set
+(i.e. {\tt AWS\_ACCESS\_KEY\_ID} \& {\tt AWS\_SECRET\_ACCESS\_KEY} environment variables)
+and that the shell you are using passes these variables to \quaff.
 You must use an AMI consistent with your {\tt AWS\_DEFAULT\_REGION}
 (the default AMI is a standard Amazon EC2 Linux for us-east-1).
-A standard AMI should be fine: quaff downloads prereqs and builds itself.
+A standard AMI should be fine: \quaff\ downloads prereqs and builds itself.
 
 Also ensure that the specified AWS security group allows incoming connections
 on ports 22 (ssh) and on ports $N \ldots N+C-1$ where $N$ was the lowest port
 specified on the command-line and $C$ is the number of core.
 
-Quaff makes every effort to clean up rogue EC2 instances, but please check!
+Finally, you will need to synchronize files. This is described in more detail in the sections below.
 
+An example of how to use EC2:
 
-\subsection{Running on PBS or Sun Grid Engine}
+\longexample{quaff train\\ genomes/bacteria/ecoli.fasta data/nanopore/reads.fastq.gz\\ -ec2instances 10 -ec2type c3.2xlarge -ec2cores 8\\ -ec2key MYKEY -sshkey MYKEY.pem\\ -s3bucket MYBUCKET\\ -v5 -kmatchmb 50\\ -savecounts nanopore-counts.json\\ -saveparams trained-params.json}
+
+If you can't get AWS to work, try turning on verbose logging (e.g. \opt{v5}).
+
+{\bf WARNING:} \quaff\ makes every effort to clean up rogue EC2 instances (e.g. catching aborts and interrupts), but please check!
+No liability will be accepted by the \quaff\ developers for running up large EC2 bills due to zombie instances!
+You're on your own, mate.
+
+\subsection{Synchronizing files via rsync}
+
+One way to keep files synchronized with remote servers is to use the \opt{rsync} option.
+This will use the {\tt rsync} utility (over {\tt ssh}) to copy the relevant data files into a staging directory on the server.
+(The staging directory is a temporary directory automatically created under the path {\tt /tmp/quaff}.)
+
+\quaff\ will automatically strip off the path information from the filenames that you give it
+and replace them with the path to the staging directory when passing filenames to the server,
+so you shouldn't need to worry about it getting confused in that way,
+although that does not rule out the possibility that it may get confused in other ways
+(e.g. if you have lots of different read files with the same filenames in different subdirectories).
+
+If {\tt rsync} is on a nonstandard place on your system then you can use \opt{rsyncpath} to tell \quaff\ where it is.
 
 \subsection{Synchronizing files via AWS Simple Storage Service (S3)}
 
+A potentially more efficient way to synchronize files, especially if you are running worker jobs on EC2
+(or running repeated \quaff\ jobs using the same data files),
+is to synchronize via an Amazon S3 bucket.
+Use \opt{s3bucket BUCKETNAME} to tell \quaff\ what bucket to use.
 
-\section{Usage modes}
+Note that you will also need to have the AWS CLI tools installed and your AWS credentials set via environment variables,
+as is the case when running jobs on EC2.
 
-\subsection{Alignment mode}
+\subsection{Running on a queueing system}
 
-\subsection{Training mode}
+Yet another way of parallelizing \quaff\ is to use a cluster management system
+such as Portable Batch System (PBS) or Sun Grid Engine (SGE).
 
-\subsection{Overlap mode}
+\quaff\ uses a minimal interface to systems like this, which should increase the chances
+that it will work seamlessly on a broad range of such systems (one can dream).
+The only requirements are:
+\begin{enumerate}
+\item The system should have a utility like {\tt qsub} (so-called on PBS and SGE)
+  for submitting a job to the queue.
+\item All nodes on the queue should be running NFS, and the user should have write-access
+  to an NFS directory (this is used for sharing data files between nodes, and also for synchronizing jobs
+  without relying on the queuing system's syntax for doing that, which can vary widely).
+  \end{enumerate}
 
+Relevant options:
+
+\opttable{
+  \optdesc{qsubjobs N}{Specify maximum number of jobs that will be simultaneously submitted
+    to the queue at any one time. This option MUST be nonzero to use the queueing system.
+    The reason \quaff\ does not just submit all jobs at once? Well, mostly because queueing uses
+    the same (fixed-size) thread pool mechanism as the other parallel options. However, this
+    also has side benefits, e.g. it avoids filling up the queue with thousands of jobs, or
+    filling up the NFS with thousands of temporary files.
+  }
+  \optdesc{qsub PATH}{Specify the path to the executable that is used to submit jobs (default is {\tt qsub}).
+    One way to test that queueing is set up correctly is to set this option to {\tt /bin/sh}, which will just execute the job synchronously.}
+  \optdesc{qsubopts OPTS}{Specify options to the {\tt qsub} program. This is typically where you would specify what queue you want to use.}
+  \optdesc{qsubheader FILE}{Specify a header file for the temporary shell script file that is created and passed to {\tt qsub}. By default the header is just the shebang line, {\tt \#!/bin/sh}. However, some queueing systems may require extra information here, e.g. environment variables, or (as with PBS) additional configuration directives that are specified as comments in the script file.}
+}
+
+Since the queueing code requires NFS to work, it cannot be used with {\tt rsync} or S3-based file synchronization.
 
 \end{document}

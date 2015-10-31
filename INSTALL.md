@@ -8,3 +8,6 @@ You will need:
 Type:
 - "make quaff" to build in bin/
 - "make install" to install in /usr/local/bin/
+
+
+A full manual can be found in doc/manual.pdf
