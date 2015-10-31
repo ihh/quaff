@@ -20,7 +20,8 @@ with the following features:
   or launch its own temporary Amazon EC2 cluster
 
 
-A full manual can be found in the repository at doc/manual.pdf
+A full manual can be found in the repository at
+[doc/manual.pdf](doc/manual.pdf)
 
 
 <pre><code>
