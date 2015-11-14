@@ -75,6 +75,9 @@ GENERAL
 General options (for all commands, except where indicated):
    -verbose, -vv, -vvv, -v4, -v5, etc.
                    Various levels of logging (-nocolor for monochrome)
+   -V, --version   Print GNU-style version info
+   -h, --help      Print help message
+
    -params &lt;file&gt;  Load model parameters from file
    -ref &lt;file&gt;     Load additional FASTA reference sequences
    -read &lt;file&gt;    Load additional FASTQ read sequences

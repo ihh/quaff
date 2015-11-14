@@ -6,6 +6,10 @@
 #include "../src/logger.h"
 #include "../src/defaultparams.h"
 
+// GNU --version
+#define QUAFF_PROGNAME "quaff"
+#define QUAFF_VERSION  "0.1"
+
 // allow a different kmer-matching threshold for refseq-read alignment
 #define DEFAULT_REFSEQ_KMER_THRESHOLD 20
 
@@ -320,6 +324,10 @@ int main (int argc, char** argv) {
       
     } else if (command == "help" || command == "-help" || command == "--help" || command == "-h") {
       cout << usage.text;
+      return EXIT_SUCCESS;
+    
+    } else if (command == "version" || command == "-version" || command == "--version" || command == "-V") {
+      cout << QUAFF_PROGNAME << ' ' << QUAFF_VERSION << endl;
       return EXIT_SUCCESS;
     
     } else {
@@ -646,10 +654,10 @@ void SeqList::loadSequences (const QuaffDPConfig& config) {
 
 QuaffUsage::QuaffUsage (deque<string>& argvec)
   : argvec(argvec),
-    prog(argvec[0]),
+    prog(QUAFF_PROGNAME),
     unlimitImplicitSwitches(false)
 {
-  argvec.pop_front();
+  argvec.pop_front();  // program path
   // leave "count" command undocumented... it's really for the paper
   //  briefText = "Usage: " + prog + " {help,train,count,align,overlap} [options]\n";
   briefText = "Usage: " + prog + " {help,train,align,overlap} [options]\n";
@@ -711,6 +719,9 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     // uncomment to document debug logging:
     //    + "   -log <function_name>\n"
     + "                   Various levels of logging (-nocolor for monochrome)\n"
+    + "   -V, --version   Print GNU-style version info\n"
+    + "   -h, --help      Print help message\n"
+    + "\n"
     + "   -params <file>  Load model parameters from file\n"
     + "   -ref <file>     Load additional FASTA reference sequences\n"
     + "   -read <file>    Load additional FASTQ read sequences\n"
