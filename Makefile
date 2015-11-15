@@ -36,8 +36,11 @@ LIBFLAGS = -lstdc++ -lz $(GSLLIBS) $(BOOSTLIBS)
 
 CPPFILES = $(wildcard src/*.cpp)
 
-# change this to g++ if using gcc
+# try clang++, fall back to g++
 CPP = clang++
+ifeq (, $(shell which $(CPP)))
+CPP := g++
+endif
 
 # pwd
 PWD = $(shell pwd)

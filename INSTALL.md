@@ -1,8 +1,11 @@
 You will need:
-- clang C++11 compiler (or, optionally, gcc + Boost)
-- libz (compression)
-- libgsl (GNU Scientific Library)
-- make
+- EITHER of the following compilers:
+ - clang C++11 compiler (version clang-700 or later)
+ - g++ (version 4.8.3 or later) + Boost
+- ALL of the following libraries:
+ - libz (compression)
+ - libgsl (GNU Scientific Library)
+- GNU make
 - perl (only to run the tests)
 
 Type:
