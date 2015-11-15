@@ -18,7 +18,7 @@ endif
 
 GSLLIBS = $(shell pkg-config --libs gsl)
 ifeq (, $(GSLLIBS))
-GSLLIBS = -L$(GSLPREFIX)/lib
+GSLLIBS = -L$(GSLPREFIX)/lib -lgsl -lgslcblas -lm
 endif
 
 # figure out whether to use Boost
@@ -35,8 +35,8 @@ endif
 BOOSTFLAGS =
 BOOSTLIBS =
 ifneq (,$(BOOSTPREFIX))
-BOOSTFLAGS := -DUSE_BOOST -I$(BOOSTPREFIX)/include -L$(BOOSTPREFIX)/lib
-BOOSTLIBS := -lboost_regex
+BOOSTFLAGS := -DUSE_BOOST -I$(BOOSTPREFIX)/include
+BOOSTLIBS := -L$(BOOSTPREFIX)/lib -lboost_regex
 endif
 
 # install dir
