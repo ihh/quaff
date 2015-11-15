@@ -2,21 +2,33 @@
 
 # try to figure out where GSL is
 # autoconf would be better but we just need a quick hack for now :)
-GSLPREFIX ?= /usr
+# Thanks to Torsten Seemann for gsl-config and pkg-config formulae
+GSLPREFIX = $(shell gsl-config --prefix)
 ifeq (,$(wildcard $(GSLPREFIX)/include/gsl/gsl_sf.h))
-GSLPREFIX := /usr/local
+GSLPREFIX = /usr
+ifeq (,$(wildcard $(GSLPREFIX)/include/gsl/gsl_sf.h))
+GSLPREFIX = /usr/local
+endif
 endif
 
-GSLFLAGS = -I$(GSLPREFIX)/include -L$(GSLPREFIX)/lib
-GSLLIBS = -lgsl -lgslcblas
+GSLFLAGS = $(shell pkg-config --cflags gsl)
+ifeq (, $(GSLFLAGS))
+GSLFLAGS = -I$(GSLPREFIX)/include
+endif
+
+GSLLIBS = $(shell pkg-config --libs gsl)
+ifeq (, $(GSLLIBS))
+GSLLIBS = -L$(GSLPREFIX)/lib
+endif
 
 # figure out whether to use Boost
 # Boost is optional -- it's only needed for regexes with gcc
+# NB pkg-config support for Boost is lacking; see https://svn.boost.org/trac/boost/ticket/1094
 BOOSTPREFIX = /usr
 ifeq (,$(wildcard $(BOOSTPREFIX)/include/boost/regex.h))
-BOOSTPREFIX := /usr/local
+BOOSTPREFIX = /usr/local
 ifeq (,$(wildcard $(BOOSTPREFIX)/include/boost/regex.h))
-BOOSTPREFIX :=
+BOOSTPREFIX =
 endif
 endif
 
@@ -28,7 +40,7 @@ BOOSTLIBS := -lboost_regex
 endif
 
 # install dir
-PREFIX ?= /usr/local
+PREFIX = /usr/local
 
 # other flags
 CPPFLAGS = -DUSE_VECTOR_GUARDS -std=c++11 -g $(GSLFLAGS) $(BOOSTFLAGS)
@@ -39,7 +51,7 @@ CPPFILES = $(wildcard src/*.cpp)
 # try clang++, fall back to g++
 CPP = clang++
 ifeq (, $(shell which $(CPP)))
-CPP := g++
+CPP = g++
 endif
 
 # pwd
