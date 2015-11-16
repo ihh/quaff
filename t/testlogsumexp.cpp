@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <string.h>
 #include "../src/logsumexp.h"
 
 using namespace std;
