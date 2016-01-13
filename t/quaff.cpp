@@ -315,18 +315,8 @@ int main (int argc, char** argv) {
 	return EXIT_FAILURE;
       }
       
-    } else if (command == "help" || command == "-help" || command == "--help" || command == "-h") {
-      cout << usage.text;
-      return EXIT_SUCCESS;
-    
-    } else if (command == "version" || command == "-version" || command == "--version" || command == "-V") {
-      cout << QUAFF_PROGNAME << ' ' << QUAFF_VERSION << endl;
-      return EXIT_SUCCESS;
-    
-    } else {
-      cerr << usage.briefText << "Unrecognized command: " << command << endl;
-      return EXIT_FAILURE;
-    }
+    } else
+      return usage.parseUnknownCommand (command, QUAFF_VERSION);
 
   } catch (...) {
     return EXIT_FAILURE;
