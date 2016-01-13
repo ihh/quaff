@@ -5,6 +5,7 @@
 #include "../src/qoverlap.h"
 #include "../src/logger.h"
 #include "../src/defaultparams.h"
+#include "../src/optparser.h"
 
 // GNU --version
 #define QUAFF_PROGNAME "quaff"
@@ -13,14 +14,8 @@
 // allow a different kmer-matching threshold for refseq-read alignment
 #define DEFAULT_REFSEQ_KMER_THRESHOLD 20
 
-struct QuaffUsage {
-  deque<string>& argvec;
-  string prog, briefText, text;
-  deque<string> implicitSwitches;
-  bool unlimitImplicitSwitches;
-  QuaffUsage (deque<string>& argvec);
-  string getCommand (const char* error = NULL);
-  bool parseUnknown();
+struct QuaffUsage : OptParser {
+  QuaffUsage (int argc, char** argv);
 };
 
 struct SeqList {
@@ -109,11 +104,9 @@ struct QuaffPriorIn : QuaffParamCounts {
 int main (int argc, char** argv) {
 
   try {
-    deque<string> argvec (argc);
-    for (int n = 0; n < argc; ++n)
-      argvec[n] = argv[n];
-  
-    QuaffUsage usage (argvec);
+    QuaffUsage usage (argc, argv);
+    deque<string>& argvec (usage.argvec);
+
     const string command = usage.getCommand();
 
     QuaffParamsIn params (argvec);
@@ -652,18 +645,10 @@ void SeqList::loadSequences (const QuaffDPConfig& config) {
   Require (seqs.size() > 0, "Please specify a valid %s file using %s", type.c_str(), tag.c_str());
 }
 
-QuaffUsage::QuaffUsage (deque<string>& argvec)
-  : argvec(argvec),
-    prog(QUAFF_PROGNAME),
-    unlimitImplicitSwitches(false)
+QuaffUsage::QuaffUsage (int argc, char** argv)
+  : OptParser (argc, argv, QUAFF_PROGNAME, "{help,train,align,overlap} [options]")
 {
-  argvec.pop_front();  // program path
-  // leave "count" command undocumented... it's really for the paper
-  //  briefText = "Usage: " + prog + " {help,train,count,align,overlap} [options]\n";
-  briefText = "Usage: " + prog + " {help,train,align,overlap} [options]\n";
-  
-  text = briefText
-    + "\n"
+  text = text
     + "Commands:\n"
     + "\n"
     + "TRAINING\n"
@@ -796,41 +781,4 @@ QuaffUsage::QuaffUsage (deque<string>& argvec)
     + "\n"
     + "To use queueing, specify a nonzero value for -qsubjobs.\n"
     + "\n";
-}
-
-string QuaffUsage::getCommand (const char* error) {
-  if (argvec.empty()) {
-    if (error)
-      cerr << error << endl;
-    else
-      cerr << briefText;
-    exit (EXIT_FAILURE);
-  }
-  const string command (argvec[0]);
-  argvec.pop_front();
-  return command;
-}
-
-bool QuaffUsage::parseUnknown() {
-  if (argvec.size()) {
-    string arg (argvec[0]);
-    if (arg == "-abort") {
-      // test stack trace
-      Abort ("abort triggered");
-
-    } else {
-      if (arg[0] == '-' || implicitSwitches.empty()) {
-	cerr << text << "Unknown option: " << arg << endl;
-	cerr << "Error parsing command-line options\n";
-	exit (EXIT_FAILURE);
-
-      } else {
-	argvec.push_front (implicitSwitches.front());
-	if (implicitSwitches.size() > 1 || !unlimitImplicitSwitches)
-	  implicitSwitches.pop_front();
-	return true;
-      }
-    }
-  }
-  return false;
 }
